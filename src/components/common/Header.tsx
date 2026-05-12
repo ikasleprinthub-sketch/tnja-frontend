@@ -6,7 +6,12 @@ import { useState, useEffect } from "react";
 import Button from "./Button";
 
 const Header = () => {
+  const [isMounted, setIsMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Close menu on scroll
   useEffect(() => {
@@ -19,6 +24,11 @@ const Header = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isMenuOpen]);
+
+  const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("userRole");
+  const userRole = isMounted ? localStorage.getItem("userRole") : null;
+  const userStatus = isMounted ? localStorage.getItem("userStatus") : null;
+
 
   const topNavLinks = [
     { name: "TESTIMONIAL", href: "#" },
@@ -34,7 +44,20 @@ const Header = () => {
 
   const mainNavLinks = [
     { name: "Home", href: "/" },
-    { name: "Members", href: "#", hasDropdown: true },
+    { 
+      name: "Members", 
+      href: "#", 
+      hasDropdown: true,
+      dropdownItems: [
+        { name: "EC Members", href: "/members/ec" },
+        { name: "GB Members", href: "/members/gb" },
+        { name: "District Committee", href: "/members/district" },
+        { name: "Clubs", href: "/members/clubs" },
+        { name: "Police Unit", href: "/members/police", isHighlighted: true, hasSubmenu: true },
+        { name: "Pet Unit", href: "/members/pet", hasSubmenu: true },
+        { name: "GB Members", href: "/members/gb" },
+      ]
+    },
     { name: "Committee", href: "#", hasDropdown: true },
     { name: "News & Events", href: "#", hasDropdown: true },
     { name: "Honours & Thanks", href: "#", hasDropdown: true },
@@ -72,9 +95,9 @@ const Header = () => {
       </div>
 
       {/* Main Header */}
-      <div className="relative w-full bg-white py-2 md:py-3 px-4 md:px-8 overflow-hidden border-b border-gray-100">
+      <div className="relative w-full bg-white py-2 md:py-3 px-4 md:px-8 border-b border-gray-100">
         {/* Background Grid Pattern */}
-        <div className="absolute inset-0 z-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: `linear-gradient(to right, #f26522 1px, transparent 1px), linear-gradient(to bottom, #f26522 1px, transparent 1px)`, backgroundSize: '80px 80px' }} />
+        <div className="absolute inset-0 z-0 opacity-[0.05] pointer-events-none overflow-hidden" style={{ backgroundImage: `linear-gradient(to right, #f26522 1px, transparent 1px), linear-gradient(to bottom, #f26522 1px, transparent 1px)`, backgroundSize: '80px 80px' }} />
 
         <div className="max-w-[1440px] mx-auto flex items-center relative z-10">
           {/* Logo */}
@@ -96,14 +119,62 @@ const Header = () => {
           {/* Desktop Navigation */}
           <nav className="hidden xl:flex flex-1 justify-center items-center gap-6 xl:gap-8">
             {mainNavLinks.map((link) => (
-              <div key={link.name} className="group relative flex items-center gap-1 cursor-pointer">
-                <Link href={link.href} className="text-[14px] font-bold text-gray-900 hover:text-[#f26522] transition-colors">
-                  {link.name}
-                </Link>
-                {link.hasDropdown && (
-                  <svg className="w-2.5 h-2.5 text-gray-500 group-hover:text-[#f26522] transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
-                  </svg>
+              <div key={link.name} className="group relative py-4 cursor-pointer">
+                <div className="flex items-center gap-1">
+                  <Link href={link.href} className="text-[14px] font-bold text-gray-900 group-hover:text-[#f26522] transition-colors">
+                    {link.name}
+                  </Link>
+                  {link.hasDropdown && (
+                    <svg className="w-2.5 h-2.5 text-gray-500 group-hover:text-[#f26522] transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  )}
+                </div>
+
+                {/* Dropdown Menu */}
+                {link.hasDropdown && link.dropdownItems && (
+                  <div className="absolute top-[calc(100%-10px)] left-1/2 -translate-x-1/2 pt-6 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                    {/* Triangle Pointer */}
+                    <div className="absolute top-[18px] left-1/2 -translate-x-1/2 w-4 h-4 bg-[#FFF9EA] rotate-45 border-t border-l border-orange-100/50 z-0"></div>
+                    
+                    <div className="relative bg-[#FFF9EA] min-w-[280px] rounded-[2.5rem] shadow-[0_20px_50px_rgba(43,19,0,0.15)] border border-orange-100/30 py-8 overflow-hidden z-10">
+                      {link.dropdownItems.map((item, idx) => (
+                        <Link 
+                          key={idx} 
+                          href={item.href}
+                          className={`flex items-center justify-between px-10 py-3.5 transition-all relative group/item ${
+                            item.isHighlighted 
+                              ? "bg-[#FF7400] text-white mx-6 rounded-xl my-1.5 shadow-lg shadow-[#FF7400]/30 hover:scale-[1.02] active:scale-[0.98]" 
+                              : "text-[#2B1300] hover:text-[#FF7400] font-bold hover:bg-orange-50/50"
+                          }`}
+                        >
+                          {/* Decorative quote icon for highlighted item */}
+                          {item.isHighlighted && (
+                            <div className="absolute top-1.5 left-2.5">
+                              <svg width="12" height="10" viewBox="0 0 10 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 0L3 3H5V8H0V3L1.5 0H4ZM9 0L8 3H10V8H5V3L6.5 0H9Z" fill="white" className="opacity-80"/>
+                              </svg>
+                            </div>
+                          )}
+                          
+                          <span className="text-[17px] tracking-tight">
+                            {item.name}
+                          </span>
+
+                          {(item.hasSubmenu || item.isHighlighted) && (
+                            <svg 
+                              className={`w-4 h-4 ${item.isHighlighted ? "text-[#2B1300]" : "text-[#2B1300] opacity-60 group-hover/item:opacity-100"} transition-transform group-hover/item:-rotate-90`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -112,12 +183,29 @@ const Header = () => {
           {/* Buttons & Hamburger */}
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0 ml-auto">
             <div className="hidden lg:flex items-center gap-3">
-              <Button href="/login" variant="outline">
-                Login / Sign In
-              </Button>
-              <Button href="/register" variant="primary">
-                Register Now
-              </Button>
+              {isLoggedIn ? (
+                <Button 
+                  href={
+                    userStatus === "REJECTED" 
+                      ? "/dashboard/resubmit" 
+                      : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
+                        ? "/dashboard/admin" 
+                        : "/dashboard/member"
+                  } 
+                  variant="primary"
+                >
+                  Go to Dashboard
+                </Button>
+              ) : (
+                <>
+                  <Button href="/login" variant="outline">
+                    Login / Sign In
+                  </Button>
+                  <Button href="/register" variant="primary">
+                    Register Now
+                  </Button>
+                </>
+              )}
             </div>
 
             {/* Hamburger Button */}

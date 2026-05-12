@@ -68,6 +68,7 @@ const PlayerRegistrationForm = () => {
 
   const [formData, setFormData] = useState<PlayerRegistrationData>({
     districtId: '',
+    talukId: '',
     taluk: '',
     pincode: '',
     fullName: '',
@@ -114,7 +115,7 @@ const PlayerRegistrationForm = () => {
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
-    setFormData(prev => ({ ...prev, districtId, taluk: '', pincode: '' }));
+    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '', pincode: '' }));
     setTaluks([]);
     
     if (districtId) {
@@ -130,18 +131,19 @@ const PlayerRegistrationForm = () => {
     }
   };
 
-  const handleTalukChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTalukChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const talukId = e.target.value;
     const selectedTaluk = taluks.find(t => t.id === talukId);
     
     if (selectedTaluk) {
       setFormData(prev => ({ 
         ...prev, 
+        talukId,
         taluk: selectedTaluk.name, 
         pincode: (selectedTaluk as any).pincode || '' 
       }));
     } else {
-      setFormData(prev => ({ ...prev, taluk: '', pincode: '' }));
+      setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '' }));
     }
   };
 
@@ -252,7 +254,7 @@ const PlayerRegistrationForm = () => {
                 name="talukId" 
                 required 
                 options={taluks.map(t => ({ label: t.name, value: t.id }))}
-                value={taluks.find(t => t.name === formData.taluk)?.id || ''}
+                value={formData.talukId}
                 onChange={handleTalukChange}
               />
               <InputField 

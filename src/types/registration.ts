@@ -1,5 +1,6 @@
 export interface PlayerRegistrationData {
   districtId: string;
+  talukId: string;
   taluk: string;
   pincode: string;
   fullName: string;
@@ -29,6 +30,7 @@ export interface PlayerRegistrationData {
 
 export interface ClubRegistrationData {
   districtId: string;
+  talukId: string;
   taluk: string;
   clubName: string;
   mobileNumber: string;
@@ -53,6 +55,7 @@ export interface ClubRegistrationData {
 
 export interface CoachRegistrationData {
   districtId: string;
+  talukId: string;
   taluk: string;
   pincode: string;
   fullName: string;
@@ -73,5 +76,29 @@ export interface CoachRegistrationData {
   contactPersonDept: string;
   addressDept: string;
   clubId?: string;
+  agreedToTerms: boolean;
+}
+
+export interface MemberRegistrationData {
+  districtId: string;
+  talukId: string;
+  taluk: string;
+  pincode: string;
+  fullName: string;
+  fatherName: string;
+  dob: string;
+  bloodGroup: string;
+  gender: string;
+  addressLine1: string;
+  addressLine2?: string;
+  addressPincode: string;
+  city: string;
+  mobileNumber: string;
+  alternateMobileNumber: string;
+  email: string;
+  aadhaarNumber: string;
+  profilePhoto?: string;
+  aadhaarFront?: string;
+  aadhaarBack?: string;
   agreedToTerms: boolean;
 }
