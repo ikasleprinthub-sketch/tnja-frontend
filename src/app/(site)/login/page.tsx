@@ -27,35 +27,35 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Logic based on credentials
-      const ident = formData.identifier.toLowerCase();
-      
-      if (ident && formData.password) {
-        // Mocking role-based redirection
-        if (ident.includes("admin")) {
-          // District Admin
-          localStorage.setItem("userRole", "DISTRICT_ADMIN");
-          localStorage.setItem("userName", "District President");
-          localStorage.setItem("userStatus", "APPROVED");
-          router.push("/dashboard/admin");
-        } else if (ident.includes("rejected")) {
-          // Rejected Member/Player
-          localStorage.setItem("userRole", "MEMBER");
-          localStorage.setItem("userName", "John Doe");
-          localStorage.setItem("userStatus", "REJECTED");
-          router.push("/dashboard/resubmit");
-        } else {
-          // Regular Approved Member
-          localStorage.setItem("userRole", "MEMBER");
-          localStorage.setItem("userName", "John Doe");
-          localStorage.setItem("userStatus", "APPROVED");
-          router.push("/dashboard/member");
-        }
-      } else {
-        setError("Please enter both email/ID and password");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
       }
-    } catch (err) {
-      setError("Login failed. Please check your credentials.");
+
+      // Store auth data
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userRole", data.role);
+      localStorage.setItem("userName", data.user.fullName);
+      localStorage.setItem("userStatus", data.user.status || "APPROVED");
+      localStorage.setItem("userEmail", data.user.email);
+
+      // Redirect based on role/status
+      if (data.user.status === "REJECTED") {
+        router.push("/dashboard/resubmit");
+      } else if (data.role === "SUPER_ADMIN" || data.role === "DISTRICT_ADMIN") {
+        router.push("/dashboard/admin");
+      } else {
+        router.push("/dashboard/member");
+      }
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }

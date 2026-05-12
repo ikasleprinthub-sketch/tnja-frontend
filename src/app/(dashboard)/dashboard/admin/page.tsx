@@ -26,7 +26,12 @@ export default function AdminDashboard() {
     const fetchStats = async () => {
       try {
         setError(null);
-        const res = await fetch(`${API_BASE}/admin/stats`);
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE}/admin/stats`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
         if (!res.ok) {
           throw new Error(`Server returned ${res.status}: ${res.statusText}`);
         }

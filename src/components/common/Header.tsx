@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Button from "./Button";
 
 const Header = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setIsMounted(true);
@@ -25,9 +27,14 @@ const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isMenuOpen]);
 
+  const isDashboard = pathname?.startsWith("/dashboard");
+  const isAuthPage = pathname === "/login" || pathname === "/register";
+
   const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("userRole");
   const userRole = isMounted ? localStorage.getItem("userRole") : null;
   const userStatus = isMounted ? localStorage.getItem("userStatus") : null;
+
+  if (isDashboard) return null;
 
 
   const topNavLinks = [
@@ -265,22 +272,41 @@ const Header = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 mt-2">
-              <Button 
-                href="/login" 
-                variant="outline"
-                className="w-full h-[48px] rounded-xl text-base"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Login / Sign In
-              </Button>
-              <Button 
-                href="/register" 
-                variant="primary"
-                className="w-full h-[48px] rounded-xl text-base"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Register Now
-              </Button>
+              {isLoggedIn ? (
+                <Button 
+                  href={
+                    userStatus === "REJECTED" 
+                      ? "/dashboard/resubmit" 
+                      : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
+                        ? "/dashboard/admin" 
+                        : "/dashboard/member"
+                  } 
+                  variant="primary"
+                  className="w-full h-[48px] rounded-xl text-base"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Go to Dashboard
+                </Button>
+              ) : (
+                <>
+                  <Button 
+                    href="/login" 
+                    variant="outline"
+                    className="w-full h-[48px] rounded-xl text-base"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Login / Sign In
+                  </Button>
+                  <Button 
+                    href="/register" 
+                    variant="primary"
+                    className="w-full h-[48px] rounded-xl text-base"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Register Now
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -104,7 +104,12 @@ export default function ApprovalsPage() {
   const fetchApplications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/applications/pending?type=${activeTab}`);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/applications/pending?type=${activeTab}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       const json = await res.json();
       const raw: any[] = json.data || [];
       setApplications(raw.map((r) => resolveApplication(r, activeTab)));
@@ -128,9 +133,13 @@ export default function ApprovalsPage() {
   const handleApprove = async (item: Application) => {
     setActionLoading(item.id);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/application/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ id: item.id, type: TYPE_MAP[activeTab], status: "APPROVED" }),
       });
       const json = await res.json();
@@ -160,9 +169,13 @@ export default function ApprovalsPage() {
     if (!selectedItem) return;
     setActionLoading(selectedItem.id);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/application/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           id: selectedItem.id,
           type: TYPE_MAP[activeTab],

@@ -55,7 +55,12 @@ export default function UserManagementPage() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users/all`);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/users/all`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to fetch users");
       setUsers(data);
@@ -86,9 +91,13 @@ export default function UserManagementPage() {
     if (!selectedUser) return;
     setActionLoading(true);
     try {
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/users/credentials`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId: selectedUser.id,
           role: selectedUser.role,
