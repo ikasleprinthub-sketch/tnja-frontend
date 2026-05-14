@@ -206,10 +206,30 @@ const MemberRegistrationForm = () => {
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <Check className="text-green-600" size={40} />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
-        <p className="text-gray-600 mb-8">Your application has been submitted and is waiting for approval.</p>
+        <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Submitted!</h2>
+        <p className="text-gray-600 mb-8">Your member application has been submitted and is currently <strong>awaiting admin approval</strong>.</p>
+        
+        <div className="bg-[#F8F9FA] p-6 rounded-lg mb-8 border border-[#E9ECEF]">
+          <p className="text-sm text-gray-500 uppercase font-bold tracking-wider mb-2">Your Temporary ID</p>
+          <p className="text-4xl font-mono font-bold text-[#FF7400]">{success.tempId || 'PENDING'}</p>
+        </div>
+
+        <div className="text-left space-y-4 bg-orange-50/50 p-6 rounded-lg border border-orange-100 mb-8">
+          <h4 className="font-bold text-[#FF7400]">Next Steps:</h4>
+          <ul className="text-sm text-gray-700 space-y-2 list-disc pl-5">
+            <li><strong>Admin Review:</strong> Our team will review your member registration details.</li>
+            <li><strong>Payment Email:</strong> Once approved, a **payment link/method** will be sent to your registered email address.</li>
+            <li><strong>Permanent ID Email:</strong> After your payment is verified, your **Permanent ID** will be generated and sent to you via email to activate your account.</li>
+          </ul>
+        </div>
+
+        <p className="text-sm text-gray-600">
+          A confirmation email has been sent to <strong>{formData.email}</strong>. Use your Temporary ID to track your application status.
+        </p>
+
         <Button 
           variant="primary" 
+          className="mt-10"
           onClick={() => window.location.href = '/'}
         >
           Back to Home

@@ -59,6 +59,7 @@ export interface CoachRegistrationData {
   taluk: string;
   pincode: string;
   fullName: string;
+  fatherName: string;
   gender: string;
   dob: string;
   age: number;

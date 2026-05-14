@@ -5,11 +5,17 @@
   --foreground: #171717;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Brand Colors */
+  --color-brand-orange: #FF7400;
+  --color-brand-orange-light: #FF9100;
+  --color-brand-orange-dark: #E56900;
+  --color-brand-blue: #00a3ff;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -13,7 +13,9 @@ import {
   LogOut, 
   Menu, 
   X,
-  Bell
+  Bell,
+  Settings,
+  MessageSquare
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -27,29 +29,52 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
 
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true);
+    const token = localStorage.getItem("token");
     const role = localStorage.getItem("userRole");
     const name = localStorage.getItem("userName");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
     if (role) setUserRole(role);
     if (name) setUserName(name);
-  }, []);
+  }, [router]);
+
+  if (!isMounted) return null;
 
   const handleLogout = () => {
     localStorage.clear();
     router.push("/login");
   };
 
-  const navItems = (userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN") ? [
+  const adminNavItems = [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ShieldCheck },
-    { name: "User Management", href: "/dashboard/admin/users", icon: Users },
     { name: "Locations", href: "/dashboard/admin/locations", icon: MapPin },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
-  ] : [
-    { name: "My Profile", href: "/dashboard/member", icon: User },
-    { name: "Events", href: "/dashboard/member/events", icon: Calendar },
+    { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
+
+  // Add Super Admin only links
+  if (userRole === "SUPER_ADMIN") {
+    adminNavItems.push({ name: "User Management", href: "/dashboard/admin/users", icon: Users });
+    adminNavItems.push({ name: "Settings", href: "/dashboard/admin/settings", icon: Settings });
+  }
+
+  const navItems = (userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN") 
+    ? adminNavItems 
+    : [
+        { name: "My Profile", href: "/dashboard/member", icon: User },
+        { name: "Events", href: "/dashboard/member/events", icon: Calendar },
+        { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
+      ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
@@ -60,7 +85,7 @@ export default function DashboardLayout({
         } transition-all duration-300 bg-slate-900 text-white flex flex-col z-50`}
       >
         <div className="p-6 flex items-center justify-between">
-          {isSidebarOpen && <h1 className="text-2xl font-bold text-blue-400">TNJA</h1>}
+          {isSidebarOpen && <h1 className="text-2xl font-bold text-brand-orange">TNJA</h1>}
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-1 hover:bg-slate-800 rounded"
@@ -78,7 +103,7 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`flex items-center p-3 rounded-xl transition-all ${
                   isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" 
+                    ? "bg-[#FF7400] text-white shadow-lg shadow-orange-500/20" 
                     : "text-slate-400 hover:bg-slate-800 hover:text-white"
                 }`}
               >
@@ -109,7 +134,7 @@ export default function DashboardLayout({
           </h2>
           
           <div className="flex items-center space-x-6">
-            <button className="p-2 text-slate-400 hover:text-blue-600 relative">
+            <button className="p-2 text-slate-400 hover:text-brand-orange relative">
               <Bell size={20} />
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
@@ -118,7 +143,7 @@ export default function DashboardLayout({
                 <p className="text-sm font-bold text-slate-800">{userName}</p>
                 <p className="text-xs text-slate-400 capitalize">{userRole?.replace("_", " ")}</p>
               </div>
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold border-2 border-white shadow-sm">
+              <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center text-[#FF7400] font-bold border-2 border-white shadow-sm">
                 {userName.charAt(0)}
               </div>
             </div>

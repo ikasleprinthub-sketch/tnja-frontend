@@ -50,7 +50,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400">
-        <Loader2 size={40} className="animate-spin text-blue-500" />
+        <Loader2 size={40} className="animate-spin text-[#FF7400]" />
         <p className="font-medium">Fetching statistics...</p>
       </div>
     );
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
         </div>
         <button 
           onClick={() => window.location.reload()}
-          className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:scale-105 transition-all"
+          className="px-6 py-3 bg-[#FF7400] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 transition-all"
         >
           Retry Connection
         </button>
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   }
 
   const stats = [
-    { label: "Total Members", value: statsData?.counts?.MEMBER || 0, icon: Users, color: "bg-blue-500", trend: "Active" },
+    { label: "Total Members", value: statsData?.counts?.MEMBER || 0, icon: Users, color: "bg-[#FF7400]", trend: "Active" },
     { label: "Organizations", value: statsData?.counts?.CLUB || 0, icon: Building2, color: "bg-purple-500", trend: "Verified" },
     { label: "Active Players", value: statsData?.counts?.STUDENT || 0, icon: GraduationCap, color: "bg-emerald-500", trend: "Students" },
     { label: "Coaches", value: statsData?.counts?.COACH || 0, icon: ShieldCheck, color: "bg-amber-500", trend: "Verified" },
@@ -96,7 +96,7 @@ export default function AdminDashboard() {
           <p className="text-slate-500">Overview for Chennai District</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="p-2 bg-orange-50 text-[#FF7400] rounded-xl">
             <MapPin size={20} />
           </div>
           <span className="pr-4 font-semibold text-slate-700">Chennai District</span>
@@ -111,7 +111,7 @@ export default function AdminDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-xl hover:shadow-blue-500/5 transition-all"
+            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-xl hover:shadow-orange-500/5 transition-all"
           >
             <div className={`w-12 h-12 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
               <stat.icon size={24} />
@@ -140,7 +140,7 @@ export default function AdminDashboard() {
         >
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-xl font-bold text-slate-800">Pending Approvals</h2>
-            <Link href="/dashboard/admin/approvals" className="text-blue-600 font-semibold text-sm hover:underline flex items-center gap-1">
+            <Link href="/dashboard/admin/approvals" className="text-[#FF7400] font-semibold text-sm hover:underline flex items-center gap-1">
               View All <ArrowUpRight size={16} />
             </Link>
           </div>
@@ -154,7 +154,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${
                     item.type === "Club" ? "bg-purple-100 text-purple-600" : 
-                    item.type === "Player" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
+                    item.type === "Player" ? "bg-orange-100 text-[#FF7400]" : "bg-amber-100 text-amber-600"
                   }`}>
                     {item.name.charAt(0)}
                   </div>
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-2">
                   <Link 
                     href="/dashboard/admin/approvals"
-                    className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all"
+                    className="px-4 py-2 bg-[#FF7400] text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
                   >
                     Review
                   </Link>
@@ -193,8 +193,8 @@ export default function AdminDashboard() {
           <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
           <div className="space-y-6">
             {[
-              { name: "Kodambakkam", count: 420, color: "bg-blue-500" },
-              { name: "Teynampet", count: 310, color: "bg-indigo-500" },
+              { name: "Kodambakkam", count: 420, color: "bg-[#FF7400]" },
+              { name: "Teynampet", count: 310, color: "bg-orange-400" },
               { name: "Adyar", count: 280, color: "bg-purple-500" },
               { name: "Anna Nagar", count: 274, color: "bg-emerald-500" },
             ].map((taluk) => (
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
           <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
             <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
             <p className="text-xs text-slate-400 mb-4">Total registrations this month are up by 24% across all taluks.</p>
-            <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-blue-400 transition-colors">
+            <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
               Download Report
             </button>
           </div>

@@ -72,6 +72,7 @@ const CoachRegistrationForm = () => {
     taluk: '',
     pincode: '',
     fullName: '',
+    fatherName: '',
     gender: '',
     dob: '',
     age: 0,
@@ -198,17 +199,25 @@ const CoachRegistrationForm = () => {
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <Check className="text-green-600" size={40} />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
-        <p className="text-gray-600 mb-8">Your application has been submitted and is waiting for approval.</p>
+        <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Submitted!</h2>
+        <p className="text-gray-600 mb-8">Your coach application has been submitted and is currently <strong>awaiting admin approval</strong>.</p>
         
         <div className="bg-[#F8F9FA] p-6 rounded-lg mb-8 border border-[#E9ECEF]">
           <p className="text-sm text-gray-500 uppercase font-bold tracking-wider mb-2">Your Temporary ID</p>
-          <p className="text-4xl font-mono font-bold text-[#FF7400]">{success.tempId}</p>
+          <p className="text-4xl font-mono font-bold text-[#FF7400]">{success.tempId || 'PENDING'}</p>
+        </div>
+
+        <div className="text-left space-y-4 bg-orange-50/50 p-6 rounded-lg border border-orange-100 mb-8">
+          <h4 className="font-bold text-[#FF7400]">Next Steps:</h4>
+          <ul className="text-sm text-gray-700 space-y-2 list-disc pl-5">
+            <li><strong>Admin Review:</strong> Our team will review your coach registration details.</li>
+            <li><strong>Payment Email:</strong> Once approved, a **payment link/method** will be sent to your registered email address.</li>
+            <li><strong>Permanent ID Email:</strong> After your payment is verified, your **Permanent ID** will be generated and sent to you via email to activate your account.</li>
+          </ul>
         </div>
 
         <p className="text-sm text-gray-600">
-          Your credentials and Temporary ID have been sent to <strong>{formData.email}</strong>. 
-          Use the Temporary ID to log in and track your status.
+          A confirmation email has been sent to <strong>{formData.email}</strong>. Use your Temporary ID to track your application status.
         </p>
         
         <Button 
@@ -274,6 +283,15 @@ const CoachRegistrationForm = () => {
                 required 
                 icon={User}
                 value={formData.fullName}
+                onChange={handleInputChange}
+              />
+              <InputField 
+                label="Father's Name" 
+                name="fatherName" 
+                placeholder="Enter Father's Name" 
+                required 
+                icon={User}
+                value={formData.fatherName}
                 onChange={handleInputChange}
               />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

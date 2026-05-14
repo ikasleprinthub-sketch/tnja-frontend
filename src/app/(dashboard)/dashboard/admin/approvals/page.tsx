@@ -245,8 +245,8 @@ export default function ApprovalsPage() {
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === tab.id
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                ? "bg-[#FF7400] text-white shadow-lg shadow-orange-500/20"
+                : "text-slate-500 hover:text-[#FF7400] hover:bg-orange-50"
             }`}
           >
             <tab.icon size={18} />
@@ -264,7 +264,7 @@ export default function ApprovalsPage() {
             placeholder={`Search ${activeTab.toLowerCase()}s by name or email...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
           />
         </div>
         <button className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all">
@@ -277,7 +277,7 @@ export default function ApprovalsPage() {
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-20 text-center flex flex-col items-center gap-4">
-            <Loader2 size={40} className="animate-spin text-blue-500" />
+            <Loader2 size={40} className="animate-spin text-[#FF7400]" />
             <p className="text-slate-400 font-medium">Loading applications…</p>
           </div>
         ) : (
@@ -304,7 +304,7 @@ export default function ApprovalsPage() {
                     >
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-md">
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF7400] to-[#E56900] text-white flex items-center justify-center font-bold text-xl shadow-md">
                             {item.name.charAt(0)}
                           </div>
                           <div>
@@ -332,7 +332,7 @@ export default function ApprovalsPage() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openDetailModal(item)}
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            className="p-2 text-slate-400 hover:text-[#FF7400] hover:bg-orange-50 rounded-lg transition-all"
                             title="View Full Application"
                           >
                             <Eye size={20} />

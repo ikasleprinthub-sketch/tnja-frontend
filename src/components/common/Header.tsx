@@ -28,13 +28,13 @@ const Header = () => {
   }, [isMenuOpen]);
 
   const isDashboard = pathname?.startsWith("/dashboard");
-  const isAuthPage = pathname === "/login" || pathname === "/register";
-
-  const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("userRole");
+  const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("token");
   const userRole = isMounted ? localStorage.getItem("userRole") : null;
   const userStatus = isMounted ? localStorage.getItem("userStatus") : null;
+  const userName = isMounted ? localStorage.getItem("userName") : null;
+  const isAuthPage = pathname === "/login";
 
-  if (isDashboard) return null;
+  if (isDashboard || isLoggedIn || isAuthPage) return null;
 
 
   const topNavLinks = [
@@ -191,18 +191,21 @@ const Header = () => {
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0 ml-auto">
             <div className="hidden lg:flex items-center gap-3">
               {isLoggedIn ? (
-                <Button 
+                <Link 
                   href={
                     userStatus === "REJECTED" 
                       ? "/dashboard/resubmit" 
                       : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
                         ? "/dashboard/admin" 
                         : "/dashboard/member"
-                  } 
-                  variant="primary"
+                  }
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-[#FF7400] rounded-full border border-orange-100 hover:bg-orange-100 transition-all font-bold text-sm shadow-sm"
                 >
-                  Go to Dashboard
-                </Button>
+                  <div className="w-8 h-8 bg-[#FF7400] rounded-full flex items-center justify-center text-white text-xs">
+                    {userName?.charAt(0) || 'U'}
+                  </div>
+                  <span className="max-w-[150px] truncate">{userName || "Profile"}</span>
+                </Link>
               ) : (
                 <>
                   <Button href="/login" variant="outline">
@@ -273,20 +276,25 @@ const Header = () => {
             {/* Action Buttons */}
             <div className="flex flex-col gap-3 mt-2">
               {isLoggedIn ? (
-                <Button 
+                <Link 
                   href={
                     userStatus === "REJECTED" 
                       ? "/dashboard/resubmit" 
                       : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
                         ? "/dashboard/admin" 
                         : "/dashboard/member"
-                  } 
-                  variant="primary"
-                  className="w-full h-[48px] rounded-xl text-base"
+                  }
+                  className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-100"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Go to Dashboard
-                </Button>
+                  <div className="w-12 h-12 bg-[#FF7400] rounded-xl flex items-center justify-center text-white text-xl font-bold">
+                    {userName?.charAt(0) || 'U'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-[#2B1300]">{userName || "My Profile"}</span>
+                    <span className="text-[10px] text-[#FF7400] font-black uppercase tracking-widest">View Dashboard</span>
+                  </div>
+                </Link>
               ) : (
                 <>
                   <Button 

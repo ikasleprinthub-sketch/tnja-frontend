@@ -4,7 +4,22 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaTwitter, FaInstagram, FaFacebook, FaLinkedin } from "react-icons/fa";
+import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 const Footer = () => {
+  const pathname = usePathname();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const isDashboard = pathname?.startsWith("/dashboard");
+  const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("token");
+
+  if (isDashboard || isLoggedIn) return null;
+
   return (
     <footer className="w-full bg-white pt-16 pb-8 px-4 md:px-12 lg:px-24">
       {/* Top Border Line */}

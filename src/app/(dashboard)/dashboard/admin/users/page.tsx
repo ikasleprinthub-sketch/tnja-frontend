@@ -21,6 +21,8 @@ import {
   Mail,
   Calendar,
   MapPin,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB";
@@ -47,6 +49,7 @@ export default function UserManagementPage() {
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [newPermanentId, setNewPermanentId] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -184,7 +187,7 @@ export default function UserManagementPage() {
             placeholder="Search by name, email, or IDs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
           />
         </div>
         <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
@@ -193,7 +196,7 @@ export default function UserManagementPage() {
               key={r}
               onClick={() => setRoleFilter(r as any)}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                roleFilter === r ? "bg-blue-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
+                roleFilter === r ? "bg-[#FF7400] text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
               }`}
             >
               {r}
@@ -205,7 +208,7 @@ export default function UserManagementPage() {
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-20 text-center flex flex-col items-center gap-4">
-            <Loader2 size={40} className="animate-spin text-blue-500" />
+            <Loader2 size={40} className="animate-spin text-[#FF7400]" />
             <p className="text-slate-400">Fetching users...</p>
           </div>
         ) : (
@@ -226,7 +229,7 @@ export default function UserManagementPage() {
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm bg-gradient-to-br ${
                           u.role === "CLUB" ? "from-purple-500 to-indigo-600" :
-                          u.role === "STUDENT" ? "from-blue-500 to-cyan-600" :
+                          u.role === "STUDENT" ? "from-[#FF7400] to-orange-600" :
                           u.role === "COACH" ? "from-emerald-500 to-teal-600" :
                           "from-amber-500 to-orange-600"
                         }`}>
@@ -263,7 +266,7 @@ export default function UserManagementPage() {
                         </div>
                         <div className="flex flex-col gap-1">
                           {u.districtName && (
-                            <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600">
+                            <div className="flex items-center gap-1 text-[10px] font-bold text-[#FF7400]">
                               <MapPin size={10} /> {u.districtName}
                             </div>
                           )}
@@ -277,7 +280,7 @@ export default function UserManagementPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-slate-400 font-medium w-12 text-[10px] uppercase">Temp</span>
-                          <code className="bg-slate-100 px-2 py-0.5 rounded text-blue-600 font-mono">{u.tempId}</code>
+                          <code className="bg-slate-100 px-2 py-0.5 rounded text-[#FF7400] font-mono">{u.tempId}</code>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-slate-400 font-medium w-12 text-[10px] uppercase">Perm</span>
@@ -288,7 +291,7 @@ export default function UserManagementPage() {
                     <td className="px-8 py-6 text-right">
                       <button
                         onClick={() => handleEdit(u)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                        className="p-2 text-[#FF7400] hover:bg-orange-50 rounded-xl transition-all"
                         title="Manage Credentials"
                       >
                         <Edit size={20} />
@@ -314,7 +317,7 @@ export default function UserManagementPage() {
             >
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
+                  <div className="p-3 bg-orange-100 text-[#FF7400] rounded-2xl">
                     <Key size={24} />
                   </div>
                   <div>
@@ -339,7 +342,7 @@ export default function UserManagementPage() {
                       value={newPermanentId}
                       onChange={(e) => setNewPermanentId(e.target.value)}
                       placeholder="Enter Permanent ID"
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-mono"
                     />
                   </div>
                 </div>
@@ -351,12 +354,19 @@ export default function UserManagementPage() {
                   <div className="relative">
                     <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Enter new password (leave blank to keep current)"
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2 ml-1">
                     Warning: Changing password will lock the user out until they use the new one.
@@ -374,7 +384,7 @@ export default function UserManagementPage() {
                 <button
                   onClick={handleUpdate}
                   disabled={actionLoading}
-                  className="flex-grow py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-grow py-4 bg-[#FF7400] text-white font-bold rounded-2xl shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                   Save Changes
