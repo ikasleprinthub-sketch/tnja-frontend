@@ -19,32 +19,41 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 export default function AdminDashboard() {
   const [statsData, setStatsData] = useState<any>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
         setError(null);
         const token = localStorage.getItem("token");
-        const res = await fetch(`${API_BASE}/admin/stats`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        if (!res.ok) {
-          throw new Error(`Server returned ${res.status}: ${res.statusText}`);
-        }
-        const data = await res.json();
-        setStatsData(data);
+        
+        const [statsRes, profileRes] = await Promise.all([
+          fetch(`${API_BASE}/admin/stats`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          }),
+          fetch(`${API_BASE}/auth/profile`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          })
+        ]);
+
+        if (!statsRes.ok) throw new Error(`Stats Server error: ${statsRes.status}`);
+        if (!profileRes.ok) throw new Error(`Profile Server error: ${profileRes.status}`);
+
+        const stats = await statsRes.json();
+        const profile = await profileRes.json();
+        
+        setStatsData(stats);
+        setUserData(profile.user);
       } catch (err: any) {
-        console.error("Failed to fetch stats", err);
+        console.error("Failed to fetch dashboard data", err);
         setError(err.message || "Failed to connect to the backend server.");
       } finally {
         setLoading(false);
       }
     };
-    fetchStats();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -86,20 +95,21 @@ export default function AdminDashboard() {
   ];
 
   const recentApprovals = statsData?.recentApprovals || [];
+  const districtName = userData?.district?.name || "State Board";
 
   return (
     <div className="space-y-8">
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">District Dashboard</h1>
-          <p className="text-slate-500">Overview for Chennai District</p>
+          <h1 className="text-3xl font-bold text-slate-800">{userData?.role === 'SUPER_ADMIN' ? 'State' : 'District'} Dashboard</h1>
+          <p className="text-slate-500">Overview for {districtName}</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
           <div className="p-2 bg-orange-50 text-[#FF7400] rounded-xl">
             <MapPin size={20} />
           </div>
-          <span className="pr-4 font-semibold text-slate-700">Chennai District</span>
+          <span className="pr-4 font-semibold text-slate-700">{districtName}</span>
         </div>
       </div>
 
@@ -183,46 +193,50 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
 
-        {/* Location Based Stats */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl"
-        >
-          <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
-          <div className="space-y-6">
-            {[
-              { name: "Kodambakkam", count: 420, color: "bg-[#FF7400]" },
-              { name: "Teynampet", count: 310, color: "bg-orange-400" },
-              { name: "Adyar", count: 280, color: "bg-purple-500" },
-              { name: "Anna Nagar", count: 274, color: "bg-emerald-500" },
-            ].map((taluk) => (
-              <div key={taluk.name} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">{taluk.name}</span>
-                  <span className="font-bold">{taluk.count}</span>
+        {/* Location Based Stats - Super Admin Only */}
+        {userData?.role === 'SUPER_ADMIN' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl"
+          >
+            <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
+            <div className="space-y-6">
+              {(statsData?.talukBreakdown || []).map((taluk: any, idx: number) => (
+                <div key={taluk.name} className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">{taluk.name}</span>
+                    <span className="font-bold">{taluk.count}</span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(taluk.count / Math.max(...(statsData?.talukBreakdown?.map((t: any) => t.count) || [1]))) * 100}%` }}
+                      transition={{ duration: 1, delay: 0.5 }}
+                      className={`h-full ${
+                        idx === 0 ? "bg-[#FF7400]" : 
+                        idx === 1 ? "bg-orange-400" : 
+                        idx === 2 ? "bg-purple-500" : "bg-emerald-500"
+                      }`}
+                    ></motion.div>
+                  </div>
                 </div>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(taluk.count / 500) * 100}%` }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                    className={`h-full ${taluk.color}`}
-                  ></motion.div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+              {(!statsData?.talukBreakdown || statsData.talukBreakdown.length === 0) && (
+                <p className="text-slate-500 text-sm italic">No data available yet.</p>
+              )}
+            </div>
 
-          <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
-            <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
-            <p className="text-xs text-slate-400 mb-4">Total registrations this month are up by 24% across all taluks.</p>
-            <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
-              Download Report
-            </button>
-          </div>
-        </motion.div>
+            <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
+              <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
+              <p className="text-xs text-slate-400 mb-4">Live distribution of registrations across taluks.</p>
+              <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
+                Download Report
+              </button>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );

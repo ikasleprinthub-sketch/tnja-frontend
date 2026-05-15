@@ -56,7 +56,6 @@ export default function DashboardLayout({
   const adminNavItems = [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ShieldCheck },
-    { name: "Locations", href: "/dashboard/admin/locations", icon: MapPin },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
@@ -64,11 +63,19 @@ export default function DashboardLayout({
 
   // Add Super Admin only links
   if (userRole === "SUPER_ADMIN") {
+    adminNavItems.push({ name: "Locations", href: "/dashboard/admin/locations", icon: MapPin });
     adminNavItems.push({ name: "User Management", href: "/dashboard/admin/users", icon: Users });
     adminNavItems.push({ name: "Settings", href: "/dashboard/admin/settings", icon: Settings });
   }
 
-  const navItems = (userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN") 
+  const isPromotedRole = userRole && [
+    "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", 
+    "ZONE_PRESIDENT", "ZONE_SECRETARY", 
+    "STATE_PRESIDENT", "STATE_SECRETARY",
+    "DISTRICT_ADMIN"
+  ].includes(userRole);
+
+  const navItems = (isPromotedRole || userRole === "SUPER_ADMIN") 
     ? adminNavItems 
     : [
         { name: "My Profile", href: "/dashboard/member", icon: User },

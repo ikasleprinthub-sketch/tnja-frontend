@@ -25,7 +25,7 @@ import {
   EyeOff,
 } from "lucide-react";
 
-type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB";
+type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY";
 
 interface TNJAUser {
   id: string;
@@ -42,6 +42,16 @@ interface TNJAUser {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
+const PROMOTABLE_ROLES = [
+  { id: "MEMBER", label: "General Member" },
+  { id: "DISTRICT_PRESIDENT", label: "District President" },
+  { id: "DISTRICT_SECRETARY", label: "District Secretary" },
+  { id: "ZONE_PRESIDENT", label: "Zone President" },
+  { id: "ZONE_SECRETARY", label: "Zone Secretary" },
+  { id: "STATE_PRESIDENT", label: "State President" },
+  { id: "STATE_SECRETARY", label: "State Secretary" },
+];
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState<TNJAUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,9 +59,11 @@ export default function UserManagementPage() {
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [newPermanentId, setNewPermanentId] = useState("");
+  const [promoteRole, setPromoteRole] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -90,6 +102,12 @@ export default function UserManagementPage() {
     setEditModalOpen(true);
   };
 
+  const handlePromoteClick = (user: TNJAUser) => {
+    setSelectedUser(user);
+    setPromoteRole(user.role);
+    setPromoteModalOpen(true);
+  };
+
   const handleUpdate = async () => {
     if (!selectedUser) return;
     setActionLoading(true);
@@ -120,13 +138,50 @@ export default function UserManagementPage() {
     }
   };
 
+  const handlePromoteConfirm = async () => {
+    if (!selectedUser) return;
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/member/promote`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          memberId: selectedUser.id,
+          role: promoteRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Promotion failed");
+      showToast(`Member promoted to ${promoteRole} successfully`, "success");
+      setPromoteModalOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.tempId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.permanentId && u.permanentId.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
+    
+    let matchesRole = false;
+    if (roleFilter === "ALL") {
+      matchesRole = true;
+    } else if (roleFilter === "MEMBER") {
+      matchesRole = ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(u.role);
+    } else {
+      matchesRole = u.role === roleFilter;
+    }
+    
     return matchesSearch && matchesRole;
   });
 
@@ -135,15 +190,30 @@ export default function UserManagementPage() {
       case "CLUB": return <Building2 size={16} />;
       case "STUDENT": return <GraduationCap size={16} />;
       case "COACH": return <Shield size={16} />;
-      case "MEMBER": return <User size={16} />;
+      default: return <User size={16} />;
     }
   };
 
-  const roleColors: Record<UserRole, string> = {
+  const getRoleLabel = (role: UserRole) => {
+    const found = PROMOTABLE_ROLES.find(r => r.id === role);
+    return found ? found.label : role;
+  };
+
+  const isMemberRole = (role: string) => {
+    return ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(role);
+  };
+
+  const roleColors: Record<string, string> = {
     CLUB: "bg-purple-100 text-purple-700",
     STUDENT: "bg-blue-100 text-blue-700",
     COACH: "bg-emerald-100 text-emerald-700",
     MEMBER: "bg-amber-100 text-amber-700",
+    DISTRICT_PRESIDENT: "bg-orange-100 text-orange-700",
+    DISTRICT_SECRETARY: "bg-orange-100 text-orange-700",
+    ZONE_PRESIDENT: "bg-rose-100 text-rose-700",
+    ZONE_SECRETARY: "bg-rose-100 text-rose-700",
+    STATE_PRESIDENT: "bg-red-100 text-red-700",
+    STATE_SECRETARY: "bg-red-100 text-red-700",
   };
 
   return (
@@ -168,7 +238,7 @@ export default function UserManagementPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-slate-800">User Management</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage passwords and IDs for all registered users.</p>
+          <p className="text-slate-500 text-sm mt-1">Manage passwords, IDs and roles for all registered users.</p>
         </div>
         <button
           onClick={fetchUsers}
@@ -190,12 +260,12 @@ export default function UserManagementPage() {
             className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
           />
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
+        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto">
           {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER"].map((r) => (
             <button
               key={r}
               onClick={() => setRoleFilter(r as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 roleFilter === r ? "bg-[#FF7400] text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
               }`}
             >
@@ -253,9 +323,9 @@ export default function UserManagementPage() {
                     <td className="px-8 py-6">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${roleColors[u.role]}`}>
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${roleColors[u.role] || "bg-slate-100 text-slate-600"}`}>
                             {getRoleIcon(u.role)}
-                            {u.role}
+                            {getRoleLabel(u.role)}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black tracking-widest ${
                             u.status === "APPROVED" ? "bg-emerald-100 text-emerald-600" : 
@@ -289,13 +359,24 @@ export default function UserManagementPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <button
-                        onClick={() => handleEdit(u)}
-                        className="p-2 text-[#FF7400] hover:bg-orange-50 rounded-xl transition-all"
-                        title="Manage Credentials"
-                      >
-                        <Edit size={20} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {isMemberRole(u.role) && (
+                          <button
+                            onClick={() => handlePromoteClick(u)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Promote Member"
+                          >
+                            <Shield size={20} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleEdit(u)}
+                          className="p-2 text-[#FF7400] hover:bg-orange-50 rounded-xl transition-all"
+                          title="Manage Credentials"
+                        >
+                          <Edit size={20} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -388,6 +469,72 @@ export default function UserManagementPage() {
                 >
                   {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                   Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Promote Modal */}
+      <AnimatePresence>
+        {promoteModalOpen && selectedUser && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-lg bg-white rounded-3xl p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
+                    <Shield size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800">Promote Member</h3>
+                    <p className="text-slate-500 text-sm">{selectedUser.fullName}</p>
+                  </div>
+                </div>
+                <button onClick={() => setPromoteModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                    Select Role
+                  </label>
+                  <select
+                    value={promoteRole}
+                    onChange={(e) => setPromoteRole(e.target.value)}
+                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700"
+                  >
+                    {PROMOTABLE_ROLES.map(r => (
+                      <option key={r.id} value={r.id}>{r.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+                    Promoting a member gives them additional privileges. They will see a different dashboard corresponding to their new role.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-10">
+                <button
+                  onClick={() => setPromoteModalOpen(false)}
+                  className="flex-grow py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePromoteConfirm}
+                  disabled={actionLoading}
+                  className="flex-grow py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                  Confirm Promotion
                 </button>
               </div>
             </motion.div>

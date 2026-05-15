@@ -55,7 +55,7 @@ export default function LoginPage() {
       // Redirect based on role/status
       if (data.user.status === "REJECTED") {
         router.push("/dashboard/resubmit");
-      } else if (data.role === "SUPER_ADMIN" || data.role === "DISTRICT_ADMIN") {
+      } else if (["SUPER_ADMIN", "DISTRICT_ADMIN", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(data.role)) {
         router.push("/dashboard/admin");
       } else if (data.role === "PLAYER") {
         router.push("/dashboard/player");
