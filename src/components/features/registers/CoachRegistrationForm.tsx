@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '@/components/common/Button';
 import { Search, Check, Asterisk, User, Mail, Smartphone, Award, Briefcase, MapPin, Calendar } from 'lucide-react';
 import { CoachRegistrationData } from '@/types/registration';
+import FileUpload from '@/components/common/FileUpload';
 
 const RequiredSymbol = () => <Asterisk size={10} className="text-red-500 stroke-[4px]" />;
 
@@ -216,6 +217,7 @@ const CoachRegistrationForm = () => {
     contactPersonDept: '',
     addressDept: '',
     clubId: '',
+    profilePhoto: '',
     agreedToTerms: false
   });
 
@@ -444,103 +446,121 @@ const CoachRegistrationForm = () => {
           {/* Personal Information */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Personal Information" />
-            <div className="p-8 pt-2 space-y-8">
-              <InputField 
-                label="Full Name" 
-                name="fullName" 
-                placeholder="Enter Full Name" 
-                required 
-                icon={User}
-                value={formData.fullName}
-                onChange={handleInputChange}
-              />
-              <InputField 
-                label="Father's Name" 
-                name="fatherName" 
-                placeholder="Enter Father's Name" 
-                required 
-                icon={User}
-                value={formData.fatherName}
-                onChange={handleInputChange}
-              />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <SelectField 
-                  label="Gender" 
-                  name="gender" 
-                  required 
-                  options={[
-                    { label: "Male", value: "MALE" },
-                    { label: "Female", value: "FEMALE" },
-                    { label: "Other", value: "OTHER" }
-                  ]}
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                />
-                <DatePickerField 
-                  label="Date of Birth" 
-                  name="dob" 
-                  required 
-                  value={formData.dob}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Age" 
-                  name="age" 
-                  type="number"
-                  required 
-                  value={formData.age}
-                  onChange={handleInputChange}
-                />
+            <div className="p-8 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                {/* Left Column Input Fields */}
+                <div className="md:col-span-8 space-y-8">
+                  <InputField 
+                    label="Full Name" 
+                    name="fullName" 
+                    placeholder="Enter Full Name" 
+                    required 
+                    icon={User}
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Father's Name" 
+                    name="fatherName" 
+                    placeholder="Enter Father's Name" 
+                    required 
+                    icon={User}
+                    value={formData.fatherName}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                {/* Right Column Profile Photo Uploader */}
+                <div className="md:col-span-4 h-full animate-in fade-in zoom-in-95 duration-200">
+                  <FileUpload 
+                    label="Photo"
+                    value={formData.profilePhoto}
+                    onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
+                    accept="image/*"
+                    helperText="JPG, PNG, WEBP (Max 5MB)"
+                  />
+                </div>
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <SelectField 
+                    label="Gender" 
+                    name="gender" 
+                    required 
+                    options={[
+                      { label: "Male", value: "MALE" },
+                      { label: "Female", value: "FEMALE" },
+                      { label: "Other", value: "OTHER" }
+                    ]}
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                  />
+                  <DatePickerField 
+                    label="Date of Birth" 
+                    name="dob" 
+                    required 
+                    value={formData.dob}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Age" 
+                    name="age" 
+                    type="number"
+                    required 
+                    value={formData.age}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <InputField 
+                    label="Blood Group" 
+                    name="bloodGroup" 
+                    placeholder="e.g. O+ve" 
+                    required 
+                    value={formData.bloodGroup}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Aadhaar Number" 
+                    name="aadhaarNumber" 
+                    placeholder="12 Digit Aadhaar" 
+                    required 
+                    maxLength={12}
+                    value={formData.aadhaarNumber}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <InputField 
+                    label="Mobile Number" 
+                    name="mobileNumber" 
+                    placeholder="10 Digit Mobile" 
+                    required 
+                    icon={Smartphone}
+                    maxLength={10}
+                    value={formData.mobileNumber}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Alternate Mobile" 
+                    name="alternateMobileNumber" 
+                    placeholder="Enter Alternate Mobile" 
+                    maxLength={10}
+                    value={formData.alternateMobileNumber}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="md:col-span-12">
+                  <InputField 
+                    label="Email Address" 
+                    name="email" 
+                    type="email"
+                    placeholder="Enter Email Address" 
+                    required 
+                    icon={Mail}
+                    value={formData.email}
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Blood Group" 
-                  name="bloodGroup" 
-                  placeholder="e.g. O+ve" 
-                  required 
-                  value={formData.bloodGroup}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Aadhaar Number" 
-                  name="aadhaarNumber" 
-                  placeholder="12 Digit Aadhaar" 
-                  required 
-                  maxLength={12}
-                  value={formData.aadhaarNumber}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Mobile Number" 
-                  name="mobileNumber" 
-                  placeholder="10 Digit Mobile" 
-                  required 
-                  icon={Smartphone}
-                  maxLength={10}
-                  value={formData.mobileNumber}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Alternate Mobile" 
-                  name="alternateMobileNumber" 
-                  placeholder="Enter Alternate Mobile" 
-                  maxLength={10}
-                  value={formData.alternateMobileNumber}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <InputField 
-                label="Email Address" 
-                name="email" 
-                type="email"
-                placeholder="Enter Email Address" 
-                required 
-                icon={Mail}
-                value={formData.email}
-                onChange={handleInputChange}
-              />
             </div>
           </section>
 

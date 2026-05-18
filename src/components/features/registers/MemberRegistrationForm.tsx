@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '@/components/common/Button';
 import { Check, Asterisk, User, Mail, Smartphone, MapPin, Calendar, Camera, FileText } from 'lucide-react';
 import { MemberRegistrationData } from '@/types/registration';
+import FileUpload from '@/components/common/FileUpload';
 
 const RequiredSymbol = () => <Asterisk size={10} className="text-red-500 stroke-[4px]" />;
 
@@ -234,6 +235,9 @@ const MemberRegistrationForm = () => {
     alternateMobileNumber: '',
     email: '',
     aadhaarNumber: '',
+    profilePhoto: '',
+    aadhaarFront: '',
+    aadhaarBack: '',
     agreedToTerms: false
   });
 
@@ -448,10 +452,13 @@ const MemberRegistrationForm = () => {
                 </div>
 
                 {/* Right Column Photo Upload */}
-                <div className="md:col-span-4">
-                  <FileUploadField 
+                <div className="md:col-span-4 h-full">
+                  <FileUpload 
                     label="Photo"
-                    description="Please upload you id proof images in JPG, PNG or GIF format. Minimum size 20 KB and Maximum size 1 MB."
+                    value={formData.profilePhoto}
+                    onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
+                    accept="image/*"
+                    helperText="JPG, PNG, WEBP (Max 5MB)"
                   />
                 </div>
 
@@ -574,19 +581,21 @@ const MemberRegistrationForm = () => {
 
                 {/* Aadhar Uploads */}
                 <div className="md:col-span-6">
-                  <FileUploadField 
+                  <FileUpload 
                     label="Aadhar - Front"
-                    required
-                    icon={FileText}
-                    description="Please upload you id proof images in JPG, PNG or GIF format. Minimum size 20 KB and Maximum size 1 MB."
+                    value={formData.aadhaarFront}
+                    onChange={(url) => setFormData(prev => ({ ...prev, aadhaarFront: url }))}
+                    accept="image/*,application/pdf"
+                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
                   />
                 </div>
                 <div className="md:col-span-6">
-                  <FileUploadField 
+                  <FileUpload 
                     label="Aadhar - Back"
-                    required
-                    icon={FileText}
-                    description="Please upload you id proof images in JPG, PNG or GIF format. Minimum size 20 KB and Maximum size 1 MB."
+                    value={formData.aadhaarBack}
+                    onChange={(url) => setFormData(prev => ({ ...prev, aadhaarBack: url }))}
+                    accept="image/*,application/pdf"
+                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
                   />
                 </div>
               </div>

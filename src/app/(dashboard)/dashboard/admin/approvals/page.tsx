@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  FileText,
+  Download,
 } from "lucide-react";
 
 type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER";
@@ -404,18 +406,59 @@ export default function ApprovalsPage() {
                 <tbody>
                   {Object.entries(selectedItem.rawData)
                     .filter(([k]) => !["password", "id"].includes(k))
-                    .map(([key, val]: any) => (
-                      <tr key={key} className="border-b border-slate-100 last:border-0">
-                        <td className="py-3 pr-4 font-semibold text-slate-500 capitalize w-44">
-                          {key.replace(/([A-Z])/g, " $1")}
-                        </td>
-                        <td className="py-3 text-slate-800 break-words">
-                          {typeof val === "object" && val !== null
-                            ? (val as any).name || JSON.stringify(val)
-                            : String(val ?? "-")}
-                        </td>
-                      </tr>
-                    ))}
+                    .map(([key, val]: any) => {
+                      const isUploadUrl = typeof val === "string" && (val.startsWith("http://") || val.startsWith("https://") || val.includes("/uploads/"));
+                      return (
+                        <tr key={key} className="border-b border-slate-100 last:border-0">
+                          <td className="py-3.5 pr-4 font-semibold text-slate-500 capitalize w-44">
+                            {key.replace(/([A-Z])/g, " $1")}
+                          </td>
+                          <td className="py-3.5 text-slate-800 break-words">
+                            {isUploadUrl ? (
+                              <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-150 w-fit">
+                                {val.toLowerCase().endsWith(".pdf") ? (
+                                  <div className="p-2.5 bg-red-50 text-red-500 rounded-lg">
+                                    <FileText size={20} />
+                                  </div>
+                                ) : (
+                                  <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                    <img src={val} alt="Preview" className="w-full h-full object-cover" />
+                                  </div>
+                                )}
+                                <div className="flex flex-col gap-1 pr-2">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document File</span>
+                                  <div className="flex gap-2">
+                                    <a 
+                                      href={val} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-600 hover:text-[#FF7400] hover:border-[#FF7400] rounded-md transition-all font-semibold text-xs shadow-sm"
+                                    >
+                                      <Eye size={12} />
+                                      View
+                                    </a>
+                                    <a 
+                                      href={val} 
+                                      download
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FF7400] text-white hover:bg-[#E56900] rounded-md transition-all font-bold text-xs shadow-sm"
+                                    >
+                                      <Download size={12} />
+                                      Download
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : typeof val === "object" && val !== null ? (
+                              (val as any).name || JSON.stringify(val)
+                            ) : (
+                              String(val ?? "-")
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </motion.div>

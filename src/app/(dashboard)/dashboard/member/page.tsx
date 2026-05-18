@@ -253,8 +253,16 @@ function MemberDashboardContent() {
           className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center md:items-start gap-8"
         >
           <div className="relative">
-            <div className="w-32 h-32 bg-[#FF7400] rounded-2xl flex items-center justify-center text-white text-5xl font-bold shadow-xl shadow-orange-500/20">
-              {(memberData.fullName || memberData.name)?.charAt(0)}
+            <div className="w-32 h-32 bg-[#FF7400] rounded-2xl flex items-center justify-center text-white text-5xl font-bold shadow-xl shadow-orange-500/20 overflow-hidden">
+              {memberData.profilePhoto ? (
+                <img 
+                  src={memberData.profilePhoto} 
+                  alt={memberData.fullName || memberData.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                (memberData.fullName || memberData.name)?.charAt(0)
+              )}
             </div>
             {memberData.permanentId && (
               <div className="absolute -bottom-2 -right-2 bg-green-500 text-white p-1.5 rounded-full border-4 border-white">

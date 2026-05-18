@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '@/components/common/Button';
 import { Search, Check, Asterisk, User, Mail, Smartphone, MapPin, GraduationCap, Calendar } from 'lucide-react';
 import { PlayerRegistrationData } from '@/types/registration';
+import FileUpload from '@/components/common/FileUpload';
 
 const RequiredSymbol = () => <Asterisk size={10} className="text-red-500 stroke-[4px]" />;
 
@@ -219,6 +220,10 @@ const PlayerRegistrationForm = () => {
     areaOfInterest: '',
     areaOfStudy: '',
     preferLocation: '',
+    profilePhoto: '',
+    aadhaarProof: '',
+    incomeProof: '',
+    bplProof: '',
     agreedToTerms: false
   });
 
@@ -441,94 +446,126 @@ const PlayerRegistrationForm = () => {
           {/* Personal Information */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Personal Information" />
-            <div className="p-8 pt-2 space-y-8">
-              <InputField 
-                label="Full Name" 
-                name="fullName" 
-                placeholder="Enter Full Name" 
-                required 
-                icon={User}
-                value={formData.fullName}
-                onChange={handleInputChange}
-              />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <SelectField 
-                  label="Gender" 
-                  name="gender" 
-                  required 
-                  options={[
-                    { label: "Male", value: "MALE" },
-                    { label: "Female", value: "FEMALE" },
-                    { label: "Other", value: "OTHER" }
-                  ]}
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                />
-                <DatePickerField 
-                  label="Date of Birth" 
-                  name="dob" 
-                  required 
-                  value={formData.dob}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Age" 
-                  name="age" 
-                  type="number"
-                  required 
-                  value={formData.age}
-                  onChange={handleInputChange}
-                />
+            <div className="p-8 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                {/* Left Column Input Fields */}
+                <div className="md:col-span-8 space-y-8">
+                  <InputField 
+                    label="Full Name" 
+                    name="fullName" 
+                    placeholder="Enter Full Name" 
+                    required 
+                    icon={User}
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <SelectField 
+                      label="Gender" 
+                      name="gender" 
+                      required 
+                      options={[
+                        { label: "Male", value: "MALE" },
+                        { label: "Female", value: "FEMALE" },
+                        { label: "Other", value: "OTHER" }
+                      ]}
+                      value={formData.gender}
+                      onChange={handleInputChange}
+                    />
+                    <DatePickerField 
+                      label="Date of Birth" 
+                      name="dob" 
+                      required 
+                      value={formData.dob}
+                      onChange={handleInputChange}
+                    />
+                    <InputField 
+                      label="Age" 
+                      name="age" 
+                      type="number"
+                      required 
+                      value={formData.age}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column Profile Photo Uploader */}
+                <div className="md:col-span-4 h-full animate-in fade-in zoom-in-95 duration-200">
+                  <FileUpload 
+                    label="Photo"
+                    value={formData.profilePhoto}
+                    onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
+                    accept="image/*"
+                    helperText="JPG, PNG, WEBP (Max 5MB)"
+                  />
+                </div>
+
+                {/* Rest of Personal Information below */}
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <InputField 
+                    label="Blood Group" 
+                    name="bloodGroup" 
+                    placeholder="e.g. O+ve" 
+                    required 
+                    value={formData.bloodGroup}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Aadhaar Number" 
+                    name="aadhaarNumber" 
+                    placeholder="12 Digit Aadhaar" 
+                    required 
+                    maxLength={12}
+                    value={formData.aadhaarNumber}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="md:col-span-12">
+                  <FileUpload 
+                    label="Aadhaar Proof"
+                    value={formData.aadhaarProof}
+                    onChange={(url) => setFormData(prev => ({ ...prev, aadhaarProof: url }))}
+                    accept="image/*,application/pdf"
+                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
+                  />
+                </div>
+
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <InputField 
+                    label="Mobile Number" 
+                    name="mobileNumber" 
+                    placeholder="10 Digit Mobile" 
+                    required 
+                    icon={Smartphone}
+                    maxLength={10}
+                    value={formData.mobileNumber}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Alternate Mobile" 
+                    name="alternateMobileNumber" 
+                    placeholder="Enter Alternate Mobile" 
+                    maxLength={10}
+                    value={formData.alternateMobileNumber}
+                    onChange={handleInputChange}
+                  />
+                </div>
+
+                <div className="md:col-span-12">
+                  <InputField 
+                    label="Email Address" 
+                    name="email" 
+                    type="email"
+                    placeholder="Enter Email Address" 
+                    required 
+                    icon={Mail}
+                    value={formData.email}
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Blood Group" 
-                  name="bloodGroup" 
-                  placeholder="e.g. O+ve" 
-                  required 
-                  value={formData.bloodGroup}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Aadhaar Number" 
-                  name="aadhaarNumber" 
-                  placeholder="12 Digit Aadhaar" 
-                  required 
-                  maxLength={12}
-                  value={formData.aadhaarNumber}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Mobile Number" 
-                  name="mobileNumber" 
-                  placeholder="10 Digit Mobile" 
-                  required 
-                  icon={Smartphone}
-                  maxLength={10}
-                  value={formData.mobileNumber}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Alternate Mobile" 
-                  name="alternateMobileNumber" 
-                  placeholder="Enter Alternate Mobile" 
-                  maxLength={10}
-                  value={formData.alternateMobileNumber}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <InputField 
-                label="Email Address" 
-                name="email" 
-                type="email"
-                placeholder="Enter Email Address" 
-                required 
-                icon={Mail}
-                value={formData.email}
-                onChange={handleInputChange}
-              />
             </div>
           </section>
 
@@ -588,40 +625,52 @@ const PlayerRegistrationForm = () => {
           {/* Financial Info */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Financial Information" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 pt-2 items-end">
-              <InputField 
-                label="Family Annual Income" 
-                name="annualIncome" 
-                type="number"
-                placeholder="Enter Annual Income" 
-                required 
-                value={formData.annualIncome}
-                onChange={handleInputChange}
-              />
-              <div className="flex flex-col gap-8">
-                <SelectField 
-                  label="Are you classified as a BPL beneficiary?" 
-                  name="isBPL" 
-                  required 
-                  options={[
-                    { label: "Yes", value: "true" },
-                    { label: "No", value: "false" }
-                  ]}
-                  value={formData.isBPL.toString()}
-                  onChange={handleInputChange}
-                />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                <div className="space-y-8">
+                  <InputField 
+                    label="Family Annual Income" 
+                    name="annualIncome" 
+                    type="number"
+                    placeholder="Enter Annual Income" 
+                    required 
+                    value={formData.annualIncome}
+                    onChange={handleInputChange}
+                  />
+                  <FileUpload 
+                    label="Income Proof"
+                    value={formData.incomeProof}
+                    onChange={(url) => setFormData(prev => ({ ...prev, incomeProof: url }))}
+                    accept="image/*,application/pdf"
+                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
+                  />
+                </div>
                 
-                {formData.isBPL && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                    <label className="text-xs font-bold text-gray-800 flex items-center gap-1 mb-2">
-                      Proof for BPL Beneficiary <RequiredSymbol />
-                    </label>
-                    <input 
-                      type="file" 
-                      className="text-xs file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#F8F9FA] file:text-gray-700 hover:file:bg-gray-100 cursor-pointer w-full border border-[#DEE2E6] rounded p-1" 
-                    />
-                  </div>
-                )}
+                <div className="space-y-8">
+                  <SelectField 
+                    label="Are you classified as a BPL beneficiary?" 
+                    name="isBPL" 
+                    required 
+                    options={[
+                      { label: "Yes", value: "true" },
+                      { label: "No", value: "false" }
+                    ]}
+                    value={formData.isBPL.toString()}
+                    onChange={handleInputChange}
+                  />
+                  
+                  {formData.isBPL && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                      <FileUpload 
+                        label="Proof for BPL Beneficiary"
+                        value={formData.bplProof}
+                        onChange={(url) => setFormData(prev => ({ ...prev, bplProof: url }))}
+                        accept="image/*,application/pdf"
+                        helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>

@@ -25,6 +25,10 @@ export interface PlayerRegistrationData {
   areaOfStudy: string;
   preferLocation: string;
   clubId?: string;
+  profilePhoto?: string;
+  aadhaarProof?: string;
+  incomeProof?: string;
+  bplProof?: string;
   agreedToTerms: boolean;
 }
 
@@ -77,6 +81,7 @@ export interface CoachRegistrationData {
   contactPersonDept: string;
   addressDept: string;
   clubId?: string;
+  profilePhoto?: string;
   agreedToTerms: boolean;
 }
 
