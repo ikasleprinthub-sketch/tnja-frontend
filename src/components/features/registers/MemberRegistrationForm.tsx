@@ -82,6 +82,132 @@ const FileUploadField = ({ label, required = false, description, icon: Icon }: a
   </div>
 );
 
+const DatePickerField = ({ label, name, required = false, value, onChange, placeholder = "DD/MM/YYYY" }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    const clean = val.replace(/\D/g, '');
+    let formatted = clean;
+    if (clean.length > 2 && clean.length <= 4) {
+      formatted = `${clean.slice(0, 2)}/${clean.slice(2)}`;
+    } else if (clean.length > 4) {
+      formatted = `${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean.slice(4, 8)}`;
+    }
+    onChange({ target: { name, value: formatted } });
+  };
+
+  const selectDate = (day: number) => {
+    const formattedDay = day.toString().padStart(2, '0');
+    const formattedMonth = (currentMonth + 1).toString().padStart(2, '0');
+    const formattedDate = `${formattedDay}/${formattedMonth}/${currentYear}`;
+    onChange({ target: { name, value: formattedDate } });
+    setIsOpen(false);
+  };
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const startYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_, i) => startYear - i);
+
+  return (
+    <div className="flex flex-col gap-2 w-full relative" ref={containerRef}>
+      <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
+        {label} {required && <RequiredSymbol />}
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          name={name}
+          placeholder={placeholder}
+          value={value}
+          onChange={handleTextChange}
+          maxLength={10}
+          onClick={() => setIsOpen(true)}
+          className="w-full pl-10 pr-4 py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400"
+        />
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+          <Calendar size={18} />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-[100%] left-0 z-50 mt-2 p-4 bg-white border border-[#DEE2E6] rounded shadow-xl w-[280px] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex justify-between items-center gap-1 mb-3">
+            <select
+              value={currentMonth}
+              onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
+              className="px-1.5 py-1 bg-white border border-[#DEE2E6] rounded text-xs focus:outline-none focus:border-[#FF7400] flex-grow text-gray-700"
+            >
+              {months.map((m, idx) => (
+                <option key={m} value={idx}>{m}</option>
+              ))}
+            </select>
+            
+            <select
+              value={currentYear}
+              onChange={(e) => setCurrentYear(parseInt(e.target.value))}
+              className="px-1.5 py-1 bg-white border border-[#DEE2E6] rounded text-xs focus:outline-none focus:border-[#FF7400] text-gray-700"
+            >
+              {years.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 mb-1">
+            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center text-xs">
+            {Array.from({ length: firstDayIndex }).map((_, idx) => (
+              <div key={`empty-${idx}`} />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const day = idx + 1;
+              const formattedDay = day.toString().padStart(2, '0');
+              const formattedMonth = (currentMonth + 1).toString().padStart(2, '0');
+              const isSelected = value === `${formattedDay}/${formattedMonth}/${currentYear}`;
+
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => selectDate(day)}
+                  className={`py-1 rounded transition-colors font-medium hover:bg-orange-50 hover:text-[#FF7400] ${
+                    isSelected ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : 'text-gray-700'
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MemberRegistrationForm = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
@@ -163,6 +289,15 @@ const MemberRegistrationForm = () => {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
+    } else if (name === 'dob') {
+      const clean = value.replace(/\D/g, '');
+      let formatted = clean;
+      if (clean.length > 2 && clean.length <= 4) {
+        formatted = `${clean.slice(0, 2)}/${clean.slice(2)}`;
+      } else if (clean.length > 4) {
+        formatted = `${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean.slice(4, 8)}`;
+      }
+      setFormData(prev => ({ ...prev, dob: formatted }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -178,12 +313,20 @@ const MemberRegistrationForm = () => {
     setLoading(true);
     setError(null);
 
+    // Format dob from DD/MM/YYYY to YYYY-MM-DD for backend compatibility
+    const apiDob = formData.dob && formData.dob.includes('/') 
+      ? formData.dob.split('/').reverse().join('-') 
+      : formData.dob;
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       const response = await fetch(`${apiUrl}/register/member`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          dob: apiDob
+        }),
       });
 
       const result = await response.json();
@@ -294,10 +437,9 @@ const MemberRegistrationForm = () => {
                     onChange={handleInputChange}
                   />
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
-                    <InputField 
+                    <DatePickerField 
                       label="Date of Birth" 
                       name="dob" 
-                      type="date"
                       required 
                       value={formData.dob}
                       onChange={handleInputChange}

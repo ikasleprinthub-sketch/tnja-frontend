@@ -39,7 +39,7 @@ const Header = () => {
 
   const topNavLinks = [
     { name: "TESTIMONIAL", href: "#" },
-    { name: "GALLERY", href: "#" },
+    { name: "GALLERY", href: "/gallery" },
     { name: "ABOUT US", href: "#" },
     { name: "BLOG", href: "#" },
     { name: "CAREER & OPPORTUNITIES", href: "#" },

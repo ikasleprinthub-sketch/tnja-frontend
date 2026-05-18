@@ -58,7 +58,7 @@ const Footer = () => {
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Latest New</Link></li>
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Upcoming Events</Link></li>
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Courses</Link></li>
-            <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Gallery</Link></li>
+            <li><Link href="/gallery" className="hover:text-[#FF7400] transition-colors">Gallery</Link></li>
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Members</Link></li>
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Committee</Link></li>
             <li><Link href="#" className="hover:text-[#FF7400] transition-colors">Terms of Services</Link></li>
