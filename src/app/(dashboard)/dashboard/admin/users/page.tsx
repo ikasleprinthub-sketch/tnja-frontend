@@ -52,6 +52,20 @@ const PROMOTABLE_ROLES = [
   { id: "STATE_SECRETARY", label: "State Secretary" },
 ];
 
+const getPermanentIdLabel = (role: string) => {
+  if (role === "STUDENT") return "Player ID";
+  if (role === "COACH") return "Coach ID";
+  if (role === "CLUB") return "Club ID";
+  return "Member ID";
+};
+
+const getTemporaryIdLabel = (role: string) => {
+  if (role === "STUDENT") return "Temp Player ID";
+  if (role === "COACH") return "Temp Coach ID";
+  if (role === "CLUB") return "Temp Club ID";
+  return "Temp Member ID";
+};
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState<TNJAUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -349,11 +363,11 @@ export default function UserManagementPage() {
                     <td className="px-8 py-6">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-400 font-medium w-12 text-[10px] uppercase">Temp</span>
+                          <span className="text-slate-400 font-medium w-28 text-[10px] uppercase">{getTemporaryIdLabel(u.role)}</span>
                           <code className="bg-slate-100 px-2 py-0.5 rounded text-[#FF7400] font-mono">{u.tempId}</code>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-400 font-medium w-12 text-[10px] uppercase">Perm</span>
+                          <span className="text-slate-400 font-medium w-28 text-[10px] uppercase">{getPermanentIdLabel(u.role)}</span>
                           <code className="bg-blue-50 px-2 py-0.5 rounded text-blue-800 font-mono">{u.permanentId || "NOT SET"}</code>
                         </div>
                       </div>
@@ -414,7 +428,7 @@ export default function UserManagementPage() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
-                    Permanent ID
+                    {selectedUser ? getPermanentIdLabel(selectedUser.role) : "Permanent ID"}
                   </label>
                   <div className="relative">
                     <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -422,7 +436,7 @@ export default function UserManagementPage() {
                       type="text"
                       value={newPermanentId}
                       onChange={(e) => setNewPermanentId(e.target.value)}
-                      placeholder="Enter Permanent ID"
+                      placeholder={selectedUser ? `Enter ${getPermanentIdLabel(selectedUser.role)}` : "Enter Permanent ID"}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-mono"
                     />
                   </div>

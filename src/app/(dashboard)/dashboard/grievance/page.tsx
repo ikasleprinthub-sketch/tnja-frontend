@@ -144,7 +144,11 @@ export default function GrievancePage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">User ID</label>
+                  <label className="text-sm font-bold text-slate-700">
+                    {userData?.role === "STUDENT" ? "Player ID" :
+                     userData?.role === "COACH" ? "Coach ID" :
+                     userData?.role === "CLUB" ? "Club ID" : "Member ID"}
+                  </label>
                   <input
                     type="text"
                     value={userData?.user.permanentId || userData?.user.tempId}

@@ -31,6 +31,12 @@ function MemberDashboardContent() {
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
 
+  const idLabel = userRole.toLowerCase() === "coach" 
+    ? "Coach ID" 
+    : userRole.toLowerCase() === "club" 
+      ? "Club ID" 
+      : "Member ID";
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -136,7 +142,7 @@ function MemberDashboardContent() {
             const verifyData = await verifyRes.json();
             if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
 
-            alert("Payment successful! Your Permanent ID has been issued. You will now be logged out. Please log in using your new Permanent ID to change your password and secure your account.");
+            alert(`Payment successful! Your ${idLabel} has been issued. You will now be logged out. Please log in using your new ${idLabel} to change your password and secure your account.`);
             localStorage.clear();
             window.location.href = "/login";
           } catch (err: any) {
@@ -268,7 +274,7 @@ function MemberDashboardContent() {
             </div>
             <p className="text-slate-500 mb-4 flex items-center justify-center md:justify-start gap-2">
               <IdCard size={16} />
-              {memberData.permanentId ? `Permanent ID: ${memberData.permanentId}` : `Temporary ID: ${memberData.tempId}`}
+              {memberData.permanentId ? `${idLabel}: ${memberData.permanentId}` : `Temporary ${idLabel}: ${memberData.tempId}`}
             </p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -300,7 +306,7 @@ function MemberDashboardContent() {
                   <h3 className="text-2xl font-bold">Membership Fee Required</h3>
                 </div>
                 <p className="text-blue-100 leading-relaxed">
-                  To activate your official TNJA membership and receive your Permanent ID, please complete the one-time registration fee payment.
+                  To activate your official TNJA membership and receive your {idLabel}, please complete the one-time registration fee payment.
                 </p>
                 <div className="flex flex-wrap gap-4 pt-2">
                   <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1.5 rounded-full">

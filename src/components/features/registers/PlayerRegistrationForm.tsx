@@ -377,13 +377,13 @@ const PlayerRegistrationForm = () => {
         <p className="text-gray-600 mb-8">Your application has been submitted and is waiting for approval.</p>
         
         <div className="bg-[#F8F9FA] p-6 rounded-lg mb-8 border border-[#E9ECEF]">
-          <p className="text-sm text-gray-500 uppercase font-bold tracking-wider mb-2">Your Temporary ID</p>
+          <p className="text-sm text-gray-500 uppercase font-bold tracking-wider mb-2">Your Temporary Player ID</p>
           <p className="text-4xl font-mono font-bold text-[#FF7400]">{success.tempId}</p>
         </div>
 
         <p className="text-sm text-gray-600">
-          Your credentials and Temporary ID have been sent to <strong>{formData.email}</strong>. 
-          Use the Temporary ID to log in and track your status.
+          Your credentials and Temporary Player ID have been sent to <strong>{formData.email}</strong>. 
+          Use the Temporary Player ID to log in and track your status.
         </p>
         
         <Button 

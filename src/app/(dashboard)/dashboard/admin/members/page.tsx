@@ -131,7 +131,11 @@ export default function MembersListPage() {
                         </div>
                         <div>
                           <h4 className="font-bold text-slate-800">{member.fullName}</h4>
-                          <p className="text-xs text-slate-400 font-mono">ID: {member.permanentId || member.tempId}</p>
+                          <p className="text-xs text-slate-400 font-mono">
+                            {member.role === "STUDENT" ? "Player ID" :
+                             member.role === "COACH" ? "Coach ID" :
+                             member.role === "CLUB" ? "Club ID" : "Member ID"}: {member.permanentId || member.tempId}
+                          </p>
                         </div>
                       </div>
                     </td>

@@ -125,7 +125,7 @@ export default function PlayerDashboard() {
             if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
 
             // Success!
-            alert("Payment successful! Your Permanent ID has been issued. You will now be logged out. Please log in using your new Permanent ID to change your password and secure your account.");
+            alert("Payment successful! Your Player ID has been issued. You will now be logged out. Please log in using your new Player ID to change your password and secure your account.");
             localStorage.clear();
             window.location.href = "/login";
           } catch (err: any) {
@@ -208,7 +208,7 @@ export default function PlayerDashboard() {
             </span>
           </div>
           <p className="text-gray-500 font-medium">
-            {playerData.permanentId ? `Permanent ID: ${playerData.permanentId}` : `Temporary ID: ${playerData.tempId}`}
+            {playerData.permanentId ? `Player ID: ${playerData.permanentId}` : `Temporary Player ID: ${playerData.tempId}`}
           </p>
         </div>
       </motion.div>
@@ -228,7 +228,7 @@ export default function PlayerDashboard() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold text-[#1A1A1A]">Payment Required</h3>
-                  <p className="text-gray-500">Complete your membership to receive your Permanent ID</p>
+                  <p className="text-gray-500">Complete your membership to receive your Player ID</p>
                 </div>
               </div>
 
@@ -246,7 +246,7 @@ export default function PlayerDashboard() {
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center gap-3 text-sm text-gray-600">
                   <CheckCircle2 size={18} className="text-green-500" />
-                  Instant issue of Permanent ID
+                  Instant issue of Player ID
                 </li>
                 <li className="flex items-center gap-3 text-sm text-gray-600">
                   <CheckCircle2 size={18} className="text-green-500" />
