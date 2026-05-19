@@ -195,9 +195,9 @@ const Header = () => {
                   href={
                     userStatus === "REJECTED" 
                       ? "/dashboard/resubmit" 
-                      : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
-                        ? "/dashboard/admin" 
-                        : "/dashboard/member"
+                      : userRole === "MEMBER"
+                        ? "/dashboard/member"
+                        : "/dashboard/admin"
                   }
                   className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-[#FF7400] rounded-full border border-orange-100 hover:bg-orange-100 transition-all font-bold text-sm shadow-sm"
                 >
@@ -280,9 +280,9 @@ const Header = () => {
                   href={
                     userStatus === "REJECTED" 
                       ? "/dashboard/resubmit" 
-                      : userRole === "DISTRICT_ADMIN" || userRole === "SUPER_ADMIN"
-                        ? "/dashboard/admin" 
-                        : "/dashboard/member"
+                      : userRole === "MEMBER"
+                        ? "/dashboard/member"
+                        : "/dashboard/admin"
                   }
                   className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-100"
                   onClick={() => setIsMenuOpen(false)}

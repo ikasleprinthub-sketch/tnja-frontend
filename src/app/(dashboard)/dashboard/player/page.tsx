@@ -13,7 +13,12 @@ import {
   AlertCircle,
   BadgeCheck,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Trophy,
+  XCircle,
+  Scale,
+  Contact,
+  Award
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -25,9 +30,29 @@ export default function PlayerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
+  const [playerNotifications, setPlayerNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const loadNotifs = () => {
+      const saved = localStorage.getItem("tnja_notifications");
+      if (saved) {
+        try {
+          setPlayerNotifications(JSON.parse(saved));
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    loadNotifs();
+
+    window.addEventListener("tnja_notifications_updated", loadNotifs);
+    return () => {
+      window.removeEventListener("tnja_notifications_updated", loadNotifs);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -285,41 +310,97 @@ export default function PlayerDashboard() {
               </button>
             </motion.div>
           ) : (
-            <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-              <h3 className="text-xl font-bold text-[#1A1A1A] mb-6">Profile Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <Mail size={20} className="text-[#FF7400]" />
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Email</p>
-                      <p className="font-medium">{playerData.email}</p>
-                    </div>
+            <div className="space-y-8">
+              {/* Match Statistics Card Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Wins Card */}
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-3xl p-6 shadow-sm flex items-center justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-emerald-600/80 uppercase tracking-wider">Total Wins</p>
+                    <h3 className="text-4xl font-black text-emerald-700">{playerData.wins || 0}</h3>
                   </div>
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <Phone size={20} className="text-[#FF7400]" />
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mobile</p>
-                      <p className="font-medium">{playerData.mobileNumber}</p>
-                    </div>
+                  <div className="p-4 bg-emerald-500/10 text-emerald-600 rounded-2xl">
+                    <Trophy size={28} />
                   </div>
+                </motion.div>
+
+                {/* Losses Card */}
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-gradient-to-br from-rose-50 to-white border border-rose-100 rounded-3xl p-6 shadow-sm flex items-center justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-rose-600/80 uppercase tracking-wider">Total Losses</p>
+                    <h3 className="text-4xl font-black text-rose-700">{playerData.losses || 0}</h3>
+                  </div>
+                  <div className="p-4 bg-rose-500/10 text-rose-600 rounded-2xl">
+                    <XCircle size={28} />
+                  </div>
+                </motion.div>
+
+                {/* Draws Card */}
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-gradient-to-br from-slate-50 to-white border border-slate-200/60 rounded-3xl p-6 shadow-sm flex items-center justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total Draws</p>
+                    <h3 className="text-4xl font-black text-slate-700">{playerData.draws || 0}</h3>
+                  </div>
+                  <div className="p-4 bg-slate-500/10 text-slate-600 rounded-2xl">
+                    <Scale size={28} />
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Coach Assignment Card */}
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 border-b pb-4">
+                  <div className="p-2.5 bg-orange-100 text-[#FF7400] rounded-xl">
+                    <Contact size={20} />
+                  </div>
+                  <h3 className="text-lg font-black text-[#1A1A1A]">Assigned Coach</h3>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <MapPin size={20} className="text-[#FF7400]" />
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">District</p>
-                      <p className="font-medium">{playerData.district?.name}</p>
+
+                {playerData.coach ? (
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 p-6 bg-slate-50/70 border border-slate-100 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-[#FF7400] text-white rounded-xl flex items-center justify-center font-bold text-xl shadow-lg shadow-orange-500/10">
+                        {playerData.coach.fullName.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-lg leading-tight">{playerData.coach.fullName}</h4>
+                        <div className="flex items-center gap-1.5 mt-1 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                          <Award size={14} className="text-[#FF7400]" />
+                          <span>{playerData.coach.presentGradeInJudo || "Certified Judo Coach"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 text-sm text-slate-500 font-medium">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">📧</span>
+                        <span>{playerData.coach.email}</span>
+                      </div>
+                      {playerData.coach.mobileNumber && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">📞</span>
+                          <span>{playerData.coach.mobileNumber}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <GraduationCap size={20} className="text-[#FF7400]" />
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Academy / Club</p>
-                      <p className="font-medium">{playerData.club?.name || "Independent"}</p>
-                    </div>
+                ) : (
+                  <div className="text-center py-10 px-4 bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl space-y-3">
+                    <p className="text-slate-400 font-semibold text-sm">No Coach Assigned</p>
+                    <p className="text-slate-400 text-xs max-w-sm mx-auto leading-relaxed">
+                      Please contact your district administrator or club secretary to assign a certified coach to your profile.
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -342,6 +423,32 @@ export default function PlayerDashboard() {
                 ? "Your membership is active. You can now participate in all TNJA sanctioned events."
                 : "Your application has been approved. Complete your payment to activate your permanent membership."}
             </p>
+          </div>
+
+          {/* Notifications Card */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <h4 className="font-bold text-[#1A1A1A]">Recent Notifications</h4>
+            {playerNotifications.length === 0 ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-semibold">
+                No notifications found.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {playerNotifications.map((n: any) => (
+                  <div key={n.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 rounded-2xl border border-slate-100/50 transition-colors flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 bg-[#FF7400] rounded-full mt-1.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
+                        {n.message}
+                      </p>
+                      <span className="text-[10px] text-slate-400 font-medium block">
+                        {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

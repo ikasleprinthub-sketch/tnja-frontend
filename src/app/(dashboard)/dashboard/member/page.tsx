@@ -226,7 +226,7 @@ function MemberDashboardContent() {
         { label: "President", value: memberData.president, icon: User },
         { label: "Secretary", value: memberData.secretary, icon: User },
         { label: "Coach", value: memberData.coach, icon: User },
-        { label: "Students Count", value: memberData.noOfStudents.toString(), icon: Users },
+        { label: "Players Count", value: memberData.noOfStudents.toString(), icon: Users },
       ] : [
         { label: "Employment Type", value: memberData.employmentType || "N/A", icon: Briefcase },
         { label: "Company Name", value: memberData.companyName || "N/A", icon: Building2 },

@@ -38,6 +38,10 @@ interface TNJAUser {
   status: string;
   role: UserRole;
   createdAt: string;
+  wins?: number;
+  losses?: number;
+  draws?: number;
+  coachId?: string | null;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -81,6 +85,13 @@ export default function UserManagementPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  // Match stats and coach state
+  const [wins, setWins] = useState<number>(0);
+  const [losses, setLosses] = useState<number>(0);
+  const [draws, setDraws] = useState<number>(0);
+  const [coachId, setCoachId] = useState<string>("");
+  const [coachesList, setCoachesList] = useState<any[]>([]);
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -100,8 +111,21 @@ export default function UserManagementPage() {
     }
   }, []);
 
+  const fetchCoaches = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/coaches`);
+      const data = await res.json();
+      if (res.ok) {
+        setCoachesList(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch coaches list:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchCoaches();
   }, [fetchUsers]);
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -113,6 +137,10 @@ export default function UserManagementPage() {
     setSelectedUser(user);
     setNewPermanentId(user.permanentId || "");
     setNewPassword("");
+    setWins(user.wins || 0);
+    setLosses(user.losses || 0);
+    setDraws(user.draws || 0);
+    setCoachId(user.coachId || "");
     setEditModalOpen(true);
   };
 
@@ -138,6 +166,10 @@ export default function UserManagementPage() {
           role: selectedUser.role,
           permanentId: newPermanentId,
           password: newPassword || undefined,
+          wins: selectedUser.role === "STUDENT" ? wins : undefined,
+          losses: selectedUser.role === "STUDENT" ? losses : undefined,
+          draws: selectedUser.role === "STUDENT" ? draws : undefined,
+          coachId: selectedUser.role === "STUDENT" ? (coachId || null) : undefined,
         }),
       });
       const data = await res.json();
@@ -467,6 +499,64 @@ export default function UserManagementPage() {
                     Warning: Changing password will lock the user out until they use the new one.
                   </p>
                 </div>
+
+                {selectedUser.role === "STUDENT" && (
+                  <>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Wins
+                        </label>
+                        <input
+                          type="number"
+                          value={wins}
+                          onChange={(e) => setWins(Number(e.target.value) || 0)}
+                          className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Losses
+                        </label>
+                        <input
+                          type="number"
+                          value={losses}
+                          onChange={(e) => setLosses(Number(e.target.value) || 0)}
+                          className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Draws
+                        </label>
+                        <input
+                          type="number"
+                          value={draws}
+                          onChange={(e) => setDraws(Number(e.target.value) || 0)}
+                          className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-bold text-slate-700"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                        Assigned Coach
+                      </label>
+                      <select
+                        value={coachId}
+                        onChange={(e) => setCoachId(e.target.value)}
+                        className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-bold text-slate-700"
+                      >
+                        <option value="">No Coach Assigned</option>
+                        {coachesList.map((coach: any) => (
+                          <option key={coach.id} value={coach.id}>
+                            {coach.fullName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex gap-4 mt-10">

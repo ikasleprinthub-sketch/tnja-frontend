@@ -591,13 +591,7 @@ const CoachRegistrationForm = () => {
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Current Judo Grade Information" />
             <div className="p-8 pt-2 space-y-8">
-              <SelectField 
-                label="Select Your Club" 
-                name="clubId" 
-                options={clubs.map(c => ({ label: c.name, value: c.id }))}
-                value={formData.clubId}
-                onChange={handleInputChange}
-              />
+
               <InputField 
                 label="Enter your Present Grade in Judo" 
                 name="presentGradeInJudo" 

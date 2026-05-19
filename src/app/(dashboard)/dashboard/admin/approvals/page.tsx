@@ -21,9 +21,10 @@ import {
   Clock,
   FileText,
   Download,
+  Calendar,
 } from "lucide-react";
 
-type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER";
+type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER" | "EVENT" | "EVENT_REGISTRATION";
 
 interface Application {
   id: string;
@@ -42,6 +43,8 @@ const TYPE_MAP: Record<ApprovalType, string> = {
   STUDENT: "student",
   COACH: "coach",
   MEMBER: "member",
+  EVENT: "event",
+  EVENT_REGISTRATION: "event_registration"
 };
 
 function resolveApplication(raw: any, type: ApprovalType): Application {
@@ -65,6 +68,16 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
     case "MEMBER":
       name = raw.fullName;
       subtitle = `${raw.employmentType || "Member"} • ${raw.city}`;
+      break;
+    case "EVENT":
+      name = raw.title;
+      subtitle = `Level: ${raw.level} • Location: ${raw.location}`;
+      email = "Proposed Event";
+      break;
+    case "EVENT_REGISTRATION":
+      name = raw.applicantName || "Unknown Applicant";
+      subtitle = `Applied for: ${raw.event?.title || "Unknown Event"} (${raw.role})`;
+      email = raw.applicantEmail || "No Email";
       break;
   }
 
@@ -96,6 +109,7 @@ export default function ApprovalsPage() {
     { id: "STUDENT" as const, label: "Players", icon: GraduationCap },
     { id: "COACH" as const, label: "Coaches", icon: Shield },
     { id: "MEMBER" as const, label: "Members", icon: User },
+    { id: "EVENT" as const, label: "Events", icon: Calendar },
   ];
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -146,7 +160,8 @@ export default function ApprovalsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Approval failed");
-      showToast(`✅ ${item.name} approved! Password email sent to ${item.email}`, "success");
+      const isEvent = activeTab === "EVENT";
+      showToast(isEvent ? `✅ Event "${item.name}" approved!` : `✅ ${item.name} approved! Password email sent to ${item.email}`, "success");
       fetchApplications();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -187,7 +202,8 @@ export default function ApprovalsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Rejection failed");
-      showToast(`❌ ${selectedItem.name} rejected. Notification email sent.`, "success");
+      const isEvent = activeTab === "EVENT";
+      showToast(isEvent ? `❌ Event "${selectedItem.name}" rejected.` : `❌ ${selectedItem.name} rejected. Notification email sent.`, "success");
       setIsRejectModalOpen(false);
       fetchApplications();
     } catch (err: any) {
@@ -488,10 +504,12 @@ export default function ApprovalsPage() {
                 </div>
               </div>
 
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 mb-5 text-sm text-amber-800">
-                <Mail size={16} className="mt-0.5 shrink-0" />
-                A rejection notification email will be sent to <strong>{selectedItem.email}</strong>
-              </div>
+              {activeTab !== "EVENT" && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 mb-5 text-sm text-amber-800">
+                  <Mail size={16} className="mt-0.5 shrink-0" />
+                  A rejection notification email will be sent to <strong>{selectedItem.email}</strong>
+                </div>
+              )}
 
               <textarea
                 value={remark}

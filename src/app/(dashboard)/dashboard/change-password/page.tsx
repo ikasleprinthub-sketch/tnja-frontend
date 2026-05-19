@@ -65,12 +65,12 @@ export default function ChangePasswordPage() {
       setSuccess(true);
       setTimeout(() => {
         const role = localStorage.getItem("userRole");
-        if (role === "SUPER_ADMIN" || role === "DISTRICT_ADMIN") {
-          router.push("/dashboard/admin");
-        } else if (role === "PLAYER") {
+        if (role === "PLAYER") {
           router.push("/dashboard/player");
-        } else {
+        } else if (role === "MEMBER") {
           router.push("/dashboard/member");
+        } else {
+          router.push("/dashboard/admin");
         }
       }, 2000);
 

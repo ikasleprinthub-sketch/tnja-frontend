@@ -14,29 +14,42 @@ const SectionHeader = ({ title }: { title: string }) => (
   </div>
 );
 
-const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength }: any) => (
-  <div className="flex flex-col gap-2 w-full">
-    <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
-      {label} {required && <RequiredSymbol />}
-    </label>
-    <div className="relative">
-      <input
-        type={type}
-        name={name}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        maxLength={maxLength}
-        className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
-      />
-      {Icon && (
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-          <Icon size={18} />
-        </div>
-      )}
+const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength, listOptions }: any) => {
+  const listId = listOptions ? `${name}-list` : undefined;
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
+        {label} {required && <RequiredSymbol />}
+      </label>
+      <div className="relative">
+        <input
+          type={type}
+          name={name}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          maxLength={maxLength}
+          list={listId}
+          className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
+        />
+        {Icon && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <Icon size={18} />
+          </div>
+        )}
+        {listOptions && (
+          <datalist id={listId}>
+            {listOptions.map((opt: any, idx: number) => (
+              <option key={idx} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </datalist>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SelectField = ({ label, name, options, required = false, value, onChange }: any) => (
   <div className="flex flex-col gap-2 w-full">
@@ -64,6 +77,8 @@ const ClubRegistrationForm = () => {
 
   const [districts, setDistricts] = useState<{id: string, name: string}[]>([]);
   const [taluks, setTaluks] = useState<{id: string, name: string}[]>([]);
+  const [coaches, setCoaches] = useState<{id: string, fullName: string}[]>([]);
+  const [members, setMembers] = useState<{id: string, fullName: string}[]>([]);
 
   const [formData, setFormData] = useState<ClubRegistrationData>({
     districtId: '',
@@ -121,7 +136,7 @@ const ClubRegistrationForm = () => {
     }
   };
 
-  const handleTalukChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleTalukChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const talukId = e.target.value;
     const selectedTaluk = taluks.find(t => t.id === talukId);
     
@@ -130,10 +145,28 @@ const ClubRegistrationForm = () => {
         ...prev, 
         talukId,
         taluk: selectedTaluk.name, 
-        pincode: (selectedTaluk as any).pincode || '' 
+        pincode: (selectedTaluk as any).pincode || '',
+        president: '',
+        secretary: '',
+        coach: ''
       }));
+
+      // Fetch coaches and members for this taluk
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      try {
+        const [coachesRes, membersRes] = await Promise.all([
+          fetch(`${apiUrl}/coaches?talukId=${talukId}&districtId=${formData.districtId}`),
+          fetch(`${apiUrl}/members?talukId=${talukId}&districtId=${formData.districtId}`)
+        ]);
+        if (coachesRes.ok) setCoaches(await coachesRes.json());
+        if (membersRes.ok) setMembers(await membersRes.json());
+      } catch (err) {
+        console.error("Failed to fetch coaches/members:", err);
+      }
     } else {
-      setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '' }));
+      setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '', president: '', secretary: '', coach: '' }));
+      setCoaches([]);
+      setMembers([]);
     }
   };
 
@@ -337,11 +370,15 @@ const ClubRegistrationForm = () => {
             <SectionHeader title="Club President Information Details" />
             <div className="p-8 pt-2 max-w-lg">
               <InputField 
-                label="Select Your President" 
+                label="Select Your Club President" 
                 name="president" 
-                placeholder="Search President / Member" 
+                placeholder="Search President / Member or Type New"
                 required 
                 icon={Search}
+                listOptions={[
+                  ...members.map((m: any) => ({ label: `${m.fullName} (Member)`, value: m.fullName })),
+                  ...coaches.map((c: any) => ({ label: `${c.fullName} (Coach)`, value: c.fullName }))
+                ]}
                 value={formData.president}
                 onChange={handleInputChange}
               />
@@ -353,11 +390,15 @@ const ClubRegistrationForm = () => {
             <SectionHeader title="Club Secretary Information Details" />
             <div className="p-8 pt-2 max-w-lg">
               <InputField 
-                label="Select Your Secretary" 
+                label="Select Your Club Secretary" 
                 name="secretary" 
-                placeholder="Search Secretary / Member" 
+                placeholder="Search Secretary / Member or Type New"
                 required 
                 icon={Search}
+                listOptions={[
+                  ...members.map((m: any) => ({ label: `${m.fullName} (Member)`, value: m.fullName })),
+                  ...coaches.map((c: any) => ({ label: `${c.fullName} (Coach)`, value: c.fullName }))
+                ]}
                 value={formData.secretary}
                 onChange={handleInputChange}
               />
@@ -371,21 +412,22 @@ const ClubRegistrationForm = () => {
               <InputField 
                 label="Select Your Coach" 
                 name="coach" 
-                placeholder="Search Coach / Member" 
+                placeholder="Search Coach / Member or Type New"
                 required 
                 icon={Search}
+                listOptions={coaches.map((c: any) => ({ label: `${c.fullName} (Coach)`, value: c.fullName }))}
                 value={formData.coach}
                 onChange={handleInputChange}
               />
             </div>
           </section>
 
-          {/* Student Information */}
+          {/* Player Information */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Student Information" />
+            <SectionHeader title="Player Information" />
             <div className="p-8 pt-2 space-y-8">
               <InputField 
-                label="No Of Student" 
+                label="No Of Players" 
                 name="noOfStudents" 
                 placeholder="Enter Number" 
                 required 
@@ -395,7 +437,7 @@ const ClubRegistrationForm = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                 <InputField 
-                  label="No Of Male Student" 
+                  label="No Of Male Players" 
                   name="maleStudents" 
                   placeholder="Enter Number" 
                   required 
@@ -403,7 +445,7 @@ const ClubRegistrationForm = () => {
                   onChange={handleInputChange}
                 />
                 <InputField 
-                  label="No Of Female Student" 
+                  label="No Of Female Players" 
                   name="femaleStudents" 
                   placeholder="Enter Number" 
                   required 

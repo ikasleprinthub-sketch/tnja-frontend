@@ -22,6 +22,26 @@ export default function AdminDashboard() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadNotifs = () => {
+      const saved = localStorage.getItem("tnja_notifications");
+      if (saved) {
+        try {
+          setAdminNotifications(JSON.parse(saved));
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    loadNotifs();
+
+    window.addEventListener("tnja_notifications_updated", loadNotifs);
+    return () => {
+      window.removeEventListener("tnja_notifications_updated", loadNotifs);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,7 +110,7 @@ export default function AdminDashboard() {
   const stats = [
     { label: "Total Members", value: statsData?.counts?.MEMBER || 0, icon: Users, color: "bg-[#FF7400]", trend: "Active" },
     { label: "Organizations", value: statsData?.counts?.CLUB || 0, icon: Building2, color: "bg-purple-500", trend: "Verified" },
-    { label: "Active Players", value: statsData?.counts?.STUDENT || 0, icon: GraduationCap, color: "bg-emerald-500", trend: "Students" },
+    { label: "Active Players", value: statsData?.counts?.STUDENT || 0, icon: GraduationCap, color: "bg-emerald-500", trend: "Players" },
     { label: "Coaches", value: statsData?.counts?.COACH || 0, icon: ShieldCheck, color: "bg-amber-500", trend: "Verified" },
   ];
 
@@ -193,50 +213,79 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
 
-        {/* Location Based Stats - Super Admin Only */}
-        {userData?.role === 'SUPER_ADMIN' && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl"
-          >
-            <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
-            <div className="space-y-6">
-              {(statsData?.talukBreakdown || []).map((taluk: any, idx: number) => (
-                <div key={taluk.name} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">{taluk.name}</span>
-                    <span className="font-bold">{taluk.count}</span>
+        {/* Sidebar Column */}
+        <div className="space-y-8">
+          {/* Location Based Stats - Super Admin Only */}
+          {userData?.role === 'SUPER_ADMIN' && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl"
+            >
+              <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
+              <div className="space-y-6">
+                {(statsData?.talukBreakdown || []).map((taluk: any, idx: number) => (
+                  <div key={taluk.name} className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">{taluk.name}</span>
+                      <span className="font-bold">{taluk.count}</span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(taluk.count / Math.max(...(statsData?.talukBreakdown?.map((t: any) => t.count) || [1]))) * 100}%` }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                        className={`h-full ${
+                          idx === 0 ? "bg-[#FF7400]" : 
+                          idx === 1 ? "bg-orange-400" : 
+                          idx === 2 ? "bg-purple-500" : "bg-emerald-500"
+                        }`}
+                      ></motion.div>
+                    </div>
                   </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(taluk.count / Math.max(...(statsData?.talukBreakdown?.map((t: any) => t.count) || [1]))) * 100}%` }}
-                      transition={{ duration: 1, delay: 0.5 }}
-                      className={`h-full ${
-                        idx === 0 ? "bg-[#FF7400]" : 
-                        idx === 1 ? "bg-orange-400" : 
-                        idx === 2 ? "bg-purple-500" : "bg-emerald-500"
-                      }`}
-                    ></motion.div>
-                  </div>
-                </div>
-              ))}
-              {(!statsData?.talukBreakdown || statsData.talukBreakdown.length === 0) && (
-                <p className="text-slate-500 text-sm italic">No data available yet.</p>
-              )}
-            </div>
+                ))}
+                {(!statsData?.talukBreakdown || statsData.talukBreakdown.length === 0) && (
+                  <p className="text-slate-500 text-sm italic">No data available yet.</p>
+                )}
+              </div>
 
-            <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
-              <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
-              <p className="text-xs text-slate-400 mb-4">Live distribution of registrations across taluks.</p>
-              <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
-                Download Report
-              </button>
-            </div>
-          </motion.div>
-        )}
+              <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
+                <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
+                <p className="text-xs text-slate-400 mb-4">Live distribution of registrations across taluks.</p>
+                <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
+                  Download Report
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Notifications Card */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <h4 className="font-bold text-slate-800">Recent Notifications</h4>
+            {adminNotifications.length === 0 ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-semibold">
+                No notifications found.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {adminNotifications.map((n: any) => (
+                  <div key={n.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 rounded-2xl border border-slate-100/50 transition-colors flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 bg-[#FF7400] rounded-full mt-1.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
+                        {n.message}
+                      </p>
+                      <span className="text-[10px] text-slate-400 font-medium block">
+                        {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
