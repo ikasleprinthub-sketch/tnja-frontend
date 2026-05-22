@@ -7,7 +7,8 @@ import {
   Search, 
   Filter, 
   Download, 
-  MoreVertical, 
+  MoreVertical,
+  MoreHorizontal, 
   Mail, 
   Phone,
   ArrowUpDown,
@@ -68,142 +69,141 @@ export default function MembersListPage() {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Members Directory</h1>
-          <p className="text-slate-500">Manage all registered members in {districtName || 'your district'}</p>
+          <h1 className="text-4xl font-black text-[#FF7400]">Members List</h1>
+          <p className="text-slate-600 text-[13px] font-medium mt-1">Manage all registered members in your location</p>
         </div>
-        <button className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg hover:bg-slate-800 transition-all">
-          <Download size={20} />
-          Export CSV
-        </button>
+        <div 
+          className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
+          style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+        >
+          <button className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm">
+            <FileText size={18} className="stroke-[2.5]" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-4 mb-8">
         <div className="relative flex-grow">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
-            placeholder="Search by name, ID or email..."
+            placeholder="Search Members"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all shadow-sm"
+            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 transition-all text-[13px] font-medium shadow-sm"
           />
         </div>
-        <button className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all">
-          <Filter size={20} />
-          Filter
-        </button>
+        <div 
+          className="p-[1.5px] rounded-[10px] shrink-0 inline-flex shadow-sm"
+          style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+        >
+          <button className="flex items-center gap-2 px-6 py-2.5 bg-white border-[1px] border-transparent text-slate-500 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-[13px]">
+            <Filter size={16} className="text-slate-400" />
+            Filter
+          </button>
+        </div>
       </div>
 
-      {/* Members Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* List Headers */}
+      <div className="mt-4 hidden md:block">
+        <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.8fr_1fr_1fr_60px] gap-6 px-8 text-[#FF7400] font-black text-[14px] mb-4">
+          <div>Member</div>
+          <div>Temporary Id</div>
+          <div>Role</div>
+          <div>Contact</div>
+          <div>Location</div>
+          <div>Status</div>
+          <div className="text-right"></div>
+        </div>
+      </div>
+
+      {/* Members List */}
+      <div className="space-y-4">
         {loading ? (
-          <div className="p-20 text-center flex flex-col items-center gap-4">
+          <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-2xl shadow-sm border border-slate-100">
             <Loader2 size={40} className="animate-spin text-[#FF7400]" />
             <p className="text-slate-400 font-medium">Loading directory...</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">
-                    <div className="flex items-center gap-2">Member <ArrowUpDown size={14} /></div>
-                  </th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Role</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Location</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Contact</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredMembers.map((member, idx) => (
-                  <motion.tr 
-                    key={member.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="hover:bg-slate-50 transition-colors"
-                  >
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-orange-100 text-[#FF7400] rounded-full flex items-center justify-center font-bold">
-                          {member.fullName.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-800">{member.fullName}</h4>
-                          <p className="text-xs text-slate-400 font-mono">
-                            {member.role === "STUDENT" ? "Player ID" :
-                             member.role === "COACH" ? "Coach ID" :
-                             member.role === "CLUB" ? "Club ID" : "Member ID"}: {member.permanentId || member.tempId}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                        member.role === "STUDENT" ? "bg-blue-100 text-blue-600" :
-                        member.role === "COACH" ? "bg-purple-100 text-purple-600" : 
-                        member.role === "CLUB" ? "bg-indigo-100 text-indigo-600" : "bg-emerald-100 text-emerald-600"
-                      }`}>
-                        {member.role.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-600">{member.talukName}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{member.districtName}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
-                          <Mail size={12} className="text-[#FF7400]" /> {member.email}
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
-                          <Phone size={12} className="text-[#FF7400]" /> {member.mobileNumber}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                        ACTIVE
-                      </span>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setIsDetailModalOpen(true);
-                          }}
-                          className="p-2 text-slate-400 hover:text-[#FF7400] hover:bg-orange-50 rounded-lg transition-all"
-                          title="View Member Details & Downloads"
-                        >
-                          <Eye size={20} />
-                        </button>
-                        <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-all">
-                          <MoreVertical size={20} />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-                {filteredMembers.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={6} className="px-8 py-20 text-center text-slate-400 font-medium">
-                      No members found matching your search.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        ) : filteredMembers.length === 0 ? (
+          <div className="p-20 text-center text-slate-400 font-medium bg-white rounded-2xl shadow-sm border border-slate-100">
+            No members found matching your search.
           </div>
+        ) : (
+          filteredMembers.map((member, idx) => (
+            <motion.div 
+              key={member.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              className="bg-white rounded-[16px] shadow-sm hover:shadow-md transition-all p-4 px-8 flex flex-col md:grid md:grid-cols-[1.2fr_1.2fr_1fr_1.8fr_1fr_1fr_60px] md:items-center gap-6 border border-slate-100"
+            >
+              {/* Member */}
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-slate-200 overflow-hidden text-slate-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                  {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <Users size={16}/>}
+                </div>
+                <div>
+                  <h4 className="font-medium text-slate-700 text-[13px]">{member.fullName}</h4>
+                </div>
+              </div>
+              
+              {/* Temporary ID */}
+              <div>
+                <p className="text-[12px] font-black text-black">
+                  {member.permanentId || member.tempId}
+                </p>
+              </div>
+
+              {/* Role */}
+              <div>
+                <span className="px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-black text-[#FFDA00] inline-block text-center whitespace-pre-line leading-tight">
+                  {member.role.replace("_", "\n")}
+                </span>
+              </div>
+
+              {/* Contact */}
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600">
+                  <Phone size={13} className="text-[#FF7400] stroke-[2] shrink-0" /> {member.mobileNumber}
+                </div>
+                <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 min-w-0">
+                  <Mail size={13} className="text-[#FF7400] stroke-[2] shrink-0" /> <span className="truncate">{member.email}</span>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div>
+                <span className="text-[12px] text-slate-600 font-medium">{member.talukName || member.districtName || "Chennai"}</span>
+              </div>
+
+              {/* Status */}
+              <div>
+                <span className="flex items-center gap-1.5 text-[12px] font-black text-red-600 uppercase tracking-wide">
+                  <div className="w-1.5 h-1.5 bg-red-600 rounded-full"></div>
+                  ACTIVE
+                </span>
+              </div>
+
+              {/* Action */}
+              <div className="flex items-center justify-end">
+                <button
+                  onClick={() => {
+                    setSelectedMember(member);
+                    setIsDetailModalOpen(true);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center border-[2px] border-slate-800 rounded-full hover:bg-slate-100 transition-colors"
+                >
+                  <MoreHorizontal size={16} className="text-slate-800" />
+                </button>
+              </div>
+            </motion.div>
+          ))
         )}
       </div>
 
@@ -215,7 +215,7 @@ export default function MembersListPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-2xl bg-white rounded-3xl p-8 shadow-2xl max-h-[80vh] overflow-y-auto"
+              className="w-full max-w-2xl bg-white rounded-3xl p-8 shadow-2xl max-h-[80vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">

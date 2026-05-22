@@ -3,36 +3,34 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Check,
-  X,
   Eye,
-  Search,
-  Filter,
   MessageSquare,
-  Building2,
-  User,
-  GraduationCap,
-  Shield,
   RefreshCw,
   Loader2,
   Mail,
+  Phone,
   CheckCircle2,
   XCircle,
-  Clock,
   FileText,
   Download,
-  Calendar,
+  X,
+  MapPin,
+  MoreHorizontal,
+  ChevronDown
 } from "lucide-react";
 
-type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER" | "EVENT" | "EVENT_REGISTRATION";
+type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER" | "EVENT";
 
 interface Application {
   id: string;
-  name: string;       // display name resolved below
-  subtitle: string;   // e.g. "President: X" or "Age: 16 • Club"
+  name: string;
+  subtitle: string;
   date: string;
   status: string;
   email: string;
+  phone: string;
+  location: string;
+  avatar: string;
   rawData: any;
 }
 
@@ -44,40 +42,43 @@ const TYPE_MAP: Record<ApprovalType, string> = {
   COACH: "coach",
   MEMBER: "member",
   EVENT: "event",
-  EVENT_REGISTRATION: "event_registration"
 };
 
 function resolveApplication(raw: any, type: ApprovalType): Application {
   let name = "";
   let subtitle = "";
   let email = raw.email || "";
+  let phone = raw.mobileNumber || raw.contactNumber || "";
+  let location = raw.district?.name || raw.city || raw.location || "—";
+  let avatar = raw.profilePhoto || raw.photo || "";
 
   switch (type) {
     case "CLUB":
       name = raw.name;
-      subtitle = `President: ${raw.president} • Secretary: ${raw.secretary}`;
+      subtitle = `President: ${raw.president}`;
+      location = raw.district?.name || "—";
       break;
     case "STUDENT":
       name = raw.fullName;
-      subtitle = `Age: ${raw.age} • ${raw.club?.name || "No Club"}`;
+      subtitle = raw.club?.name || "No Club";
+      location = raw.district?.name || raw.city || "—";
       break;
     case "COACH":
       name = raw.fullName;
-      subtitle = `${raw.presentGradeInJudo} • ${raw.deptName}`;
+      subtitle = raw.presentGradeInJudo || "Coach";
+      location = raw.district?.name || "—";
       break;
     case "MEMBER":
       name = raw.fullName;
-      subtitle = `${raw.employmentType || "Member"} • ${raw.city}`;
+      subtitle = raw.employmentType || "Member";
+      location = raw.district?.name || raw.city || "—";
       break;
     case "EVENT":
       name = raw.title;
-      subtitle = `Level: ${raw.level} • Location: ${raw.location}`;
-      email = "Proposed Event";
-      break;
-    case "EVENT_REGISTRATION":
-      name = raw.applicantName || "Unknown Applicant";
-      subtitle = `Applied for: ${raw.event?.title || "Unknown Event"} (${raw.role})`;
-      email = raw.applicantEmail || "No Email";
+      subtitle = `${raw.level} Level`;
+      email = "—";
+      phone = "—";
+      location = raw.location || "—";
       break;
   }
 
@@ -86,15 +87,17 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
     name,
     subtitle,
     date: raw.createdAt ? new Date(raw.createdAt).toLocaleDateString("en-IN") : "-",
-    status: raw.status || "N/A",
+    status: raw.status || "PENDING",
     email,
+    phone,
+    location,
+    avatar,
     rawData: raw,
   };
 }
 
 export default function ApprovalsPage() {
   const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
-  const [searchQuery, setSearchQuery] = useState("");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Application | null>(null);
@@ -104,12 +107,12 @@ export default function ApprovalsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const tabs = [
-    { id: "CLUB" as const, label: "Clubs / Orgs", icon: Building2 },
-    { id: "STUDENT" as const, label: "Players", icon: GraduationCap },
-    { id: "COACH" as const, label: "Coaches", icon: Shield },
-    { id: "MEMBER" as const, label: "Members", icon: User },
-    { id: "EVENT" as const, label: "Events", icon: Calendar },
+  const tabs: { id: ApprovalType; label: string }[] = [
+    { id: "CLUB", label: "Clubs" },
+    { id: "STUDENT", label: "Players" },
+    { id: "COACH", label: "Coaches" },
+    { id: "MEMBER", label: "Members" },
+    { id: "EVENT", label: "Events" },
   ];
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -122,14 +125,12 @@ export default function ApprovalsPage() {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/applications/pending?type=${activeTab}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
       const raw: any[] = json.data || [];
       setApplications(raw.map((r) => resolveApplication(r, activeTab)));
-    } catch (err) {
+    } catch {
       showToast("Failed to load applications. Is the backend running?", "error");
     } finally {
       setLoading(false);
@@ -138,13 +139,7 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     fetchApplications();
-    setSearchQuery("");
   }, [fetchApplications]);
-
-  const filteredData = applications.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const handleApprove = async (item: Application) => {
     setActionLoading(item.id);
@@ -152,16 +147,12 @@ export default function ApprovalsPage() {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/application/status`, {
         method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ id: item.id, type: TYPE_MAP[activeTab], status: "APPROVED" }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Approval failed");
-      const isEvent = activeTab === "EVENT";
-      showToast(isEvent ? `✅ Event "${item.name}" approved!` : `✅ ${item.name} approved! Password email sent to ${item.email}`, "success");
+      showToast(`${item.name} approved successfully!`, "success");
       fetchApplications();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -176,11 +167,6 @@ export default function ApprovalsPage() {
     setIsRejectModalOpen(true);
   };
 
-  const openDetailModal = (item: Application) => {
-    setSelectedItem(item);
-    setIsDetailModalOpen(true);
-  };
-
   const handleReject = async () => {
     if (!remark.trim()) return showToast("Please enter a rejection reason", "error");
     if (!selectedItem) return;
@@ -189,10 +175,7 @@ export default function ApprovalsPage() {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/application/status`, {
         method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           id: selectedItem.id,
           type: TYPE_MAP[activeTab],
@@ -202,8 +185,7 @@ export default function ApprovalsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Rejection failed");
-      const isEvent = activeTab === "EVENT";
-      showToast(isEvent ? `❌ Event "${selectedItem.name}" rejected.` : `❌ ${selectedItem.name} rejected. Notification email sent.`, "success");
+      showToast(`${selectedItem.name} rejected.`, "success");
       setIsRejectModalOpen(false);
       fetchApplications();
     } catch (err: any) {
@@ -213,15 +195,16 @@ export default function ApprovalsPage() {
     }
   };
 
-  const statusColor: Record<string, string> = {
-    PENDING:  "bg-amber-100 text-amber-700",
-    APPROVED: "bg-emerald-100 text-emerald-700",
-    REJECTED: "bg-red-100 text-red-600",
+  const statusConfig: Record<string, { label: string; dot: string; text: string }> = {
+    PENDING:  { label: "PENDING",  dot: "bg-red-600",   text: "text-red-600" },
+    ACTIVE:   { label: "ACTIVE",   dot: "bg-red-600",   text: "text-red-600" },
+    APPROVED: { label: "APPROVED", dot: "bg-emerald-500",  text: "text-emerald-600" },
+    REJECTED: { label: "REJECTED", dot: "bg-red-500",      text: "text-red-600" },
   };
 
   return (
     <div className="space-y-6">
-      {/* ── Toast ────────────────────────────────────────────────────────────── */}
+      {/* Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -238,10 +221,10 @@ export default function ApprovalsPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Page Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Pending Approvals</h1>
+          <h1 className="text-2xl font-black text-[#FF7400]">Pending Approvals</h1>
           <p className="text-slate-500 text-sm mt-1">
             Review and approve registrations. An email with login credentials is sent automatically on approval.
           </p>
@@ -255,154 +238,158 @@ export default function ApprovalsPage() {
         </button>
       </div>
 
-      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
-      <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto">
+      {/* Tabs */}
+      <div className="flex gap-4 mb-8 w-full overflow-x-auto pb-6 px-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+            className={`flex-1 py-3 px-6 rounded-[14px] font-bold text-[16px] transition-all text-center border whitespace-nowrap min-w-[140px] ${
               activeTab === tab.id
-                ? "bg-[#FF7400] text-white shadow-lg shadow-orange-500/20"
-                : "text-slate-500 hover:text-[#FF7400] hover:bg-orange-50"
+                ? "bg-gradient-to-r from-white via-[#FFE27B] to-[#FFC300] text-slate-900 border-[#FF7400] shadow-[0_12px_24px_-8px_rgba(255,116,0,0.6)]"
+                : "bg-[#FAFAFA] text-slate-700 border-[#FFB28B] hover:bg-white"
             }`}
           >
-            <tab.icon size={18} />
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* ── Search ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-grow w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder={`Search ${activeTab.toLowerCase()}s by name or email...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
-          />
+      {/* List Headers */}
+      <div className="mt-4">
+        <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 px-8 text-[#FF7400] font-black text-[15px] mb-4">
+          <div>Applicant</div>
+          <div>Contact</div>
+          <div>Location</div>
+          <div>Status</div>
+          <div className="w-[220px] text-center">Actions</div>
         </div>
-        <button className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all">
-          <Filter size={20} />
-          Filters
-        </button>
-      </div>
 
-      {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-20 text-center flex flex-col items-center gap-4">
+          <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
             <Loader2 size={40} className="animate-spin text-[#FF7400]" />
-            <p className="text-slate-400 font-medium">Loading applications…</p>
+            <p className="text-slate-400 font-medium">Fetching pending approvals...</p>
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
+              <MessageSquare size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-400">No pending applications</h3>
+            <p className="text-slate-400 text-sm mt-1">Check back later for new applications.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Applicant</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Contact</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Submitted</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <AnimatePresence mode="popLayout">
-                  {filteredData.map((item) => (
-                    <motion.tr
-                      key={item.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="hover:bg-slate-50/50 transition-colors"
-                    >
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF7400] to-[#E56900] text-white flex items-center justify-center font-bold text-xl shadow-md">
+          <div className="space-y-4">
+            <AnimatePresence mode="popLayout">
+              {applications.map((item) => {
+                const sc = statusConfig[item.status] || statusConfig["PENDING"];
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="bg-white rounded-[20px] shadow-sm border border-slate-100 py-5 px-8 flex items-center hover:shadow-md transition-all"
+                  >
+                    <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 w-full items-center">
+                      {/* Applicant */}
+                      <div className="flex items-center gap-3">
+                        {item.avatar ? (
+                          <img
+                            src={item.avatar}
+                            alt={item.name}
+                            className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0"
+                          />
+                        ) : (
+                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FF7400] to-[#E56900] text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
                             {item.name.charAt(0)}
                           </div>
-                          <div>
-                            <h4 className="font-bold text-slate-800">{item.name}</h4>
-                            <p className="text-xs text-slate-400 mt-0.5">{item.subtitle}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                          <Mail size={14} className="text-slate-400" />
-                          {item.email}
-                        </div>
-                      </td>
-                      <td className="px-8 py-6">
-                        <span className="text-sm text-slate-600">{item.date}</span>
-                      </td>
-                      <td className="px-8 py-6">
-                        <span className={`flex items-center gap-1.5 w-fit px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${statusColor[item.status] || "bg-slate-100 text-slate-500"}`}>
-                          <Clock size={11} />
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="p-2 text-slate-400 hover:text-[#FF7400] hover:bg-orange-50 rounded-lg transition-all"
-                            title="View Full Application"
-                          >
-                            <Eye size={20} />
-                          </button>
-                          {item.status === "PENDING" && (
-                            <>
-                              <button
-                                onClick={() => handleApprove(item)}
-                                disabled={actionLoading === item.id}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all font-semibold text-sm disabled:opacity-50"
-                                title="Approve & Send Email"
-                              >
-                                {actionLoading === item.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Check size={16} />
-                                )}
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => openRejectModal(item)}
-                                disabled={actionLoading === item.id}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-all font-semibold text-sm disabled:opacity-50"
-                                title="Reject"
-                              >
-                                <X size={16} />
-                                Reject
-                              </button>
-                            </>
+                        )}
+                        <div className="flex flex-col justify-center">
+                          <p className="font-bold text-slate-800 text-[15px] truncate">{item.name}</p>
+                          {item.subtitle && item.subtitle !== "No Club" && item.subtitle !== "Member" && item.subtitle !== "Coach" && (
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{item.subtitle}</p>
                           )}
                         </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
+                      </div>
+                      
+                      {/* Contact */}
+                      <div className="flex flex-col gap-1.5">
+                        {item.phone && item.phone !== "—" && (
+                          <div className="flex items-center gap-3 text-[13px] text-slate-600">
+                            <Phone size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.phone}</span>
+                          </div>
+                        )}
+                        {item.email && item.email !== "—" && (
+                          <div className="flex items-center gap-3 text-[13px] text-slate-600">
+                            <Mail size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.email}</span>
+                          </div>
+                        )}
+                        {(!item.phone || item.phone === "—") && (!item.email || item.email === "—") && (
+                           <span className="text-[13px] text-slate-400 italic">No contact provided</span>
+                        )}
+                      </div>
 
-            {filteredData.length === 0 && !loading && (
-              <div className="p-20 text-center">
-                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                  <Search size={40} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-400">No pending applications found</h3>
-                <p className="text-slate-400 mt-1">Try adjusting your filters or check back later.</p>
-              </div>
-            )}
+                      {/* Location */}
+                      <div className="text-[14px] text-slate-700 truncate">
+                        {item.location}
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                        <span className={`${sc.text} font-black uppercase text-[13px] tracking-widest truncate`}>{sc.label}</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-start gap-4">
+                        {item.status === "PENDING" ? (
+                          <>
+                            <button 
+                              onClick={() => handleApprove(item)}
+                              disabled={actionLoading === item.id}
+                              className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+                            >
+                              {actionLoading === item.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                              Approve
+                            </button>
+                            <div 
+                              className={`p-[1px] rounded-lg shrink-0 inline-flex ${actionLoading === item.id ? 'opacity-50' : ''}`}
+                              style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+                            >
+                              <button 
+                                onClick={() => openRejectModal(item)}
+                                disabled={actionLoading === item.id}
+                                className="text-slate-800 hover:bg-orange-50 transition-colors px-6 py-2 rounded-[7px] font-bold text-sm bg-white flex items-center justify-center"
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="px-5 py-2 flex items-center gap-1.5">
+                             <span className={`text-sm font-bold ${sc.text}`}>{sc.label}</span>
+                          </div>
+                        )}
+                        
+                        <button 
+                           onClick={() => { setSelectedItem(item); setIsDetailModalOpen(true); }}
+                           className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0"
+                           title="View Details"
+                        >
+                          <MoreHorizontal size={18} className="stroke-[3]" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
-      {/* ── Detail Modal ─────────────────────────────────────────────────────── */}
+      {/* Detail Modal */}
       <AnimatePresence>
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
@@ -413,9 +400,9 @@ export default function ApprovalsPage() {
               className="w-full max-w-2xl bg-white rounded-3xl p-8 shadow-2xl max-h-[80vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-slate-800">Application Details</h3>
+                <h3 className="text-xl font-bold text-slate-800">Application Details</h3>
                 <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
-                  <X size={22} className="text-slate-500" />
+                  <X size={20} className="text-slate-500" />
                 </button>
               </div>
               <table className="w-full text-sm">
@@ -423,53 +410,41 @@ export default function ApprovalsPage() {
                   {Object.entries(selectedItem.rawData)
                     .filter(([k]) => !["password", "id"].includes(k))
                     .map(([key, val]: any) => {
-                      const isUploadUrl = typeof val === "string" && (val.startsWith("http://") || val.startsWith("https://") || val.includes("/uploads/"));
+                      const isUploadUrl =
+                        typeof val === "string" &&
+                        (val.startsWith("http://") || val.startsWith("https://") || val.includes("/uploads/"));
                       return (
                         <tr key={key} className="border-b border-slate-100 last:border-0">
-                          <td className="py-3.5 pr-4 font-semibold text-slate-500 capitalize w-44">
+                          <td className="py-3.5 pr-4 font-semibold text-slate-500 capitalize w-44 text-xs">
                             {key.replace(/([A-Z])/g, " $1")}
                           </td>
-                          <td className="py-3.5 text-slate-800 break-words">
+                          <td className="py-3.5 text-slate-800 break-words text-sm">
                             {isUploadUrl ? (
-                              <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-150 w-fit">
+                              <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 w-fit">
                                 {val.toLowerCase().endsWith(".pdf") ? (
-                                  <div className="p-2.5 bg-red-50 text-red-500 rounded-lg">
-                                    <FileText size={20} />
+                                  <div className="p-2 bg-red-50 text-red-500 rounded-lg">
+                                    <FileText size={18} />
                                   </div>
                                 ) : (
-                                  <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white">
-                                    <img src={val} alt="Preview" className="w-full h-full object-cover" />
+                                  <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-200">
+                                    <img src={val} alt="doc" className="w-full h-full object-cover" />
                                   </div>
                                 )}
-                                <div className="flex flex-col gap-1 pr-2">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Document File</span>
-                                  <div className="flex gap-2">
-                                    <a 
-                                      href={val} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-600 hover:text-[#FF7400] hover:border-[#FF7400] rounded-md transition-all font-semibold text-xs shadow-sm"
-                                    >
-                                      <Eye size={12} />
-                                      View
-                                    </a>
-                                    <a 
-                                      href={val} 
-                                      download
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FF7400] text-white hover:bg-[#E56900] rounded-md transition-all font-bold text-xs shadow-sm"
-                                    >
-                                      <Download size={12} />
-                                      Download
-                                    </a>
-                                  </div>
+                                <div className="flex gap-2">
+                                  <a href={val} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-600 hover:text-[#FF7400] rounded-md font-semibold text-xs">
+                                    <Eye size={11} /> View
+                                  </a>
+                                  <a href={val} download target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FF7400] text-white rounded-md font-bold text-xs">
+                                    <Download size={11} /> Download
+                                  </a>
                                 </div>
                               </div>
                             ) : typeof val === "object" && val !== null ? (
                               (val as any).name || JSON.stringify(val)
                             ) : (
-                              String(val ?? "-")
+                              String(val ?? "—")
                             )}
                           </td>
                         </tr>
@@ -482,7 +457,7 @@ export default function ApprovalsPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Reject Modal ─────────────────────────────────────────────────────── */}
+      {/* Reject Modal */}
       <AnimatePresence>
         {isRejectModalOpen && selectedItem && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
@@ -494,20 +469,20 @@ export default function ApprovalsPage() {
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
-                  <MessageSquare size={24} />
+                  <MessageSquare size={22} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-slate-800">Rejection Remarks</h3>
-                  <p className="text-slate-500">
-                    Provide a reason for rejecting <strong>{selectedItem.name}</strong>
+                  <h3 className="text-xl font-bold text-slate-800">Rejection Reason</h3>
+                  <p className="text-slate-500 text-sm">
+                    Rejecting <strong>{selectedItem.name}</strong>
                   </p>
                 </div>
               </div>
 
               {activeTab !== "EVENT" && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 mb-5 text-sm text-amber-800">
-                  <Mail size={16} className="mt-0.5 shrink-0" />
-                  A rejection notification email will be sent to <strong>{selectedItem.email}</strong>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 mb-5 text-xs text-amber-700">
+                  <Mail size={14} className="mt-0.5 shrink-0" />
+                  A rejection notification will be sent to <strong>{selectedItem.email}</strong>
                 </div>
               )}
 
@@ -515,23 +490,23 @@ export default function ApprovalsPage() {
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="Enter rejection reason…"
-                className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-red-500 transition-all resize-none mb-6"
+                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-red-400 transition-all resize-none mb-6 text-sm"
               />
 
               <div className="flex gap-4">
                 <button
                   onClick={() => setIsRejectModalOpen(false)}
-                  className="flex-grow py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReject}
                   disabled={!!actionLoading}
-                  className="flex-grow py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="flex-1 py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
-                  Reject & Notify
+                  Deny & Notify
                 </button>
               </div>
             </motion.div>

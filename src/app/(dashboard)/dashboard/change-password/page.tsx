@@ -35,8 +35,9 @@ export default function ChangePasswordPage() {
     if (passwords.newPassword !== passwords.confirmPassword) {
       return setError("New passwords do not match.");
     }
-    if (passwords.newPassword.length < 6) {
-      return setError("Password must be at least 6 characters.");
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(passwords.newPassword)) {
+      return setError("Password must contain at least 8 characters, one uppercase, one lowercase, one number, and one special character.");
     }
 
     setLoading(true);

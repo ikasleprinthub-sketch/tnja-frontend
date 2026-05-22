@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -l \"Razorpay\\\\|payment\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\Admin\\\\Desktop\\\\tnja-frontend\\\\src\\\\app\\\\\\(dashboard\\)\\\\dashboard\\\\club\\\\tournaments\")",
+      "Bash(ls \"c:\\\\Users\\\\Admin\\\\Desktop\\\\\" 2>/dev/null || dir \"c:\\\\Users\\\\Admin\\\\Desktop\\\\\")",
+      "Read(//c/Users/Admin/Desktop\" 2>/dev/**)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Admin\\\\Desktop\\\\tnja-backend\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\) {\"Dir\"} else {\"File\"}}} | Format-Table -AutoSize)",
+      "Bash(xargs grep -l \"admin\")",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\('FileCheck2:', !!l.FileCheck2, 'ClipboardList:', !!l.ClipboardList, 'ScrollText:', !!l.ScrollText\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\Desktop\\tnja-frontend\\src\\app\\(dashboard)\\dashboard\\club"
+    ]
+  }
+}

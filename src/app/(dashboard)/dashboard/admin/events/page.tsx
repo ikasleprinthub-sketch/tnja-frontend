@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Filter
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -20,6 +21,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 export default function EventsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [filter, setFilter] = useState("ALL");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -141,61 +143,82 @@ export default function EventsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Events Management</h1>
-          <p className="text-slate-500">Create and monitor events within your jurisdiction</p>
+          <h1 className="text-4xl font-black text-[#FF7400]">Events</h1>
+          <p className="text-slate-500 text-sm mt-1">Create and Monitor events within your jurisdiction</p>
         </div>
-        <button 
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-4 bg-[#FF7400] text-white font-bold rounded-2xl shadow-lg shadow-[#FF7400]/20 hover:scale-105 active:scale-95 transition-all"
+        <div 
+          className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
+          style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
         >
-          <Plus size={20} />
-          Propose Event
-        </button>
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm"
+          >
+            <Plus size={18} className="stroke-[2.5]" />
+            Create Event
+          </button>
+        </div>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
-          { label: "Total Events", value: events.length, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Approved", value: approvedCount, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Pending Approval", value: pendingCount, icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "TOTAL EVENTS", value: events.length, icon: Calendar, borderColor: "border-[#FF7400] border-b-[4px]", shadowColor: "shadow-[0_14px_28px_-6px_rgba(255,116,0,0.65)]", iconColor: "text-[#FF7400]" },
+          { label: "APPROVED", value: approvedCount, icon: CheckCircle2, borderColor: "border-[#FFDA00] border-b-[4px]", shadowColor: "shadow-[0_14px_28px_-6px_rgba(255,218,0,0.65)]", iconColor: "text-[#FFDA00]" },
+          { label: "PENDING APPROVAL", value: pendingCount, icon: AlertCircle, borderColor: "border-[#552700] border-b-[4px]", shadowColor: "shadow-[0_14px_28px_-6px_rgba(85,39,0,0.65)]", iconColor: "text-[#8B4513]" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl`}>
-              <stat.icon size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800">{stat.value}</h3>
+          <div key={stat.label} className={`bg-white p-6 rounded-[14px] transition-shadow border ${stat.borderColor} ${stat.shadowColor} flex flex-col justify-between h-[130px]`}>
+            <p className="text-[11px] font-semibold text-slate-500 tracking-[0.15em]">{stat.label}</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-4xl font-black text-slate-900 leading-none">{stat.value}</h3>
+              <div className={`w-[50px] h-[50px] bg-white rounded-full flex items-center justify-center shadow-[0_6px_12px_rgba(0,0,0,0.12),inset_0_3px_6px_rgba(0,0,0,0.12),inset_0_-3px_6px_rgba(255,255,255,1)] ${stat.iconColor}`}>
+                <stat.icon size={22} className="stroke-[2.5]" />
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       {/* Filters & Search */}
-      <div className="flex flex-col md:flex-row gap-4 items-center">
+      <div className="flex flex-col md:flex-row gap-4 items-center mb-4">
         <div className="relative flex-grow w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search events..."
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+            placeholder="Search events"
+            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 transition-all font-medium text-sm text-slate-700 shadow-sm"
           />
         </div>
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          {["ALL", "APPROVED", "PENDING", "REJECTED"].map((f) => (
+        <div className="relative">
+          <div 
+            className="p-[1.5px] rounded-[10px] shrink-0 inline-flex shadow-sm"
+            style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+          >
             <button 
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                filter === f ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-50"
-              }`}
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm"
             >
-              {f}
+              <Filter size={16} />
+              {filter === "ALL" ? "Filter" : filter}
             </button>
-          ))}
+          </div>
+          {isFilterOpen && (
+            <div className="absolute top-full mt-2 right-0 bg-white border border-slate-200 shadow-xl rounded-[10px] overflow-hidden z-50 w-44">
+              {["ALL", "APPROVED", "PENDING", "REJECTED"].map((f) => (
+                <button 
+                  key={f}
+                  onClick={() => { setFilter(f); setIsFilterOpen(false); }}
+                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${
+                    filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {f === "ALL" ? "All Events" : f}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -205,7 +228,7 @@ export default function EventsPage() {
           <Loader2 size={40} className="animate-spin text-[#FF7400]" />
         </div>
       ) : filteredEvents.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
+        <div className="text-center py-20 bg-white border border-slate-200 rounded-[20px] shadow-sm">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
             <Calendar size={32} />
           </div>
@@ -217,63 +240,44 @@ export default function EventsPage() {
             <motion.div 
               key={event.id}
               whileHover={{ y: -5 }}
-              className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col group"
+              className="bg-white rounded-[20px] shadow-xl shadow-slate-200/60 overflow-hidden flex flex-col group"
             >
-              <div className="h-32 bg-slate-100 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#FF7400]/20 to-[#FFDA00]/20 group-hover:opacity-100 transition-opacity"></div>
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold text-slate-800 shadow-sm flex items-center gap-2">
-                  <span>{event.level} LEVEL</span>
-                  <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
-                  <span className="text-[#FF7400]">{event.participantType}</span>
-                </div>
+              <div className="h-44 bg-gradient-to-br from-indigo-900 via-purple-700 to-[#FF7400] relative overflow-hidden">
+                <div className="absolute inset-0 bg-black/20"></div>
+                <div className="absolute inset-0 backdrop-blur-[2px]"></div>
               </div>
 
-              <div className="p-8 -mt-10 relative flex-grow">
-                <div className="w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center text-[#FF7400] mb-6 border border-slate-50">
-                  <Calendar size={32} />
-                </div>
-
-                <h3 className="text-xl font-bold text-slate-800 mb-4 line-clamp-2 leading-tight">
+              <div className="p-6 flex-grow flex flex-col bg-white rounded-t-[20px] -mt-5 relative z-10 border-t-[4px] border-[#FFDA00]">
+                <h3 className="text-[22px] font-bold text-black mb-5 leading-tight">
                   {event.title}
                 </h3>
-
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
-                    <Clock size={16} className="text-[#FF7400]" />
-                    {new Date(event.date).toLocaleDateString()}
+                
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-center gap-3 text-[14px] text-slate-700">
+                    <Calendar size={18} className="text-[#FF7400] stroke-[1.5]" />
+                    {new Date(event.date).toLocaleDateString('en-GB')}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
-                    <MapPin size={16} className="text-[#FF7400]" />
+                  <div className="flex items-center gap-3 text-[14px] text-slate-700">
+                    <MapPin size={18} className="text-[#FF7400] stroke-[1.5]" />
                     {event.location}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 font-medium pt-1">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${event.isPaid ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
-                      {event.isPaid ? `Entry Fee: ₹${event.entryFee}` : 'Free Entry'}
-                    </span>
-                  </div>
-                  {(event.district?.name || event.zoneId) && (
-                    <div className="flex items-center gap-2 text-sm text-slate-500 font-medium mt-1">
-                      <div className="w-4 h-4 rounded bg-slate-100 flex items-center justify-center">
-                        <MapPin size={10} className="text-slate-400" />
-                      </div>
-                      <span className="text-xs">Region: {event.district?.name || event.zoneId}</span>
-                    </div>
-                  )}
-                  {event.approvedBy && (
-                    <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium mt-3 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100">
-                      <CheckCircle2 size={16} />
-                      <span className="text-xs">Approved by <strong>{event.approvedBy}</strong></span>
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center justify-between mt-auto">
-                  <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                    event.status === "APPROVED" ? "bg-emerald-100 text-emerald-600" :
-                    event.status === "PENDING" ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
-                  }`}>
-                    {event.status}
-                  </div>
+                <div className="mb-6 mt-auto">
+                  <span className="inline-block px-3 py-1.5 bg-[#FFEEDC] text-black text-[12px] font-bold rounded-md">
+                    {event.isPaid ? `Entry Fee : ₹ ${event.entryFee}` : 'Free Entry'}
+                  </span>
+                </div>
+
+                {/* Status Box */}
+                <div className={`-mx-6 pl-[20px] pr-6 py-3.5 font-bold text-[15px] ${
+                  event.status === "APPROVED" ? "bg-gradient-to-r from-[#FFF9D6] via-[#FFF9D6] to-transparent text-black border-l-[4px] border-[#FFDA00]" :
+                  event.status === "PENDING" ? "bg-gradient-to-r from-[#FDF0E6] via-[#FDF0E6] to-transparent text-black border-l-[4px] border-[#FF7400]" :
+                  "bg-gradient-to-r from-red-50 to-transparent text-red-600 border-l-[4px] border-red-500"
+                }`}>
+                  {event.status === "APPROVED" ? `Approved by ${event.approvedBy || 'Super Admin'}` : 
+                   event.status === "PENDING" ? "Pending Approval" : 
+                   "Rejected"}
                 </div>
               </div>
             </motion.div>

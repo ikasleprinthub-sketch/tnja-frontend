@@ -82,6 +82,7 @@ export default function UserManagementPage() {
   const [newPassword, setNewPassword] = useState("");
   const [newPermanentId, setNewPermanentId] = useState("");
   const [promoteRole, setPromoteRole] = useState("");
+  const [promoteDistrictId, setPromoteDistrictId] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -91,6 +92,7 @@ export default function UserManagementPage() {
   const [draws, setDraws] = useState<number>(0);
   const [coachId, setCoachId] = useState<string>("");
   const [coachesList, setCoachesList] = useState<any[]>([]);
+  const [districtsList, setDistrictsList] = useState<any[]>([]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -123,9 +125,20 @@ export default function UserManagementPage() {
     }
   };
 
+  const fetchDistricts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/districts`);
+      const data = await res.json();
+      if (res.ok) setDistrictsList(data);
+    } catch (err) {
+      console.error("Failed to fetch districts list:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
     fetchCoaches();
+    fetchDistricts();
   }, [fetchUsers]);
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -147,6 +160,7 @@ export default function UserManagementPage() {
   const handlePromoteClick = (user: TNJAUser) => {
     setSelectedUser(user);
     setPromoteRole(user.role);
+    setPromoteDistrictId("");
     setPromoteModalOpen(true);
   };
 
@@ -198,6 +212,7 @@ export default function UserManagementPage() {
         body: JSON.stringify({
           memberId: selectedUser.id,
           role: promoteRole,
+          districtId: promoteDistrictId || undefined,
         }),
       });
       const data = await res.json();
@@ -463,13 +478,13 @@ export default function UserManagementPage() {
                     {selectedUser ? getPermanentIdLabel(selectedUser.role) : "Permanent ID"}
                   </label>
                   <div className="relative">
-                    <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-black" size={18} />
                     <input
                       type="text"
                       value={newPermanentId}
-                      onChange={(e) => setNewPermanentId(e.target.value)}
+                      readOnly
                       placeholder={selectedUser ? `Enter ${getPermanentIdLabel(selectedUser.role)}` : "Enter Permanent ID"}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all font-mono"
+                      className="w-full pl-12 pr-4 py-4 text-slate-500 bg-slate-100 border border-slate-200 rounded-2xl cursor-not-allowed focus:outline-none transition-all font-mono"
                     />
                   </div>
                 </div>
@@ -479,13 +494,13 @@ export default function UserManagementPage() {
                     Reset Password
                   </label>
                   <div className="relative">
-                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-black" size={18} />
                     <input
                       type={showPassword ? "text" : "password"}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Enter new password (leave blank to keep current)"
-                      className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
+                      className="w-full pl-12 pr-12 py-4 text-black bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
                     />
                     <button
                       type="button"
@@ -619,10 +634,27 @@ export default function UserManagementPage() {
                       <option key={r.id} value={r.id}>{r.label}</option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
-                    Promoting a member gives them additional privileges. They will see a different dashboard corresponding to their new role.
-                  </p>
                 </div>
+                {["DISTRICT_PRESIDENT", "DISTRICT_SECRETARY"].includes(promoteRole) && (
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1 mt-4">
+                      Assign District
+                    </label>
+                    <select
+                      value={promoteDistrictId}
+                      onChange={(e) => setPromoteDistrictId(e.target.value)}
+                      className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700"
+                    >
+                      <option value="">Select District</option>
+                      {districtsList.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+                      Promoting a member gives them additional privileges. They will see a different dashboard corresponding to their new role and the district assigned to them.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4 mt-10">

@@ -4,20 +4,24 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  User, 
-  Users, 
-  ShieldCheck, 
-  MapPin, 
-  Calendar, 
-  LogOut, 
-  Menu, 
+import {
+  LayoutDashboard,
+  User,
+  Users,
+  ShieldCheck,
+  MapPin,
+  Calendar,
+  LogOut,
+  Menu,
   X,
   Bell,
   Settings,
   MessageSquare,
-  Loader2
+  Loader2,
+  Trophy,
+  ClipboardList,
+  ScrollText,
+  FileCheck2,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -147,12 +151,10 @@ export default function DashboardLayout({
       }
     };
 
-    socket.onclose = () => {
-      console.log("[WS] Disconnected from notifications server");
-    };
+    socket.onclose = () => {};
 
-    socket.onerror = (err) => {
-      console.error("[WS] Connection error:", err);
+    socket.onerror = () => {
+      // Connection failed silently — backend may not be running
     };
 
     return () => {
@@ -166,6 +168,14 @@ export default function DashboardLayout({
     localStorage.clear();
     router.push("/login");
   };
+
+  const isPresident = userRole && [
+    "STATE_PRESIDENT", "ZONE_PRESIDENT", "DISTRICT_PRESIDENT"
+  ].includes(userRole);
+
+  const isSecretary = userRole && [
+    "STATE_SECRETARY", "ZONE_SECRETARY", "DISTRICT_SECRETARY"
+  ].includes(userRole);
 
   const adminNavItems = [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
@@ -182,20 +192,44 @@ export default function DashboardLayout({
     adminNavItems.push({ name: "Settings", href: "/dashboard/admin/settings", icon: Settings });
   }
 
-  const isPromotedRole = userRole && [
-    "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", 
-    "ZONE_PRESIDENT", "ZONE_SECRETARY", 
-    "STATE_PRESIDENT", "STATE_SECRETARY"
-  ].includes(userRole);
+  const presidentNavItems = [
+    { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+    { name: "Approvals", href: "/dashboard/admin/approvals", icon: FileCheck2 },
+    { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
+    { name: "Members List", href: "/dashboard/admin/members", icon: Users },
+    { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
+  ];
 
-  const navItems = (isPromotedRole || userRole === "SUPER_ADMIN") 
-    ? adminNavItems 
+  const secretaryNavItems = [
+    { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+    { name: "Members", href: "/dashboard/admin/members", icon: Users },
+    { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
+    { name: "Approvals", href: "/dashboard/admin/approvals", icon: ClipboardList },
+    { name: "Grievances", href: "/dashboard/admin/grievances", icon: ScrollText },
+  ];
+
+  const navItems = isPresident
+    ? presidentNavItems
+    : isSecretary
+    ? secretaryNavItems
+    : userRole === "SUPER_ADMIN"
+    ? adminNavItems
+    : userRole === "PLAYER"
+    ? [
+        { name: "Dashboard", href: "/dashboard/player", icon: LayoutDashboard },
+        { name: "Tournaments", href: "/dashboard/player/tournaments", icon: Trophy },
+        { name: "Events", href: "/dashboard/member/events", icon: Calendar },
+        { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
+      ]
+    : userRole === "CLUB"
+    ? [
+        { name: "My Profile", href: "/dashboard/member", icon: User },
+        { name: "Tournaments", href: "/dashboard/club/tournaments", icon: Trophy },
+        { name: "Events", href: "/dashboard/member/events", icon: Calendar },
+        { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
+      ]
     : [
-        { 
-          name: userRole === "PLAYER" ? "Dashboard" : "My Profile", 
-          href: userRole === "PLAYER" ? "/dashboard/player" : "/dashboard/member", 
-          icon: userRole === "PLAYER" ? LayoutDashboard : User 
-        },
+        { name: "My Profile", href: "/dashboard/member", icon: User },
         { name: "Events", href: "/dashboard/member/events", icon: Calendar },
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ];
@@ -217,48 +251,128 @@ export default function DashboardLayout({
         )}
       </AnimatePresence>
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`${
-          isSidebarOpen ? "w-64" : "w-20"
-        } transition-all duration-300 bg-slate-900 text-white flex flex-col z-50`}
+          isSidebarOpen ? "w-64" : "w-[72px]"
+        } transition-all duration-300 bg-white border-r border-slate-200 flex flex-col z-50 shadow-sm`}
       >
-        <div className="p-6 flex items-center justify-between">
-          {isSidebarOpen && <h1 className="text-2xl font-bold text-brand-orange">TNJA</h1>}
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1 hover:bg-slate-800 rounded"
-          >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+        {/* Logo Header */}
+        <div className={`flex items-center border-b border-slate-100 ${isSidebarOpen ? "px-4 py-4 gap-3" : "px-0 py-4 justify-center"}`}>
+          {isSidebarOpen ? (
+            <>
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#FF7400]/30 shrink-0 bg-orange-50 flex items-center justify-center">
+                <span className="text-[#FF7400] font-black text-base">T</span>
+              </div>
+              <div className="flex-grow overflow-hidden">
+                <p className="text-[11px] font-black text-slate-800 leading-tight truncate">TAMIL NADU JUDO</p>
+                <p className="text-[10px] font-bold text-[#FF7400] leading-tight truncate">ASSOCIATION 329/2017</p>
+              </div>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-1 hover:bg-slate-100 rounded-lg shrink-0"
+              >
+                <X size={16} className="text-slate-400" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 hover:bg-slate-100 rounded-lg"
+            >
+              <Menu size={18} className="text-slate-500" />
+            </button>
+          )}
         </div>
 
-        <nav className="flex-grow mt-6 px-3 space-y-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
+        {/* Personal Details heading */}
+        {isSidebarOpen && (
+          <div className="px-5 pt-5 pb-3">
+            {(isPresident || isSecretary) ? (
               <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center p-3 rounded-xl transition-all ${
-                  isActive 
-                    ? "bg-[#FF7400] text-white shadow-lg shadow-orange-500/20" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                href="/dashboard/admin/profile"
+                className={`block text-sm font-bold pb-2 border-b-2 transition-opacity hover:opacity-75 ${
+                  pathname === "/dashboard/admin/profile"
+                    ? "text-[#FF7400] border-[#FF7400]"
+                    : "text-[#FF7400] border-[#FF7400]"
                 }`}
               >
-                <item.icon size={20} />
-                {isSidebarOpen && <span className="ml-3 font-medium">{item.name}</span>}
+                Personal Details
               </Link>
-            );
-          })}
+            ) : (
+              <p className="text-sm font-bold text-[#FF7400] pb-2 border-b-2 border-[#FF7400]">
+                Personal Details
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Nav section */}
+        <nav className="flex-grow px-3 pt-2">
+          {isSidebarOpen && (
+            <p className="text-sm font-bold text-slate-800 px-2 pb-3">Dashboard</p>
+          )}
+          <div className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-2 py-2 rounded-xl transition-all ${
+                    isActive
+                      ? "bg-orange-50"
+                      : "hover:bg-slate-50"
+                  } ${!isSidebarOpen ? "justify-center" : ""}`}
+                >
+                  <div
+                    style={{
+                      backgroundColor: isActive ? "#FF7400" : "#FFA726",
+                      boxShadow: isActive
+                        ? "0 4px 10px rgba(255,116,0,0.3)"
+                        : "0 2px 6px rgba(255,167,38,0.25)",
+                    }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all"
+                  >
+                    <item.icon size={17} color="#ffffff" />
+                  </div>
+                  {isSidebarOpen && (
+                    <span
+                      className={`text-sm font-semibold ${
+                        isActive ? "text-[#FF7400]" : "text-slate-700"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
-        <div className="p-4 mt-auto border-t border-slate-800">
-          <button 
+        {/* Footer */}
+        <div className={`border-t border-slate-100 p-3 space-y-1 ${!isSidebarOpen ? "flex flex-col items-center" : ""}`}>
+          {isSidebarOpen && (isPresident || isSecretary) && (
+            <Link
+              href="/dashboard/change-password"
+              className="flex items-center gap-3 px-2 py-2 text-slate-600 hover:bg-slate-50 hover:text-slate-800 rounded-xl transition-all"
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-slate-100">
+                <Settings size={17} className="text-slate-500" />
+              </div>
+              <span className="text-sm font-semibold">Change Password</span>
+            </Link>
+          )}
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center p-3 text-slate-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all"
+            className={`flex items-center gap-3 px-2 py-2 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all ${
+              !isSidebarOpen ? "w-auto justify-center" : "w-full"
+            }`}
           >
-            <LogOut size={20} />
-            {isSidebarOpen && <span className="ml-3 font-medium">Logout</span>}
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-slate-100 hover:bg-red-100 transition-colors">
+              <LogOut size={17} className="text-slate-500 group-hover:text-red-500" />
+            </div>
+            {isSidebarOpen && <span className="text-sm font-semibold">Logout</span>}
           </button>
         </div>
       </aside>
