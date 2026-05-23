@@ -408,7 +408,7 @@ export default function ApprovalsPage() {
               <table className="w-full text-sm">
                 <tbody>
                   {Object.entries(selectedItem.rawData)
-                    .filter(([k]) => !["password", "id"].includes(k))
+                    .filter(([k]) => !["password", "id", "districtId", "talukId", "zoneId", "clubId", "coachId", "userId", "eventId"].includes(k))
                     .map(([key, val]: any) => {
                       const isUploadUrl =
                         typeof val === "string" &&

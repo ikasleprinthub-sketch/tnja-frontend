@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { User, ShieldCheck, Eye, EyeOff, ArrowLeft, ChevronLeft } from "lucide-react";
+import { User, ShieldCheck, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -202,6 +202,15 @@ export default function LoginPage() {
                   className="block w-full py-2 text-center border border-[#FF7400] text-[#FF7400] hover:bg-[#FF7400]/5 text-sm font-bold rounded-xl shadow-[0_4px_10px_rgba(255,116,0,0.05)] transition-all active:translate-y-[2px]"
                 >
                   Register / Create Account
+                </Link>
+
+                {/* Track Registration */}
+                <Link
+                  href="/track"
+                  className="flex items-center justify-center gap-2 w-full py-2 text-center text-slate-500 hover:text-[#FF7400] text-xs font-semibold transition-colors"
+                >
+                  <span className="inline-block w-4 h-4 rounded-full border border-current flex items-center justify-center text-[9px] font-black">?</span>
+                  Track your registration status
                 </Link>
               </form>
  

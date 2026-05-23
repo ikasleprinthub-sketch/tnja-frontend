@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, startTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -97,13 +97,13 @@ export default function DashboardLayout({
     const name = localStorage.getItem("userName");
 
     if (!token) {
-      router.push("/login");
+      startTransition(() => router.push("/login"));
       return;
     }
 
     if (role) setUserRole(role);
     if (name) setUserName(name);
-  }, [router]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -166,7 +166,7 @@ export default function DashboardLayout({
 
   const handleLogout = () => {
     localStorage.clear();
-    router.push("/login");
+    startTransition(() => router.push("/login"));
   };
 
   const isPresident = userRole && [
