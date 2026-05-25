@@ -247,7 +247,9 @@ export default function GrievancePage() {
                           {new Date(g.createdAt).toLocaleDateString()}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          g.status === "PENDING" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-600"
+                          g.status === "PENDING" ? "bg-amber-100 text-amber-600" :
+                          g.status === "CLOSED" ? "bg-red-100 text-red-600" :
+                          "bg-green-100 text-green-600"
                         }`}>
                           {g.status}
                         </span>
@@ -265,6 +267,17 @@ export default function GrievancePage() {
                       </div>
                       <p className="text-slate-700 text-sm italic bg-orange-50/50 p-4 rounded-xl">
                         {g.reply}
+                      </p>
+                    </div>
+                  )}
+                  {g.remark && (
+                    <div className="pl-6 border-l-4 border-red-100 space-y-2 pt-2 mt-2">
+                      <div className="flex items-center gap-2 text-red-600 font-bold text-sm">
+                        <CheckCircle2 size={16} />
+                        Admin Remark (Closed)
+                      </div>
+                      <p className="text-slate-700 text-sm italic bg-red-50/50 p-4 rounded-xl">
+                        {g.remark}
                       </p>
                     </div>
                   )}

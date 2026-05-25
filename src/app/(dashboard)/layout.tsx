@@ -312,7 +312,14 @@ export default function DashboardLayout({
             <p className="text-sm font-bold text-slate-800 px-2 pb-3">Dashboard</p>
           )}
           <div className="space-y-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) => {
+                if (item.name === "Grievances") {
+                  return ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole || "");
+                }
+                return true;
+              })
+              .map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link

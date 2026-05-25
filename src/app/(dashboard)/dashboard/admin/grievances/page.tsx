@@ -25,9 +25,13 @@ export default function AdminGrievancePage() {
   const [filter, setFilter] = useState("all");
   const [selectedGrievance, setSelectedGrievance] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
+  const [remarkText, setRemarkText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
+    setUserRole(localStorage.getItem("userRole"));
     fetchGrievances();
   }, []);
 
@@ -64,6 +68,27 @@ export default function AdminGrievancePage() {
     }
   };
 
+  const handleClose = async () => {
+    if (!remarkText.trim()) return;
+    setClosing(true);
+    try {
+      const res = await fetch(`${API_BASE}/grievances/${selectedGrievance.id}/close`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remark: remarkText })
+      });
+      if (res.ok) {
+        setRemarkText("");
+        setSelectedGrievance(null);
+        fetchGrievances();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setClosing(false);
+    }
+  };
+
   const filteredGrievances = grievances.filter(g => {
     const matchesSearch = 
       g.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,7 +97,8 @@ export default function AdminGrievancePage() {
     
     if (filter === "all") return matchesSearch;
     if (filter === "pending") return matchesSearch && g.status === "PENDING";
-    if (filter === "replied") return matchesSearch && (g.status === "REPLAY" || g.reply);
+    if (filter === "replied") return matchesSearch && (g.status === "REPLAY" || g.reply) && g.status !== "CLOSED";
+    if (filter === "closed") return matchesSearch && g.status === "CLOSED";
     return matchesSearch;
   });
 
@@ -80,6 +106,16 @@ export default function AdminGrievancePage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-10 h-10 text-brand-orange animate-spin" />
+      </div>
+    );
+  }
+
+  if (userRole && !["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+        <AlertCircle size={48} className="text-red-500" />
+        <h2 className="text-2xl font-bold text-slate-800">Unauthorized Access</h2>
+        <p className="text-slate-500">You do not have permission to view this page.</p>
       </div>
     );
   }
@@ -105,7 +141,7 @@ export default function AdminGrievancePage() {
           />
         </div>
         <div className="flex bg-white p-1 rounded-2xl border border-slate-200">
-          {["all", "pending", "replied"].map((f) => (
+          {["all", "pending", "replied", "closed"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -136,6 +172,7 @@ export default function AdminGrievancePage() {
               onClick={() => {
                 setSelectedGrievance(g);
                 setReplyText(g.reply || "");
+                setRemarkText(g.remark || "");
               }}
               className="bg-white rounded-3xl p-6 border border-slate-200 hover:shadow-xl hover:border-brand-orange/20 transition-all cursor-pointer group"
             >
@@ -149,7 +186,9 @@ export default function AdminGrievancePage() {
                       {g.role}
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                      g.status === "PENDING" ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-600"
+                      g.status === "PENDING" ? "bg-amber-100 text-amber-600" :
+                      g.status === "CLOSED" ? "bg-red-100 text-red-600" :
+                      "bg-green-100 text-green-600"
                     }`}>
                       {g.status === "REPLAY" ? "REPLIED" : g.status}
                     </span>
@@ -235,25 +274,56 @@ export default function AdminGrievancePage() {
                   </div>
                 )}
 
-                <div className="space-y-4 pt-4 border-t">
-                  <label className="text-sm font-bold text-slate-700 ml-4">Your Response</label>
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your response here..."
-                    className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-brand-orange/20 focus:bg-white rounded-3xl outline-none transition-all min-h-[120px] resize-none"
-                  />
-                  <div className="flex gap-4">
-                    <button
-                      disabled={submitting || !replyText.trim()}
-                      onClick={handleReply}
-                      className="flex-grow py-4 bg-[#FF7400] text-white rounded-2xl font-bold text-lg hover:bg-[#E56900] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                    >
-                      {submitting ? <Loader2 className="animate-spin" /> : <Send size={20} />}
-                      {selectedGrievance.reply ? "Update Reply" : "Send Reply"}
-                    </button>
+                {selectedGrievance.remark && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-4">Remark (Closed)</p>
+                    <div className="bg-red-50/50 p-6 rounded-3xl border border-red-100 italic text-slate-700">
+                      {selectedGrievance.remark}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {userRole === "SUPER_ADMIN" && selectedGrievance.status !== "CLOSED" && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 ml-4">Your Response (Reply)</label>
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Type your response here..."
+                          className="w-full px-6 py-4 bg-slate-50 text-slate-800 placeholder:text-slate-400 border-2 border-transparent focus:border-brand-orange/20 focus:bg-white rounded-3xl outline-none transition-all min-h-[120px] resize-none"
+                        />
+                        <button
+                          disabled={submitting || !replyText.trim()}
+                          onClick={handleReply}
+                          className="w-full py-4 bg-[#FF7400] text-white rounded-2xl font-bold text-lg hover:bg-[#E56900] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                        >
+                          {submitting ? <Loader2 className="animate-spin" /> : <Send size={20} />}
+                          {selectedGrievance.reply ? "Update Reply" : "Send Reply"}
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 ml-4">Remark (For Closing)</label>
+                        <textarea
+                          value={remarkText}
+                          onChange={(e) => setRemarkText(e.target.value)}
+                          placeholder="Type remark before closing..."
+                          className="w-full px-6 py-4 bg-slate-50 text-slate-800 placeholder:text-slate-400 border-2 border-transparent focus:border-red-500/20 focus:bg-white rounded-3xl outline-none transition-all min-h-[120px] resize-none"
+                        />
+                        <button
+                          disabled={closing || !remarkText.trim()}
+                          onClick={handleClose}
+                          className="w-full py-4 bg-red-500 text-white rounded-2xl font-bold text-lg hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                        >
+                          {closing ? <Loader2 className="animate-spin" /> : <X size={20} />}
+                          Close with Remark
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
