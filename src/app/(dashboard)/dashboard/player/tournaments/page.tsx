@@ -26,6 +26,8 @@ export default function PlayerTournamentsPage() {
   const [paying, setPaying] = useState<string | null>(null);
   const [playerData, setPlayerData] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [registerModal, setRegisterModal] = useState<any | null>(null);
+  const [physicalDetails, setPhysicalDetails] = useState({ height: '', weight: '' });
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -80,6 +82,10 @@ export default function PlayerTournamentsPage() {
     });
 
   const handleRegister = async (tournament: any) => {
+    if (!physicalDetails.height || !physicalDetails.weight) {
+      showToast("Height and weight are required.", "error");
+      return;
+    }
     if (!playerData?.isPaid && !playerData?.isBPL) {
       showToast("Complete your membership payment first to join tournaments.", "error");
       return;
@@ -91,14 +97,20 @@ export default function PlayerTournamentsPage() {
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("Razorpay SDK failed to load.");
 
-      const orderRes = await fetch(`${API_BASE}/tournaments/create-payment-order`, {
+      const orderRes = await fetch(`${API_BASE}/tournaments/player/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tournamentId: tournament.id }),
+        body: JSON.stringify({ tournamentId: tournament.id, height: physicalDetails.height, weight: physicalDetails.weight }),
       });
 
       const orderData = await orderRes.json();
       if (!orderRes.ok) throw new Error(orderData.error || "Failed to create payment order");
+
+      if (orderData.isFree) {
+        showToast(orderData.message, "success");
+        fetchTournaments();
+        return;
+      }
 
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
@@ -109,11 +121,13 @@ export default function PlayerTournamentsPage() {
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
-            const verifyRes = await fetch(`${API_BASE}/tournaments/verify-payment`, {
+            const verifyRes = await fetch(`${API_BASE}/tournaments/player/verify`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
                 tournamentId: tournament.id,
+                height: physicalDetails.height,
+                weight: physicalDetails.weight,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
@@ -141,6 +155,8 @@ export default function PlayerTournamentsPage() {
       showToast(err.message || "Payment failed", "error");
     } finally {
       setPaying(null);
+      setRegisterModal(null);
+      setPhysicalDetails({ height: '', weight: '' });
     }
   };
 
@@ -226,6 +242,7 @@ export default function PlayerTournamentsPage() {
             const myReg = tournament.myRegistration;
             const isFull = tournament.registrationCount >= tournament.totalSlots;
             const isPayingThis = paying === tournament.id;
+            const isFree = tournament.entryFee === 0 || (tournament.allowBPL && playerData?.isBPL);
 
             return (
               <motion.div
@@ -253,6 +270,7 @@ export default function PlayerTournamentsPage() {
                     <div className="flex items-center gap-2">
                       <Clock size={14} className="text-[#FF7400]" />
                       {new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {tournament.dateTo && ` - ${new Date(tournament.dateTo).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin size={14} className="text-[#FF7400]" />
@@ -260,20 +278,20 @@ export default function PlayerTournamentsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <IndianRupee size={14} className="text-[#FF7400]" />
-                      Entry Fee: <span className="font-bold text-slate-700">₹{tournament.entryFee}</span>
+                      Entry Fee: <span className="font-bold text-slate-700">{tournament.entryFee === 0 ? "Free" : `₹${tournament.entryFee}`}</span>
+                      {tournament.allowBPL && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold ml-2">BPL FREE</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Users size={14} className="text-[#FF7400]" />
                       {tournament.registrationCount ?? 0} / {tournament.totalSlots} Slots Filled
                     </div>
-                    {tournament.ageGroup && (
-                      <div className="flex gap-2 flex-wrap mt-1">
-                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">{tournament.ageGroup}</span>
-                        {tournament.weightCategory && (
-                          <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">{tournament.weightCategory}</span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex gap-2 flex-wrap mt-1">
+                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">Age: {tournament.ageFrom}-{tournament.ageTo}</span>
+                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">{tournament.gender}</span>
+                      {tournament.beltEligibility && (
+                         <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">Belt: {tournament.beltEligibility}</span>
+                      )}
+                    </div>
                   </div>
 
                   {tournament.description && (
@@ -295,12 +313,14 @@ export default function PlayerTournamentsPage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => handleRegister(tournament)}
+                        onClick={() => setRegisterModal(tournament)}
                         disabled={isPayingThis}
                         className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                       >
                         {isPayingThis ? (
                           <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                        ) : isFree ? (
+                           <>Register (Free) <ArrowRight size={16} /></>
                         ) : (
                           <>Pay ₹{tournament.entryFee} & Register <ArrowRight size={16} /></>
                         )}
@@ -321,6 +341,67 @@ export default function PlayerTournamentsPage() {
           After payment, your registration is sent to the club for approval. You will be notified once approved.
         </span>
       </div>
+    
+      {/* Registration Details Modal */}
+      <AnimatePresence>
+        {registerModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl"
+            >
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">Physical Details</h2>
+              <p className="text-slate-500 text-sm mb-6">Please provide your current height and weight for tournament registration.</p>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Height (cm)</label>
+                  <input
+                    type="number"
+                    required
+                    value={physicalDetails.height}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, height: e.target.value })}
+                    placeholder="e.g. 175"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Weight (kg)</label>
+                  <input
+                    type="number"
+                    required
+                    value={physicalDetails.weight}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, weight: e.target.value })}
+                    placeholder="e.g. 68"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setRegisterModal(null);
+                    setPhysicalDetails({ height: '', weight: '' });
+                  }}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRegister(registerModal)}
+                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight}
+                  className="flex-1 py-3 bg-[#FF7400] hover:bg-[#e66a00] text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {paying === registerModal.id ? <Loader2 size={16} className="animate-spin" /> : "Proceed"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

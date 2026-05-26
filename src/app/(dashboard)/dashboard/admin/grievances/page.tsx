@@ -110,7 +110,7 @@ export default function AdminGrievancePage() {
     );
   }
 
-  if (userRole && !["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole)) {
+  if (userRole && !["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
         <AlertCircle size={48} className="text-red-500" />
@@ -283,7 +283,7 @@ export default function AdminGrievancePage() {
                   </div>
                 )}
 
-                {userRole === "SUPER_ADMIN" && selectedGrievance.status !== "CLOSED" && (
+                {(userRole === "SUPER_ADMIN" || userRole === "CEO") && selectedGrievance.status !== "CLOSED" && (
                   <div className="space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">

@@ -122,7 +122,7 @@ export default function AdminDashboard() {
       {/* Welcome Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">{userData?.role === 'SUPER_ADMIN' ? 'State' : 'District'} Dashboard</h1>
+          <h1 className="text-3xl font-bold text-slate-800">{(userData?.role === 'SUPER_ADMIN' || userData?.role === 'CEO') ? 'State' : 'District'} Dashboard</h1>
           <p className="text-slate-500">Overview for {districtName}</p>
         </div>
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
@@ -216,7 +216,7 @@ export default function AdminDashboard() {
         {/* Sidebar Column */}
         <div className="space-y-8">
           {/* Location Based Stats - Super Admin Only */}
-          {userData?.role === 'SUPER_ADMIN' && (
+          {(userData?.role === 'SUPER_ADMIN' || userData?.role === 'CEO') && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

@@ -130,6 +130,7 @@ export default function AdminProfilePage() {
     if (role.includes("PRESIDENT")) return "PRESIDENT";
     if (role.includes("SECRETARY")) return "SECRETARY";
     if (role === "SUPER_ADMIN") return "SUPER ADMIN";
+    if (role === "CEO") return "CEO";
     return role.replace(/_/g, " ");
   };
 

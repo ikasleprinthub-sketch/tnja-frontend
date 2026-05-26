@@ -25,7 +25,7 @@ import {
   EyeOff,
 } from "lucide-react";
 
-type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY";
+type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
 
 interface TNJAUser {
   id: string;
@@ -54,6 +54,7 @@ const PROMOTABLE_ROLES = [
   { id: "ZONE_SECRETARY", label: "Zone Secretary" },
   { id: "STATE_PRESIDENT", label: "State President" },
   { id: "STATE_SECRETARY", label: "State Secretary" },
+  { id: "CEO", label: "CEO" },
 ];
 
 const getPermanentIdLabel = (role: string) => {
@@ -238,7 +239,7 @@ export default function UserManagementPage() {
     if (roleFilter === "ALL") {
       matchesRole = true;
     } else if (roleFilter === "MEMBER") {
-      matchesRole = ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(u.role);
+      matchesRole = ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(u.role);
     } else {
       matchesRole = u.role === roleFilter;
     }
@@ -261,7 +262,7 @@ export default function UserManagementPage() {
   };
 
   const isMemberRole = (role: string) => {
-    return ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(role);
+    return ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(role);
   };
 
   const roleColors: Record<string, string> = {
@@ -275,6 +276,7 @@ export default function UserManagementPage() {
     ZONE_SECRETARY: "bg-rose-100 text-rose-700",
     STATE_PRESIDENT: "bg-red-100 text-red-700",
     STATE_SECRETARY: "bg-red-100 text-red-700",
+    CEO: "bg-slate-800 text-white",
   };
 
   return (

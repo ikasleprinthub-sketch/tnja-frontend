@@ -181,12 +181,13 @@ export default function DashboardLayout({
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ShieldCheck },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
 
   // Add Super Admin only links
-  if (userRole === "SUPER_ADMIN") {
+  if (userRole === "SUPER_ADMIN" || userRole === "CEO") {
     adminNavItems.push({ name: "Locations", href: "/dashboard/admin/locations", icon: MapPin });
     adminNavItems.push({ name: "User Management", href: "/dashboard/admin/users", icon: Users });
     adminNavItems.push({ name: "Settings", href: "/dashboard/admin/settings", icon: Settings });
@@ -196,6 +197,7 @@ export default function DashboardLayout({
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: FileCheck2 },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
@@ -204,6 +206,7 @@ export default function DashboardLayout({
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Members", href: "/dashboard/admin/members", icon: Users },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ClipboardList },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: ScrollText },
   ];
@@ -212,7 +215,7 @@ export default function DashboardLayout({
     ? presidentNavItems
     : isSecretary
     ? secretaryNavItems
-    : userRole === "SUPER_ADMIN"
+    : (userRole === "SUPER_ADMIN" || userRole === "CEO")
     ? adminNavItems
     : userRole === "PLAYER"
     ? [
@@ -315,7 +318,7 @@ export default function DashboardLayout({
             {navItems
               .filter((item) => {
                 if (item.name === "Grievances") {
-                  return ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole || "");
+                  return ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole || "");
                 }
                 return true;
               })
