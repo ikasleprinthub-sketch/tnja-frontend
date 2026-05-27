@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   Trophy,
   MapPin,
@@ -16,6 +17,7 @@ import {
   Users,
   Plus,
   Calendar,
+  ChevronRight,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -695,6 +697,15 @@ export default function AdminTournamentsPage() {
                             Reject
                           </button>
                         </div>
+
+                        {/* Manage link — always visible */}
+                        <Link
+                          href={`/dashboard/admin/tournaments/${t.id}`}
+                          className="mt-2 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
+                        >
+                          <Trophy size={12} /> Manage / Generate Draw
+                          <ChevronRight size={12} />
+                        </Link>
                       </div>
                     </motion.div>
                   ))}
@@ -767,6 +778,15 @@ export default function AdminTournamentsPage() {
                             <span className="font-bold">Rejected: </span>{t.rejectionRemark}
                           </div>
                         )}
+
+                        {/* Manage button — always visible */}
+                        <Link
+                          href={`/dashboard/admin/tournaments/${t.id}`}
+                          className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                        >
+                          <Trophy size={14} /> Manage Tournament
+                          <ChevronRight size={14} />
+                        </Link>
                       </div>
                     </motion.div>
                   ))}

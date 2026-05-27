@@ -9,7 +9,12 @@
       "Bash(xargs grep -l \"admin\")",
       "Bash(npx tsc *)",
       "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\('FileCheck2:', !!l.FileCheck2, 'ClipboardList:', !!l.ClipboardList, 'ScrollText:', !!l.ScrollText\\)\")",
-      "Bash(node query.js)"
+      "Bash(node query.js)",
+      "WebFetch(domain:maha-judo-scorecard.web.app)",
+      "Bash(mkdir -p \"c:/Users/Admin/Desktop/tnja-frontend/src/app/\\(dashboard\\)/dashboard/admin/tournaments/[id]\")",
+      "Bash(mkdir -p \"c:/Users/Admin/Desktop/tnja-frontend/src/app/\\(dashboard\\)/dashboard/admin/tournaments/[id]/scoreboard\")",
+      "Bash(npx next *)",
+      "Bash(findstr /i \"dev\\\\|start\\\\|build\\\\|scripts\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Admin\\Desktop\\tnja-frontend\\src\\app\\(dashboard)\\dashboard\\club"

@@ -28,7 +28,7 @@ const InputField = ({ label, name, placeholder, required = false, type = "text",
         value={value}
         onChange={onChange}
         maxLength={maxLength}
-        className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
+        className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
       />
       {Icon && (
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -144,7 +144,7 @@ const DatePickerField = ({ label, name, required = false, value, onChange, place
           onChange={handleTextChange}
           maxLength={10}
           onClick={() => setIsOpen(true)}
-          className="w-full pl-10 pr-4 py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400"
+          className="w-full pl-10 pr-4 py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400"
         />
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
           <Calendar size={18} />

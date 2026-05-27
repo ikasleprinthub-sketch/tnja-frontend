@@ -8,7 +8,7 @@ export async function GET(
   const resolvedParams = await params;
   const pincode = resolvedParams.pincode;
   
-  return new Promise((resolve) => {
+  return new Promise<Response>((resolve) => {
     https.get(`https://api.postalpincode.in/pincode/${pincode}`, { rejectUnauthorized: false }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);

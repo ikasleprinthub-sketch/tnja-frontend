@@ -30,7 +30,7 @@ const InputField = ({ label, name, placeholder, required = false, type = "text",
           onChange={onChange}
           maxLength={maxLength}
           list={listId}
-          className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
+          className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
         />
         {Icon && (
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">

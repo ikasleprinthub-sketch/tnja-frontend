@@ -1,0 +1,962 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
+  Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
+  IndianRupee, Target, Zap, ChevronRight, Award, Flag,
+} from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+// ─── Demo Players (for testing draw generation) ───────────────────────────────
+const DEMO_PLAYERS: RegisteredPlayer[] = [
+  { id: "d1",  name: "ARJUN KUMAR",        club: "Chennai Judo",    district: "Chennai",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
+  { id: "d2",  name: "VIKRAM SELVAM",       club: "Coimbatore JC",  district: "Coimbatore", weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Black" },
+  { id: "d3",  name: "KARTHIK RAJAN",       club: "Madurai Judo",   district: "Madurai",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
+  { id: "d4",  name: "SURESH MURUGAN",      club: "Salem Judo",     district: "Salem",      weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Blue"  },
+  { id: "d5",  name: "PRAVEEN ANAND",       club: "Trichy Judo",    district: "Trichy",     weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
+  { id: "d6",  name: "DINESH BABU",         club: "Vellore JC",     district: "Vellore",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Black" },
+  { id: "d7",  name: "RAJESH PANDIAN",      club: "Tirunelveli JC", district: "Tirunelveli",weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
+  { id: "d8",  name: "SENTHIL KUMAR",       club: "Erode Judo",     district: "Erode",      weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Blue"  },
+  { id: "d9",  name: "PRIYA LAKSHMI",       club: "Chennai Judo",   district: "Chennai",    weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Black" },
+  { id: "d10", name: "ANITHA DEVI",         club: "Coimbatore JC",  district: "Coimbatore", weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Brown" },
+  { id: "d11", name: "KAVITHA SELVI",       club: "Madurai Judo",   district: "Madurai",    weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Brown" },
+  { id: "d12", name: "MEENAKSHI RAJ",       club: "Salem Judo",     district: "Salem",      weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Blue"  },
+  { id: "d13", name: "LOGESH KUMAR",        club: "Trichy Judo",    district: "Trichy",     weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Blue"  },
+  { id: "d14", name: "ARUN PRAKASH",        club: "Vellore JC",     district: "Vellore",    weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Brown" },
+  { id: "d15", name: "KUMARAN SIVA",        club: "Salem Judo",     district: "Salem",      weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Blue"  },
+  { id: "d16", name: "MUTHUKUMAR R",        club: "Erode Judo",     district: "Erode",      weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Brown" },
+];
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+type Tab = "overview" | "players" | "draws" | "matches";
+type ViewMode = "list" | "bracket";
+
+interface Tournament {
+  id: string; title: string; date: string; dateTo?: string;
+  location: string; level: string; entryFee: number; totalSlots: number;
+  ageFrom: number; ageTo: number; gender: string; beltEligibility?: string;
+  allowBPL: boolean; status: string;
+  districtApproval: string; stateApproval: string;
+  superAdminApproval: string; ceoApproval: string;
+  registrationCount?: number;
+  club?: { name: string; district?: { name: string } };
+}
+
+interface RegisteredPlayer {
+  id: string; name: string; club: string; district: string;
+  weight: number; ageGroup: string; gender: string; belt: string;
+  seedNumber?: number;
+}
+
+interface BracketSlot {
+  playerId: string | null; playerName: string;
+  club: string; isBye: boolean; seedNumber?: number;
+}
+
+interface BracketMatch {
+  matchId: string; round: number; matchNumber: number; matNumber: number;
+  slotA: BracketSlot; slotB: BracketSlot;
+  winnerId: string | null; status: "PENDING" | "IN_PROGRESS" | "COMPLETED";
+}
+
+interface DrawCategory {
+  ageGroup: string; gender: string; weightCategory: string;
+  rounds: BracketMatch[][]; generated: boolean; saved: boolean;
+}
+
+interface Seeds {
+  1: RegisteredPlayer | null; 2: RegisteredPlayer | null;
+  3: RegisteredPlayer | null; 4: RegisteredPlayer | null;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function nextPow2(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── IJF Bracket Generator ────────────────────────────────────────────────────
+function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketMatch[][] {
+  const N = nextPow2(Math.max(players.length, 2));
+  const slots: (RegisteredPlayer | null)[] = new Array(N).fill(null);
+
+  // IJF seed positions: S1=top, S2=bottom, S3=2nd quarter, S4=3rd quarter
+  if (seeds[1]) slots[0] = { ...seeds[1], seedNumber: 1 };
+  if (seeds[2]) slots[N - 1] = { ...seeds[2], seedNumber: 2 };
+  if (seeds[3]) slots[Math.floor(N / 4)] = { ...seeds[3], seedNumber: 3 };
+  if (seeds[4]) slots[Math.floor((3 * N) / 4)] = { ...seeds[4], seedNumber: 4 };
+
+  const seededIds = new Set(
+    [seeds[1], seeds[2], seeds[3], seeds[4]].filter(Boolean).map((p) => p!.id)
+  );
+  const nonSeeded = shuffleArray(players.filter((p) => !seededIds.has(p.id)));
+
+  let ni = 0;
+  for (let i = 0; i < N; i++) {
+    if (slots[i] === null) slots[i] = nonSeeded[ni++] || null;
+  }
+
+  const toSlot = (p: RegisteredPlayer | null): BracketSlot =>
+    p
+      ? { playerId: p.id, playerName: p.name, club: p.club, isBye: false, seedNumber: p.seedNumber }
+      : { playerId: null, playerName: "BYE", club: "", isBye: true };
+
+  const rounds: BracketMatch[][] = [];
+  const r1: BracketMatch[] = [];
+  for (let i = 0; i < N; i += 2) {
+    r1.push({
+      matchId: `M_1_${i / 2 + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      round: 1, matchNumber: i / 2 + 1, matNumber: (i / 2 % 3) + 1,
+      slotA: toSlot(slots[i]), slotB: toSlot(slots[i + 1]),
+      winnerId: null, status: "PENDING",
+    });
+  }
+  rounds.push(r1);
+
+  let count = N / 2;
+  let rNum = 2;
+  while (count > 1) {
+    count = Math.floor(count / 2);
+    const round: BracketMatch[] = [];
+    for (let i = 0; i < count; i++) {
+      round.push({
+        matchId: `M_${rNum}_${i + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        round: rNum, matchNumber: i + 1, matNumber: (i % 3) + 1,
+        slotA: { playerId: null, playerName: "TBD", club: "", isBye: false },
+        slotB: { playerId: null, playerName: "TBD", club: "", isBye: false },
+        winnerId: null, status: "PENDING",
+      });
+    }
+    rounds.push(round);
+    rNum++;
+  }
+  return rounds;
+}
+
+function roundName(ri: number, total: number): string {
+  const fromEnd = total - ri;
+  if (fromEnd === 1) return "🏆 Final";
+  if (fromEnd === 2) return "Semi-Final";
+  if (fromEnd === 3) return "Quarter-Final";
+  return `Round ${ri + 1}`;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function TournamentDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const tournamentId = params?.id as string;
+
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [players, setPlayers] = useState<RegisteredPlayer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [viewMode, setViewMode] = useState<ViewMode>("bracket");
+
+  const [ageFilter, setAgeFilter] = useState("ALL");
+  const [genderFilter, setGenderFilter] = useState("ALL");
+  const [weightFilter, setWeightFilter] = useState("ALL");
+
+  const [draws, setDraws] = useState<Record<string, DrawCategory>>({});
+  const [seeds, setSeeds] = useState<Seeds>({ 1: null, 2: null, 3: null, 4: null });
+  const [showSeedModal, setShowSeedModal] = useState(false);
+  const [assigningSeed, setAssigningSeed] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [hasShuffled, setHasShuffled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [usingDemo, setUsingDemo] = useState(false);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const loadDemoPlayers = () => {
+    setPlayers(DEMO_PLAYERS);
+    setUsingDemo(true);
+    showToast(`${DEMO_PLAYERS.length} demo players loaded for testing`);
+    setActiveTab("draws");
+  };
+
+  const clearDemoPlayers = () => {
+    setPlayers([]);
+    setUsingDemo(false);
+    setDraws({});
+    setSeeds({ 1: null, 2: null, 3: null, 4: null });
+    showToast("Demo players cleared", true);
+  };
+
+  const categoryKey = (age: string, gender: string, weight: string) =>
+    `${age}_${gender}_${weight}`;
+  const currentKey = categoryKey(ageFilter, genderFilter, weightFilter);
+
+  // ── Fetch tournament ────────────────────────────────────────────────────────
+  const fetchTournament = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setTournament(await res.json());
+    } catch (e) { console.error(e); }
+  }, [tournamentId, token]);
+
+  // ── Fetch registered players ────────────────────────────────────────────────
+  const fetchPlayers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const raw = await res.json();
+        // normalise: backend may return nested player objects
+        const normalised: RegisteredPlayer[] = (Array.isArray(raw) ? raw : raw.registrations || []).map(
+          (r: any) => ({
+            id: r.playerId || r.player?.id || r.id,
+            name: r.player?.fullName || r.playerName || r.name || "Unknown",
+            club: r.player?.club?.name || r.club || "",
+            district: r.player?.district?.name || r.district || "",
+            weight: Number(r.weightCategory || r.weight || 0),
+            ageGroup: r.ageGroup || "SENIOR",
+            gender: r.gender || r.player?.gender || "MALE",
+            belt: r.belt || r.player?.belt || "",
+          })
+        );
+        setPlayers(normalised);
+      }
+    } catch (e) { console.error(e); }
+  }, [tournamentId, token]);
+
+  // ── Fetch existing draws ────────────────────────────────────────────────────
+  const fetchDraws = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const drawMap: Record<string, DrawCategory> = {};
+        (Array.isArray(data) ? data : []).forEach((d: DrawCategory) => {
+          drawMap[categoryKey(d.ageGroup, d.gender, d.weightCategory)] = {
+            ...d, generated: true, saved: true,
+          };
+        });
+        setDraws(drawMap);
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [tournamentId, token]);
+
+  useEffect(() => {
+    fetchTournament();
+    fetchPlayers();
+    fetchDraws();
+  }, [fetchTournament, fetchPlayers, fetchDraws]);
+
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const filteredPlayers = players.filter((p) => {
+    if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
+    if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
+    if (weightFilter !== "ALL" && String(p.weight) !== weightFilter) return false;
+    return true;
+  });
+
+  const weightOptions = [...new Set(players.map((p) => String(p.weight)))].sort(
+    (a, b) => +a - +b
+  );
+  const currentDraw = draws[currentKey];
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+  const handleShuffle = () => {
+    setHasShuffled(true);
+    setDraws((prev) => {
+      const d = prev[currentKey];
+      if (!d) return prev;
+      return { ...prev, [currentKey]: { ...d, generated: false, saved: false } };
+    });
+    showToast("Players shuffled randomly");
+  };
+
+  const handleAssignSeed = (seedNum: 1 | 2 | 3 | 4, player: RegisteredPlayer) => {
+    setSeeds((prev) => {
+      const n = { ...prev };
+      (Object.keys(n) as unknown as (1 | 2 | 3 | 4)[]).forEach((k) => {
+        if (n[k]?.id === player.id) n[k] = null;
+      });
+      n[seedNum] = { ...player, seedNumber: seedNum };
+      return n;
+    });
+    setAssigningSeed(null);
+  };
+
+  const handleGenerateDraw = () => {
+    if (filteredPlayers.length < 2) {
+      showToast("Need at least 2 players to generate a draw", false);
+      return;
+    }
+    const rounds = generateIJFBracket(filteredPlayers, seeds);
+    setDraws((prev) => ({
+      ...prev,
+      [currentKey]: {
+        ageGroup: ageFilter, gender: genderFilter,
+        weightCategory: weightFilter, rounds, generated: true, saved: false,
+      },
+    }));
+    showToast(`Draw generated for ${filteredPlayers.length} players`);
+  };
+
+  const handleSaveDraw = async () => {
+    const draw = draws[currentKey];
+    if (!draw) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ageGroup: draw.ageGroup, gender: draw.gender,
+          weightCategory: draw.weightCategory, rounds: draw.rounds,
+        }),
+      });
+      if (res.ok) {
+        setDraws((prev) => ({ ...prev, [currentKey]: { ...draw, saved: true } }));
+        showToast("Draw saved successfully!");
+      } else {
+        showToast("Failed to save draw", false);
+      }
+    } catch { showToast("Error saving draw", false); }
+    finally { setSaving(false); }
+  };
+
+  const openScoreboard = (match: BracketMatch) => {
+    const p = new URLSearchParams({
+      matchId: match.matchId,
+      fighterAName: match.slotA.playerName,
+      fighterBName: match.slotB.playerName,
+      fighterAClub: match.slotA.club,
+      fighterBClub: match.slotB.club,
+      weightCategory: weightFilter === "ALL" ? "" : `${weightFilter} kg`,
+      matchNumber: String(match.matchNumber),
+      matNumber: String(match.matNumber),
+      tournamentTitle: tournament?.title || "TNJA Championship",
+      round: String(match.round),
+    });
+    window.open(
+      `/dashboard/admin/tournaments/${tournamentId}/scoreboard?${p.toString()}`,
+      "_blank"
+    );
+  };
+
+  // ── Category filters UI ─────────────────────────────────────────────────────
+  const CategoryFilters = () => (
+    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+        Filter by Category
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+          <option value="ALL">All Age Groups</option>
+          <option value="SENIOR">Senior (15+)</option>
+          <option value="JUNIOR">Junior (U21)</option>
+          <option value="CADET">Cadet (U18)</option>
+          <option value="SUB_JUNIOR">Sub Junior (12–15)</option>
+        </select>
+        <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+          <option value="ALL">All Genders</option>
+          <option value="MALE">Male</option>
+          <option value="FEMALE">Female</option>
+        </select>
+        <select value={weightFilter} onChange={(e) => setWeightFilter(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+          <option value="ALL">All Weights</option>
+          {weightOptions.map((w) => <option key={w} value={w}>{w} kg</option>)}
+        </select>
+        <span className="ml-auto text-sm font-bold text-slate-500 self-center">
+          {filteredPlayers.length} players
+        </span>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="animate-spin text-[#FF7400]" size={40} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.ok ? "bg-emerald-600" : "bg-red-600"}`}>
+            {toast.ok ? <Check size={18} /> : <X size={18} />}
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Back + header */}
+      <div className="flex items-center gap-4">
+        <button onClick={() => router.back()}
+          className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+          <ArrowLeft size={20} className="text-slate-600" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">{tournament?.title || "Tournament"}</h1>
+          <p className="text-sm text-slate-500 font-semibold mt-0.5">Tournament Management Hub</p>
+        </div>
+      </div>
+
+      {/* Summary banner */}
+      {tournament && (
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: Calendar, label: "Date", value: new Date(tournament.date).toLocaleDateString("en-GB") },
+              { icon: MapPin, label: "Location", value: tournament.location },
+              { icon: Users, label: "Players", value: `${players.length} / ${tournament.totalSlots}` },
+              { icon: Trophy, label: "Level", value: tournament.level },
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
+                  <Icon size={18} className="text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{label}</p>
+                  <p className="text-sm font-extrabold">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Demo banner */}
+      {usingDemo && (
+        <div className="flex items-center justify-between px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-600 font-black text-sm">⚠️ Demo Mode</span>
+            <span className="text-amber-700 text-xs font-semibold">— Using {DEMO_PLAYERS.length} sample players for testing. Real API data not loaded.</span>
+          </div>
+          <button onClick={clearDemoPlayers}
+            className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors px-3 py-1.5 bg-red-50 rounded-xl hover:bg-red-100">
+            Clear Demo Data
+          </button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+        {(["overview", "players", "draws", "matches"] as Tab[]).map((tab) => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* ══ OVERVIEW ══════════════════════════════════════════════════════════ */}
+      {activeTab === "overview" && tournament && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-1">
+            <h3 className="font-black text-slate-800 text-base mb-4">Tournament Info</h3>
+            {[
+              { l: "Title", v: tournament.title },
+              { l: "Level", v: tournament.level },
+              { l: "Gender", v: tournament.gender },
+              { l: "Age Range", v: `${tournament.ageFrom} – ${tournament.ageTo} yrs` },
+              { l: "Entry Fee", v: `₹${tournament.entryFee}` },
+              { l: "Total Slots", v: String(tournament.totalSlots) },
+              { l: "Belt", v: tournament.beltEligibility || "All belts" },
+              { l: "BPL Allowed", v: tournament.allowBPL ? "Yes" : "No" },
+            ].map(({ l, v }) => (
+              <div key={l} className="flex justify-between py-2.5 border-b border-slate-50 last:border-0">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{l}</span>
+                <span className="text-sm font-extrabold text-slate-700">{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-1">
+            <h3 className="font-black text-slate-800 text-base mb-4">Approval Status</h3>
+            {[
+              { l: "District", v: tournament.districtApproval },
+              { l: "State", v: tournament.stateApproval },
+              { l: "Super Admin", v: tournament.superAdminApproval },
+              { l: "CEO", v: tournament.ceoApproval },
+              { l: "Overall", v: tournament.status },
+            ].map(({ l, v }) => (
+              <div key={l} className="flex justify-between items-center py-2.5 border-b border-slate-50 last:border-0">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{l}</span>
+                <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                  v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
+                  v === "REJECTED" ? "bg-red-100 text-red-700" :
+                  v === "NOT_REQUIRED" ? "bg-slate-100 text-slate-400" :
+                  "bg-amber-100 text-amber-700"}`}>
+                  {v}
+                </span>
+              </div>
+            ))}
+
+            <div className="pt-4 p-4 bg-orange-50 rounded-2xl mt-4">
+              <p className="text-xs font-black text-orange-700 mb-2">Quick Actions</p>
+              <div className="flex gap-2">
+                <button onClick={() => setActiveTab("draws")}
+                  className="flex-1 py-2.5 bg-[#FF7400] text-white rounded-xl text-xs font-black hover:scale-105 transition-all">
+                  Generate Draw
+                </button>
+                <button onClick={() => setActiveTab("matches")}
+                  className="flex-1 py-2.5 bg-slate-700 text-white rounded-xl text-xs font-black hover:scale-105 transition-all">
+                  View Matches
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ PLAYERS ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "players" && (
+        <div className="space-y-4">
+          <CategoryFilters />
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            {filteredPlayers.length === 0 ? (
+              <div className="py-16 text-center space-y-4">
+                <Users size={40} className="mx-auto text-slate-200" />
+                <div>
+                  <p className="text-slate-500 font-bold text-base">No players registered yet</p>
+                  <p className="text-slate-400 text-sm mt-1">Players register via the Player dashboard. Or load demo players to test the draw system.</p>
+                </div>
+                {!usingDemo && (
+                  <button onClick={loadDemoPlayers}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
+                    <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players
+                  </button>
+                )}
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    {["#", "Name", "Club", "District", "Weight", "Age Group", "Belt"].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPlayers.map((p, i) => (
+                    <tr key={p.id} className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
+                      <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
+                      <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ DRAWS ═════════════════════════════════════════════════════════════ */}
+      {activeTab === "draws" && (
+        <div className="space-y-4">
+          <CategoryFilters />
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => setShowSeedModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
+              <Star size={16} /> Manage Seeds (IJF)
+            </button>
+            <button onClick={handleShuffle}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all">
+              <Shuffle size={16} /> Shuffle Players
+            </button>
+            <button onClick={handleGenerateDraw} disabled={filteredPlayers.length < 2}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              <Zap size={16} /> Generate Draw
+            </button>
+            {currentDraw?.generated && !currentDraw.saved && (
+              <button onClick={handleSaveDraw} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                Save Draw
+              </button>
+            )}
+            {currentDraw?.saved && (
+              <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
+                <Check size={16} /> Draw Saved ✓
+              </span>
+            )}
+          </div>
+
+          {/* Seed summary pills */}
+          <div className="flex flex-wrap gap-2">
+            {([1, 2, 3, 4] as const).map((n) => (
+              <div key={n}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border ${seeds[n] ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                <span className="w-5 h-5 bg-amber-500 text-white rounded-lg flex items-center justify-center text-[10px] font-black">S{n}</span>
+                {seeds[n] ? seeds[n]!.name : "Unassigned"}
+              </div>
+            ))}
+          </div>
+
+          {/* Draw preview */}
+          {currentDraw?.generated ? (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-black text-slate-800">
+                  Draw Preview — {filteredPlayers.length} Players
+                </h3>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                  {(["bracket", "list"] as ViewMode[]).map((v) => (
+                    <button key={v} onClick={() => setViewMode(v)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
+                      {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {viewMode === "list" ? (
+                <div className="divide-y divide-slate-50">
+                  {currentDraw.rounds.map((round, ri) => (
+                    <div key={ri} className="p-5">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
+                        {roundName(ri, currentDraw.rounds.length)}
+                      </h4>
+                      <div className="space-y-2">
+                        {round.map((match) => (
+                          <div key={match.matchId}
+                            className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-orange-50/30 transition-colors">
+                            <div className="flex items-center gap-4">
+                              <span className="text-[10px] font-black text-slate-400 min-w-[80px]">
+                                Mat {match.matNumber} · Match #{match.matchNumber}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                  {match.slotA.playerName}
+                                  {match.slotA.seedNumber && <sup className="text-orange-500 font-black ml-0.5 text-[9px]">S{match.slotA.seedNumber}</sup>}
+                                </span>
+                                <span className="text-[10px] font-black text-slate-300 px-1">vs</span>
+                                <span className={`text-sm font-bold ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                  {match.slotB.playerName}
+                                  {match.slotB.seedNumber && <sup className="text-orange-500 font-black ml-0.5 text-[9px]">S{match.slotB.seedNumber}</sup>}
+                                </span>
+                              </div>
+                            </div>
+                            {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                              <button onClick={() => openScoreboard(match)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
+                                <Monitor size={11} /> Scoreboard
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 overflow-x-auto">
+                  <BracketView
+                    rounds={currentDraw.rounds}
+                    onOpenScoreboard={openScoreboard}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-16 text-center space-y-4">
+              <Target size={48} className="mx-auto text-slate-200" />
+              <div>
+                <p className="text-slate-500 font-bold text-lg">No Draw Generated Yet</p>
+                <p className="text-slate-400 font-semibold text-sm mt-1">
+                  {filteredPlayers.length < 2
+                    ? "No players in this category — load demo players or change the filter"
+                    : `${filteredPlayers.length} players ready — click "Generate Draw" above`}
+                </p>
+              </div>
+              {filteredPlayers.length < 2 && !usingDemo && (
+                <button onClick={loadDemoPlayers}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
+                  <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players to Test
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ MATCHES ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "matches" && (
+        <div className="space-y-4">
+          <CategoryFilters />
+
+          {currentDraw?.generated ? (
+            <div className="space-y-4">
+              {currentDraw.rounds.map((round, ri) => (
+                <div key={ri} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+                    <h3 className="font-black">{roundName(ri, currentDraw.rounds.length)}</h3>
+                    <span className="text-xs font-bold text-slate-400">{round.length} match{round.length !== 1 ? "es" : ""}</span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {round.map((match) => (
+                      <div key={match.matchId}
+                        className="p-5 flex items-center justify-between hover:bg-orange-50/20 transition-colors">
+                        <div className="flex items-center gap-5">
+                          <div className="text-center w-10">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Mat</p>
+                            <p className="text-2xl font-black text-slate-700">{match.matNumber}</p>
+                          </div>
+                          <div className="w-px h-10 bg-slate-100" />
+                          <div className="text-center w-10">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Match</p>
+                            <p className="text-2xl font-black text-slate-700">#{match.matchNumber}</p>
+                          </div>
+                          <div className="w-px h-10 bg-slate-100" />
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className={`text-sm font-black ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                {match.slotA.playerName}
+                                {match.slotA.seedNumber && (
+                                  <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotA.seedNumber}</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-slate-400 font-semibold">{match.slotA.club}</p>
+                            </div>
+                            <span className="text-xs font-black text-slate-300 bg-slate-100 px-2.5 py-1 rounded-lg">VS</span>
+                            <div>
+                              <p className={`text-sm font-black ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                {match.slotB.playerName}
+                                {match.slotB.seedNumber && (
+                                  <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotB.seedNumber}</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-slate-400 font-semibold">{match.slotB.club}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                            match.status === "COMPLETED" ? "bg-emerald-100 text-emerald-700" :
+                            match.status === "IN_PROGRESS" ? "bg-orange-100 text-orange-700" :
+                            "bg-slate-100 text-slate-400"
+                          }`}>
+                            {match.status}
+                          </span>
+                          {!match.slotA.isBye && !match.slotB.isBye && (
+                            <button onClick={() => openScoreboard(match)}
+                              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-xl text-xs font-black shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all">
+                              <Monitor size={13} /> Open Scoreboard ↗
+                            </button>
+                          )}
+                          {(match.slotA.isBye || match.slotB.isBye) && (
+                            <span className="text-xs text-slate-400 font-bold px-3 py-1 bg-slate-50 rounded-xl">BYE — auto advance</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-20 text-center">
+              <Swords size={48} className="mx-auto text-slate-200 mb-4" />
+              <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
+              <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first</p>
+              <button onClick={() => setActiveTab("draws")}
+                className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                Go to Draw Generation →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ SEED MODAL ════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showSeedModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+
+              <div className="p-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-lg font-black flex items-center gap-2">
+                    <Award size={20} /> IJF Seeding Management
+                  </h3>
+                  <p className="text-amber-100 text-xs font-semibold mt-0.5">
+                    S1 → top bracket · S2 → bottom · S3 & S4 → opposite halves (can only meet in Final)
+                  </p>
+                </div>
+                <button onClick={() => { setShowSeedModal(false); setAssigningSeed(null); }}
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-3 overflow-y-auto flex-grow">
+                {([1, 2, 3, 4] as const).map((seedNum) => (
+                  <div key={seedNum}
+                    className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+                        <span className="text-white font-black">S{seedNum}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-700">
+                          {seeds[seedNum]?.name || `Seed ${seedNum} — Unassigned`}
+                        </p>
+                        {seeds[seedNum] && (
+                          <p className="text-xs text-slate-400 font-semibold">
+                            {seeds[seedNum]?.club} · {seeds[seedNum]?.weight}kg
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setAssigningSeed(assigningSeed === seedNum ? null : seedNum)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${assigningSeed === seedNum ? "bg-orange-500 text-white" : "bg-white border border-slate-200 text-slate-700 hover:border-orange-300 hover:text-orange-600"}`}>
+                        {seeds[seedNum] ? "Change" : "Assign"}
+                      </button>
+                      {seeds[seedNum] && (
+                        <button onClick={() => setSeeds((s) => ({ ...s, [seedNum]: null }))}
+                          className="px-3 py-1.5 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-all">
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Player picker */}
+                <AnimatePresence>
+                  {assigningSeed && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="border border-orange-200 rounded-2xl overflow-hidden bg-orange-50/50">
+                      <p className="px-4 py-3 text-xs font-black text-orange-700 border-b border-orange-100 uppercase tracking-wider">
+                        Select player for Seed {assigningSeed}
+                      </p>
+                      <div className="max-h-48 overflow-y-auto">
+                        {filteredPlayers.length === 0 ? (
+                          <p className="p-4 text-sm text-slate-400 text-center">No players in selected category</p>
+                        ) : (
+                          filteredPlayers.map((p) => (
+                            <button key={p.id} onClick={() => handleAssignSeed(assigningSeed, p)}
+                              className="w-full flex items-center justify-between px-4 py-3 hover:bg-orange-100 transition-colors text-left border-b border-orange-50 last:border-0">
+                              <span className="text-sm font-bold text-slate-800">{p.name}</span>
+                              <span className="text-xs text-slate-400 font-semibold">{p.club} · {p.weight}kg</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="flex justify-between pt-2">
+                  <button onClick={() => setSeeds({ 1: null, 2: null, 3: null, 4: null })}
+                    className="px-4 py-2 text-slate-400 hover:text-red-500 text-sm font-bold transition-colors">
+                    Clear All Seeds
+                  </button>
+                  <button onClick={() => { setShowSeedModal(false); setAssigningSeed(null); }}
+                    className="px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                    Done ✓
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Bracket View Component ───────────────────────────────────────────────────
+function BracketView({
+  rounds,
+  onOpenScoreboard,
+}: {
+  rounds: BracketMatch[][];
+  onOpenScoreboard: (match: BracketMatch) => void;
+}) {
+  return (
+    <div className="flex gap-8 items-start min-w-max pb-4">
+      {rounds.map((round, ri) => {
+        const total = rounds.length;
+        return (
+          <div key={ri} className="flex flex-col min-w-[220px]">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center mb-3">
+              {roundName(ri, total)}
+            </p>
+            <div className="flex flex-col" style={{ gap: `${Math.pow(2, ri) * 12}px` }}>
+              {round.map((match) => (
+                <div key={match.matchId}
+                  className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden hover:border-orange-400 transition-all group shadow-sm">
+                  {/* Fighter A */}
+                  <div className={`px-3 py-2.5 border-b border-slate-100 ${match.slotA.isBye ? "opacity-30" : ""} ${match.winnerId && match.winnerId === match.slotA.playerId ? "bg-emerald-50 border-emerald-100" : ""}`}>
+                    <p className="text-xs font-bold text-slate-800 truncate max-w-[190px] leading-tight">
+                      {match.slotA.playerName}
+                      {match.slotA.seedNumber && (
+                        <span className="ml-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1 rounded">S{match.slotA.seedNumber}</span>
+                      )}
+                    </p>
+                    <p className="text-[9px] text-slate-400 truncate">{match.slotA.club || (match.slotA.isBye ? "BYE" : "")}</p>
+                  </div>
+                  {/* Fighter B */}
+                  <div className={`px-3 py-2.5 ${match.slotB.isBye ? "opacity-30" : ""} ${match.winnerId && match.winnerId === match.slotB.playerId ? "bg-emerald-50" : ""}`}>
+                    <p className="text-xs font-bold text-slate-800 truncate max-w-[190px] leading-tight">
+                      {match.slotB.playerName}
+                      {match.slotB.seedNumber && (
+                        <span className="ml-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1 rounded">S{match.slotB.seedNumber}</span>
+                      )}
+                    </p>
+                    <p className="text-[9px] text-slate-400 truncate">{match.slotB.club || (match.slotB.isBye ? "BYE" : "")}</p>
+                  </div>
+                  {/* Scoreboard button (hover) */}
+                  {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                    <button onClick={() => onOpenScoreboard(match)}
+                      className="w-full px-3 py-1.5 bg-orange-50 text-orange-600 text-[9px] font-black hover:bg-orange-100 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1">
+                      <Monitor size={9} /> Open Scoreboard ↗
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

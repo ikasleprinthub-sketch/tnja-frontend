@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import {
   Trophy,
   Plus,
@@ -20,6 +21,8 @@ import {
   AlertCircle,
   Pencil,
   Trash2,
+  ChevronRight,
+  Globe,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -69,11 +72,29 @@ export default function ClubTournamentsPage() {
   });
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [approvedTournaments, setApprovedTournaments] = useState<any[]>([]);
+  const [activeSection, setActiveSection] = useState<"mine" | "approved">("mine");
+  const [approvedSearch, setApprovedSearch] = useState("");
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  const fetchApprovedTournaments = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/approved`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setApprovedTournaments(Array.isArray(json) ? json : json.tournaments || []);
+      }
+    } catch (err) {
+      console.error("Failed to load approved tournaments", err);
+    }
+  }, []);
 
   const fetchTournaments = useCallback(async () => {
     setLoading(true);
@@ -95,7 +116,8 @@ export default function ClubTournamentsPage() {
 
   useEffect(() => {
     fetchTournaments();
-  }, [fetchTournaments]);
+    fetchApprovedTournaments();
+  }, [fetchTournaments, fetchApprovedTournaments]);
 
   const fetchRegistrations = async (tournamentId: string) => {
     if (registrations[tournamentId]) {
@@ -275,8 +297,8 @@ export default function ClubTournamentsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Club Tournaments</h1>
-          <p className="text-slate-500 mt-1">Create private tournaments visible only to your paid club players</p>
+          <h1 className="text-3xl font-bold text-slate-800">Tournaments</h1>
+          <p className="text-slate-500 mt-1">Manage your club tournaments and view all approved events</p>
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
@@ -287,8 +309,25 @@ export default function ClubTournamentsPage() {
         </button>
       </div>
 
-      
+      {/* Section Tabs */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveSection("mine")}
+          className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeSection === "mine" ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        >
+          My Tournaments ({tournaments.length})
+        </button>
+        <button
+          onClick={() => setActiveSection("approved")}
+          className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeSection === "approved" ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        >
+          <Globe size={13} className="inline mr-1.5" />
+          Approved Tournaments ({approvedTournaments.length})
+        </button>
+      </div>
 
+      {/* ══ MY TOURNAMENTS SECTION ════════════════════════════════════════════ */}
+      {activeSection === "mine" && (<>
       {/* Search */}
       <div className="relative w-full max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -296,7 +335,7 @@ export default function ClubTournamentsPage() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search tournaments..."
+          placeholder="Search my tournaments..."
           className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
         />
       </div>
@@ -332,7 +371,15 @@ export default function ClubTournamentsPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-xl font-bold text-slate-800">{tournament.title}</h3>
-                      
+                      {/* Status badge */}
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                        tournament.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                        tournament.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
+                        "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}>
+                        {tournament.status === "APPROVED" ? "✓ Approved" :
+                         tournament.status === "REJECTED" ? "✗ Rejected" : "⏳ Pending Approval"}
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500">
                       <span className="flex items-center gap-1.5"><Clock size={14} className="text-[#FF7400]" />{new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
@@ -340,35 +387,60 @@ export default function ClubTournamentsPage() {
                       <span className="flex items-center gap-1.5"><IndianRupee size={14} className="text-[#FF7400]" />Entry: ₹{tournament.entryFee}</span>
                       <span className="flex items-center gap-1.5"><Users size={14} className="text-[#FF7400]" />{tournament.registrationCount ?? 0} / {tournament.totalSlots} Registered</span>
                     </div>
+                    {/* Approval chain mini-badges */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {[
+                        { l: "District", v: tournament.districtApproval },
+                        { l: "State", v: tournament.stateApproval },
+                        { l: "Final", v: tournament.superAdminApproval === "APPROVED" || tournament.ceoApproval === "APPROVED" ? "APPROVED" : "PENDING" },
+                      ].map(({ l, v }) => v && v !== "NOT_REQUIRED" && (
+                        <span key={l} className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                          v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
+                          v === "REJECTED" ? "bg-red-100 text-red-600" :
+                          "bg-slate-100 text-slate-400"
+                        }`}>
+                          {l}: {v === "APPROVED" ? "✓" : v === "REJECTED" ? "✗" : "…"}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleOpenEdit(tournament)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl transition-all text-sm"
+                <div className="flex flex-col gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEdit(tournament)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-xl transition-all text-sm"
+                    >
+                      <Pencil size={15} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tournament.id)}
+                      disabled={deletingId === tournament.id}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-all text-sm disabled:opacity-50"
+                    >
+                      {deletingId === tournament.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => handleToggleExpand(tournament.id)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all text-sm"
+                    >
+                      {loadingRegs[tournament.id] ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : expandedId === tournament.id ? (
+                        <><ChevronUp size={15} /> Hide</>
+                      ) : (
+                        <><ChevronDown size={15} /> Players</>
+                      )}
+                    </button>
+                  </div>
+                  {/* Manage button — always visible */}
+                  <Link
+                    href={`/dashboard/admin/tournaments/${tournament.id}`}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
                   >
-                    <Pencil size={15} /> Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(tournament.id)}
-                    disabled={deletingId === tournament.id}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-all text-sm disabled:opacity-50"
-                  >
-                    {deletingId === tournament.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => handleToggleExpand(tournament.id)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all text-sm"
-                  >
-                    {loadingRegs[tournament.id] ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : expandedId === tournament.id ? (
-                      <><ChevronUp size={15} /> Hide</>
-                    ) : (
-                      <><ChevronDown size={15} /> Players</>
-                    )}
-                  </button>
+                    <Trophy size={14} /> Manage / Draw <ChevronRight size={13} />
+                  </Link>
                 </div>
               </div>
 
@@ -440,6 +512,86 @@ export default function ClubTournamentsPage() {
               </AnimatePresence>
             </motion.div>
           ))}
+        </div>
+      )}
+      </>)}
+
+      {/* ══ APPROVED TOURNAMENTS SECTION ══════════════════════════════════════ */}
+      {activeSection === "approved" && (
+        <div className="space-y-4">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input
+              type="text"
+              value={approvedSearch}
+              onChange={(e) => setApprovedSearch(e.target.value)}
+              placeholder="Search approved tournaments..."
+              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+            />
+          </div>
+
+          {approvedTournaments.filter(t =>
+            !approvedSearch || t.title?.toLowerCase().includes(approvedSearch.toLowerCase())
+          ).length === 0 ? (
+            <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
+              <Globe size={40} className="mx-auto mb-3 text-slate-200" />
+              <h3 className="text-lg font-bold text-slate-500">No Approved Tournaments</h3>
+              <p className="text-slate-400 text-sm mt-1">No tournaments have been fully approved yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {approvedTournaments
+                .filter(t => !approvedSearch || t.title?.toLowerCase().includes(approvedSearch.toLowerCase()))
+                .map((t) => (
+                  <motion.div
+                    key={t.id}
+                    whileHover={{ y: -4 }}
+                    className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
+                  >
+                    <div className="h-24 bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center relative">
+                      <Trophy size={32} className="text-white/20" />
+                      <span className="absolute top-3 left-3 bg-white/20 text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
+                        {t.level}
+                      </span>
+                      <span className="absolute top-3 right-3 bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-2.5 py-1 rounded-full border border-emerald-500/30">
+                        ✓ Approved
+                      </span>
+                    </div>
+                    <div className="p-5 flex-grow flex flex-col gap-3">
+                      <h3 className="text-base font-bold text-slate-800 leading-snug">{t.title}</h3>
+                      <div className="space-y-1.5 text-xs text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={12} className="text-[#FF7400]" />
+                          {new Date(t.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin size={12} className="text-[#FF7400]" />{t.location}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Users size={12} className="text-[#FF7400]" />
+                          Ages {t.ageFrom}–{t.ageTo} · {t.gender}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <IndianRupee size={12} className="text-[#FF7400]" />
+                          {t.entryFee === 0 ? "Free Entry" : `₹${t.entryFee}`}
+                        </div>
+                      </div>
+                      {t.club && (
+                        <p className="text-[10px] text-slate-400 font-semibold">
+                          by {t.club.name}{t.club.district ? ` · ${t.club.district.name}` : ""}
+                        </p>
+                      )}
+                      <Link
+                        href={`/dashboard/admin/tournaments/${t.id}`}
+                        className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                      >
+                        <Trophy size={12} /> Manage / Draw <ChevronRight size={12} />
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
