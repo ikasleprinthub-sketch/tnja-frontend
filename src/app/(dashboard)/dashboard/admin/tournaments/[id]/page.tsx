@@ -7,6 +7,7 @@ import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   IndianRupee, Target, Zap, ChevronRight, Award, Flag,
+  AlertCircle,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -161,7 +162,7 @@ export default function TournamentDetailPage() {
   const [players, setPlayers] = useState<RegisteredPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [viewMode, setViewMode] = useState<ViewMode>("bracket");
+  const [viewMode, setViewMode] = useState<ViewMode>("bracket"); // default bracket
 
   const [ageFilter, setAgeFilter] = useState("ALL");
   const [genderFilter, setGenderFilter] = useState("ALL");
@@ -175,6 +176,8 @@ export default function TournamentDetailPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [usingDemo, setUsingDemo] = useState(false);
+  const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
+  const [shuffleKey, setShuffleKey] = useState(0);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
 
@@ -279,13 +282,18 @@ export default function TournamentDetailPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleShuffle = () => {
-    setHasShuffled(true);
-    setDraws((prev) => {
-      const d = prev[currentKey];
-      if (!d) return prev;
-      return { ...prev, [currentKey]: { ...d, generated: false, saved: false } };
-    });
-    showToast("Players shuffled randomly");
+    setDrawPhase("shuffling");
+    setShuffleKey(k => k + 1);
+    setTimeout(() => {
+      setHasShuffled(true);
+      setDrawPhase("idle");
+      setDraws((prev) => {
+        const d = prev[currentKey];
+        if (!d) return prev;
+        return { ...prev, [currentKey]: { ...d, generated: false, saved: false } };
+      });
+      showToast("Players shuffled randomly");
+    }, 900);
   };
 
   const handleAssignSeed = (seedNum: 1 | 2 | 3 | 4, player: RegisteredPlayer) => {
@@ -305,15 +313,19 @@ export default function TournamentDetailPage() {
       showToast("Need at least 2 players to generate a draw", false);
       return;
     }
+    setDrawPhase("dealing");
     const rounds = generateIJFBracket(filteredPlayers, seeds);
-    setDraws((prev) => ({
-      ...prev,
-      [currentKey]: {
-        ageGroup: ageFilter, gender: genderFilter,
-        weightCategory: weightFilter, rounds, generated: true, saved: false,
-      },
-    }));
-    showToast(`Draw generated for ${filteredPlayers.length} players`);
+    setTimeout(() => {
+      setDraws((prev) => ({
+        ...prev,
+        [currentKey]: {
+          ageGroup: ageFilter, gender: genderFilter,
+          weightCategory: weightFilter, rounds, generated: true, saved: false,
+        },
+      }));
+      setDrawPhase("done");
+      showToast(`Draw generated for ${filteredPlayers.length} players`);
+    }, 700);
   };
 
   const handleSaveDraw = async () => {
@@ -504,7 +516,9 @@ export default function TournamentDetailPage() {
               { l: "Super Admin", v: tournament.superAdminApproval },
               { l: "CEO", v: tournament.ceoApproval },
               { l: "Overall", v: tournament.status },
-            ].map(({ l, v }) => (
+            ]
+              .filter((item) => tournament.status !== "APPROVED" || item.l === "Overall")
+              .map(({ l, v }) => (
               <div key={l} className="flex justify-between items-center py-2.5 border-b border-slate-50 last:border-0">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{l}</span>
                 <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
@@ -587,34 +601,49 @@ export default function TournamentDetailPage() {
           <CategoryFilters />
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-3">
-            <button onClick={() => setShowSeedModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
-              <Star size={16} /> Manage Seeds (IJF)
-            </button>
-            <button onClick={handleShuffle}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all">
-              <Shuffle size={16} /> Shuffle Players
-            </button>
-            <button onClick={handleGenerateDraw} disabled={filteredPlayers.length < 2}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              <Zap size={16} /> Generate Draw
-            </button>
-            {currentDraw?.generated && !currentDraw.saved && (
-              <button onClick={handleSaveDraw} disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                Save Draw
-              </button>
-            )}
-            {currentDraw?.saved && (
-              <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
-                <Check size={16} /> Draw Saved ✓
-              </span>
+          <div className="flex flex-wrap gap-3 items-center">
+            {tournament?.status !== "APPROVED" ? (
+              <div className="flex items-center gap-2 px-5 py-3 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-200">
+                <AlertCircle size={18} /> Tournament must be approved before you can manage draws.
+              </div>
+            ) : (
+              <>
+                <button onClick={() => setShowSeedModal(true)}
+                  disabled={drawPhase === "shuffling" || drawPhase === "dealing"}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
+                  <Star size={16} /> Manage Seeds (IJF)
+                </button>
+                <button onClick={handleShuffle}
+                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing"}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {drawPhase === "shuffling"
+                    ? <><Loader2 size={15} className="animate-spin" /> Shuffling...</>
+                    : <><Shuffle size={16} /> Shuffle Players</>}
+                </button>
+                <button onClick={handleGenerateDraw}
+                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing"}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {drawPhase === "dealing"
+                    ? <><Loader2 size={15} className="animate-spin" /> Dealing Cards...</>
+                    : <><Zap size={16} /> Generate Draw</>}
+                </button>
+                {currentDraw?.generated && !currentDraw.saved && (
+                  <button onClick={handleSaveDraw} disabled={saving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Save Draw
+                  </button>
+                )}
+                {currentDraw?.saved && (
+                  <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
+                    <Check size={16} /> Draw Saved ✓
+                  </span>
+                )}
+              </>
             )}
           </div>
 
-          {/* Seed summary pills */}
+          {/* Seed pills */}
           <div className="flex flex-wrap gap-2">
             {([1, 2, 3, 4] as const).map((n) => (
               <div key={n}
@@ -625,90 +654,223 @@ export default function TournamentDetailPage() {
             ))}
           </div>
 
-          {/* Draw preview */}
-          {currentDraw?.generated ? (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-black text-slate-800">
-                  Draw Preview — {filteredPlayers.length} Players
-                </h3>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                  {(["bracket", "list"] as ViewMode[]).map((v) => (
-                    <button key={v} onClick={() => setViewMode(v)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
-                      {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {/* ── Dealing animation overlay ── */}
+          <AnimatePresence>
+            {drawPhase === "dealing" && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm pointer-events-none"
+              >
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-center"
+                >
+                  <div className="flex gap-3 justify-center mb-4">
+                    {filteredPlayers.slice(0, Math.min(8, filteredPlayers.length)).map((p, i) => (
+                      <motion.div
+                        key={p.id}
+                        initial={{ y: 0, x: 0, rotate: 0, opacity: 1 }}
+                        animate={{
+                          y: [0, -60, -20, 20],
+                          x: [0, (i - 4) * 30, (i - 4) * 80, (i - 4) * 120],
+                          rotate: [0, (i % 2 === 0 ? -15 : 15), (i % 2 === 0 ? 5 : -5), 0],
+                          opacity: [1, 1, 0.5, 0],
+                        }}
+                        transition={{ duration: 0.6, delay: i * 0.05, ease: "easeInOut" }}
+                        className="w-12 h-16 bg-white rounded-xl shadow-xl border border-slate-200 flex flex-col items-center justify-center overflow-hidden"
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-sm ${p.gender === "FEMALE" ? "bg-pink-400" : "bg-blue-500"}`}>
+                          {p.name.charAt(0)}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <p className="text-white font-black text-lg">Dealing cards to bracket...</p>
+                  <p className="text-white/50 text-sm mt-1">{filteredPlayers.length} players</p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              {viewMode === "list" ? (
-                <div className="divide-y divide-slate-50">
-                  {currentDraw.rounds.map((round, ri) => (
-                    <div key={ri} className="p-5">
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
-                        {roundName(ri, currentDraw.rounds.length)}
-                      </h4>
-                      <div className="space-y-2">
-                        {round.map((match) => (
-                          <div key={match.matchId}
-                            className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-orange-50/30 transition-colors">
-                            <div className="flex items-center gap-4">
-                              <span className="text-[10px] font-black text-slate-400 min-w-[80px]">
-                                Mat {match.matNumber} · Match #{match.matchNumber}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm font-bold ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
-                                  {match.slotA.playerName}
-                                  {match.slotA.seedNumber && <sup className="text-orange-500 font-black ml-0.5 text-[9px]">S{match.slotA.seedNumber}</sup>}
-                                </span>
-                                <span className="text-[10px] font-black text-slate-300 px-1">vs</span>
-                                <span className={`text-sm font-bold ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
-                                  {match.slotB.playerName}
-                                  {match.slotB.seedNumber && <sup className="text-orange-500 font-black ml-0.5 text-[9px]">S{match.slotB.seedNumber}</sup>}
-                                </span>
-                              </div>
-                            </div>
-                            {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
-                              <button onClick={() => openScoreboard(match)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
-                                <Monitor size={11} /> Scoreboard
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+          {/* ── Main content: players list OR bracket ── */}
+          <AnimatePresence mode="wait">
+            {!currentDraw?.generated ? (
+              /* Player cards list — pre-draw */
+              <motion.div
+                key="player-list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, x: 100, transition: { duration: 0.3 } }}
+                className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                {filteredPlayers.length === 0 ? (
+                  <div className="py-16 text-center space-y-4">
+                    <Target size={48} className="mx-auto text-slate-200" />
+                    <div>
+                      <p className="text-slate-500 font-bold text-lg">No Players in This Category</p>
+                      <p className="text-slate-400 text-sm mt-1">Select a category above or load demo players</p>
                     </div>
-                  ))}
+                    {!usingDemo && (
+                      <button onClick={loadDemoPlayers}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
+                        <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="font-black text-slate-800">
+                        {filteredPlayers.length} Players Ready
+                        <span className="ml-2 text-xs font-semibold text-slate-400">
+                          — assign seeds then click Generate Draw
+                        </span>
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {filteredPlayers.map((p, i) => (
+                        <motion.div
+                          key={`${p.id}-${shuffleKey}`}
+                          layoutId={`player-card-${p.id}`}
+                          initial={{ opacity: 0, y: 30, scale: 0.85 }}
+                          animate={{
+                            opacity: 1,
+                            y: drawPhase === "shuffling" ? [0, -12, 8, -5, 0] : 0,
+                            x: drawPhase === "shuffling" ? [0, (i % 2 === 0 ? -8 : 8), (i % 3 === 0 ? 5 : -5), 0] : 0,
+                            scale: drawPhase === "shuffling" ? [1, 0.92, 1.04, 0.97, 1] : 1,
+                            rotate: drawPhase === "shuffling" ? [0, (i % 2 === 0 ? -6 : 6), (i % 3 === 0 ? 3 : -3), 0] : 0,
+                          }}
+                          transition={{
+                            opacity: { delay: i * 0.04, duration: 0.3 },
+                            y: drawPhase === "shuffling"
+                              ? { duration: 0.7, delay: i * 0.05, ease: "easeInOut" }
+                              : { delay: i * 0.04, duration: 0.4, type: "spring" },
+                            x: drawPhase === "shuffling"
+                              ? { duration: 0.7, delay: i * 0.05 }
+                              : { delay: i * 0.04 },
+                            scale: drawPhase === "shuffling"
+                              ? { duration: 0.7, delay: i * 0.05 }
+                              : { delay: i * 0.04, duration: 0.4, type: "spring" },
+                            rotate: drawPhase === "shuffling"
+                              ? { duration: 0.7, delay: i * 0.05 }
+                              : { delay: i * 0.04 },
+                          }}
+                          className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm hover:shadow-md hover:border-orange-300 transition-shadow cursor-default"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white shrink-0 ${p.gender === "FEMALE" ? "bg-pink-400" : "bg-blue-500"}`}>
+                              {p.name.charAt(0)}
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-xs font-black text-slate-800 truncate leading-tight">{p.name}</p>
+                              <p className="text-[9px] text-slate-400 truncate">{p.gender === "FEMALE" ? "Female" : "Male"} · {p.club || p.district}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                              {p.weight} kg
+                            </span>
+                            {seeds[1]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S1</span>}
+                            {seeds[2]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S2</span>}
+                            {seeds[3]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S3</span>}
+                            {seeds[4]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S4</span>}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              /* Bracket — post-generate */
+              <motion.div
+                key={`bracket-${currentKey}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-black text-slate-800">
+                    Draw — {filteredPlayers.length} Players
+                    <span className="ml-2 text-xs font-semibold text-slate-400">
+                      {ageFilter !== "ALL" ? ageFilter : ""} {genderFilter !== "ALL" ? genderFilter : ""} {weightFilter !== "ALL" ? `${weightFilter}kg` : ""}
+                    </span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { setDraws(p => ({ ...p, [currentKey]: { ...currentDraw!, generated: false, saved: false } })); setDrawPhase("idle"); }}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                      ↺ Re-draw
+                    </button>
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                      {(["bracket", "list"] as ViewMode[]).map((v) => (
+                        <button key={v} onClick={() => setViewMode(v)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
+                          {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="p-6 overflow-x-auto">
-                  <BracketView
-                    rounds={currentDraw.rounds}
-                    onOpenScoreboard={openScoreboard}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-16 text-center space-y-4">
-              <Target size={48} className="mx-auto text-slate-200" />
-              <div>
-                <p className="text-slate-500 font-bold text-lg">No Draw Generated Yet</p>
-                <p className="text-slate-400 font-semibold text-sm mt-1">
-                  {filteredPlayers.length < 2
-                    ? "No players in this category — load demo players or change the filter"
-                    : `${filteredPlayers.length} players ready — click "Generate Draw" above`}
-                </p>
-              </div>
-              {filteredPlayers.length < 2 && !usingDemo && (
-                <button onClick={loadDemoPlayers}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
-                  <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players to Test
-                </button>
-              )}
-            </div>
-          )}
+
+                {viewMode === "list" ? (
+                  <div className="divide-y divide-slate-50">
+                    {currentDraw.rounds.map((round, ri) => (
+                      <div key={ri} className="p-5">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
+                          {roundName(ri, currentDraw.rounds.length)}
+                        </h4>
+                        <div className="space-y-2">
+                          {round.map((match, mi) => (
+                            <motion.div
+                              key={match.matchId}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: ri * 0.15 + mi * 0.04, type: "spring", stiffness: 300, damping: 25 }}
+                              className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-orange-50/30 transition-colors"
+                            >
+                              <div className="flex items-center gap-4">
+                                <span className="text-[10px] font-black text-slate-400 min-w-[80px]">
+                                  Mat {match.matNumber} · #{match.matchNumber}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-bold ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                    {match.slotA.playerName}
+                                  </span>
+                                  <span className="text-[10px] font-black text-slate-300">vs</span>
+                                  <span className={`text-sm font-bold ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                    {match.slotB.playerName}
+                                  </span>
+                                </div>
+                              </div>
+                              {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                                <button onClick={() => openScoreboard(match)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
+                                  <Monitor size={11} /> Scoreboard
+                                </button>
+                              )}
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-5 bg-slate-50/50 overflow-auto">
+                    <BracketView
+                      key={currentKey}
+                      rounds={currentDraw.rounds}
+                      onOpenScoreboard={openScoreboard}
+                      players={filteredPlayers}
+                    />
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
@@ -903,60 +1065,197 @@ export default function TournamentDetailPage() {
   );
 }
 
-// ─── Bracket View Component ───────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function clubCode(name: string): string {
+  if (!name || name === "BYE" || name === "TBD") return name || "---";
+  // Take first 3 uppercase letters (consonants preferred)
+  const upper = name.toUpperCase().replace(/[^A-Z]/g, "");
+  return upper.slice(0, 3) || "---";
+}
+
+// ─── Bracket View Component (reference-style with SVG connectors) ─────────────
+const MATCH_H = 68;
+const MATCH_W = 210;
+const CONN_W  = 44;
+const G0      = 6;
+
 function BracketView({
   rounds,
   onOpenScoreboard,
+  players,
 }: {
   rounds: BracketMatch[][];
   onOpenScoreboard: (match: BracketMatch) => void;
+  players: RegisteredPlayer[];
 }) {
+  if (!rounds || rounds.length === 0) return null;
+
+  const numR1   = rounds[0].length;
+  const totalH  = Math.max(numR1 * (MATCH_H + G0) - G0, MATCH_H);
+  const totalW  = rounds.length * MATCH_W + (rounds.length - 1) * CONN_W;
+
+  const slotH   = (ri: number) => totalH / (numR1 / Math.pow(2, ri));
+  const mTop    = (ri: number, mi: number) => { const s = slotH(ri); return mi * s + (s - MATCH_H) / 2; };
+  const mCenterY = (ri: number, mi: number) => mTop(ri, mi) + MATCH_H / 2;
+
+  const weightGroups = Array.from(new Set(players.map(p => p.weight))).sort((a, b) => a - b);
+
   return (
-    <div className="flex gap-8 items-start min-w-max pb-4">
-      {rounds.map((round, ri) => {
-        const total = rounds.length;
-        return (
-          <div key={ri} className="flex flex-col min-w-[220px]">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center mb-3">
-              {roundName(ri, total)}
-            </p>
-            <div className="flex flex-col" style={{ gap: `${Math.pow(2, ri) * 12}px` }}>
-              {round.map((match) => (
-                <div key={match.matchId}
-                  className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden hover:border-orange-400 transition-all group shadow-sm">
-                  {/* Fighter A */}
-                  <div className={`px-3 py-2.5 border-b border-slate-100 ${match.slotA.isBye ? "opacity-30" : ""} ${match.winnerId && match.winnerId === match.slotA.playerId ? "bg-emerald-50 border-emerald-100" : ""}`}>
-                    <p className="text-xs font-bold text-slate-800 truncate max-w-[190px] leading-tight">
-                      {match.slotA.playerName}
-                      {match.slotA.seedNumber && (
-                        <span className="ml-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1 rounded">S{match.slotA.seedNumber}</span>
-                      )}
-                    </p>
-                    <p className="text-[9px] text-slate-400 truncate">{match.slotA.club || (match.slotA.isBye ? "BYE" : "")}</p>
+    <div className="flex gap-6">
+      {/* ── Left: Player List ────────────────────────────────────────────── */}
+      <div className="w-56 shrink-0">
+        {weightGroups.map((w) => {
+          const wPlayers = players.filter(p => p.weight === w);
+          return (
+            <div key={w} className="mb-4">
+              <p className="text-xs font-black text-blue-600 mb-2 pb-1 border-b border-slate-100">
+                {w} kg <span className="text-slate-400 font-semibold">({wPlayers.length} players)</span>
+              </p>
+              <div className="space-y-1">
+                {wPlayers.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 py-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black text-white ${p.gender === "FEMALE" ? "bg-pink-400" : "bg-blue-500"}`}>
+                      {p.name.charAt(0)}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-[11px] font-bold text-slate-800 truncate leading-tight">{p.name}</p>
+                      <p className="text-[9px] text-slate-400 truncate">{p.gender === "FEMALE" ? "Female" : "Male"} · {p.district || p.club}</p>
+                    </div>
                   </div>
-                  {/* Fighter B */}
-                  <div className={`px-3 py-2.5 ${match.slotB.isBye ? "opacity-30" : ""} ${match.winnerId && match.winnerId === match.slotB.playerId ? "bg-emerald-50" : ""}`}>
-                    <p className="text-xs font-bold text-slate-800 truncate max-w-[190px] leading-tight">
-                      {match.slotB.playerName}
-                      {match.slotB.seedNumber && (
-                        <span className="ml-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1 rounded">S{match.slotB.seedNumber}</span>
-                      )}
-                    </p>
-                    <p className="text-[9px] text-slate-400 truncate">{match.slotB.club || (match.slotB.isBye ? "BYE" : "")}</p>
-                  </div>
-                  {/* Scoreboard button (hover) */}
-                  {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
-                    <button onClick={() => onOpenScoreboard(match)}
-                      className="w-full px-3 py-1.5 bg-orange-50 text-orange-600 text-[9px] font-black hover:bg-orange-100 transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1">
-                      <Monitor size={9} /> Open Scoreboard ↗
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* ── Right: Bracket ───────────────────────────────────────────────── */}
+      <div className="flex-grow overflow-x-auto">
+        <div style={{ minWidth: totalW + 24, userSelect: "none" }}>
+
+          {/* Round headers */}
+          <div className="flex mb-3">
+            {rounds.map((_, ri) => (
+              <div key={ri} className="flex shrink-0" style={{ width: ri < rounds.length - 1 ? MATCH_W + CONN_W : MATCH_W }}>
+                <div style={{ width: MATCH_W }}
+                  className="text-center text-[10px] font-black text-slate-500 uppercase tracking-wider py-1 bg-slate-100 rounded-lg mr-0">
+                  {roundName(ri, rounds.length)}
+                </div>
+              </div>
+            ))}
           </div>
-        );
-      })}
+
+          {/* Bracket area */}
+          <div className="relative" style={{ height: totalH, width: totalW }}>
+
+            {/* SVG connector lines */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width={totalW} height={totalH}
+              style={{ zIndex: 0 }}
+            >
+              {rounds.map((round, ri) => {
+                if (ri >= rounds.length - 1) return null;
+                const xBase = ri * (MATCH_W + CONN_W) + MATCH_W;
+                const xMid  = xBase + CONN_W / 2;
+                const xNext = xBase + CONN_W;
+
+                return round.map((_, mi) => {
+                  if (mi % 2 !== 0) return null;
+                  const y1   = mCenterY(ri, mi);
+                  const y2   = mi + 1 < round.length ? mCenterY(ri, mi + 1) : y1;
+                  const midY = (y1 + y2) / 2;
+
+                  return (
+                    <motion.g
+                      key={`${ri}-${mi}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: ri * 0.18 + mi * 0.07 + 0.3 }}
+                      stroke="#CBD5E1" strokeWidth={1.5} fill="none"
+                    >
+                      <line x1={xBase} y1={y1}   x2={xMid}  y2={y1} />
+                      {mi + 1 < round.length && (
+                        <>
+                          <line x1={xBase} y1={y2}   x2={xMid}  y2={y2} />
+                          <line x1={xMid}  y1={y1}   x2={xMid}  y2={y2} />
+                        </>
+                      )}
+                      <line x1={xMid} y1={midY} x2={xNext} y2={midY} />
+                    </motion.g>
+                  );
+                });
+              })}
+            </svg>
+
+            {/* Match cards */}
+            {rounds.map((round, ri) => {
+              const xOffset = ri * (MATCH_W + CONN_W);
+              return round.map((match, mi) => {
+                const top = mTop(ri, mi);
+                const isWinnerA = match.winnerId && match.winnerId === match.slotA.playerId;
+                const isWinnerB = match.winnerId && match.winnerId === match.slotB.playerId;
+                const staggerDelay = ri * 0.18 + mi * 0.07;
+
+                return (
+                  <motion.div
+                    key={match.matchId}
+                    style={{ position: "absolute", top, left: xOffset, width: MATCH_W, zIndex: 1 }}
+                    initial={{ opacity: 0, x: -60, scale: 0.8, rotateY: -25 }}
+                    animate={{ opacity: 1, x: 0, scale: 1, rotateY: 0 }}
+                    transition={{ delay: staggerDelay, type: "spring", stiffness: 280, damping: 22 }}
+                    className="group bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-300 transition-shadow"
+                  >
+                    {/* Player A row */}
+                    <div className={`flex items-center gap-1.5 px-3 py-2 border-b border-slate-100 min-h-[34px] ${match.slotA.isBye ? "opacity-25" : ""} ${isWinnerA ? "bg-emerald-50" : "hover:bg-blue-50/50"} transition-colors`}>
+                      {match.slotA.seedNumber && (
+                        <span className="shrink-0 text-[8px] font-black text-amber-600 bg-amber-100 w-4 h-4 rounded flex items-center justify-center">
+                          {match.slotA.seedNumber}
+                        </span>
+                      )}
+                      {!match.slotA.isBye && match.slotA.club && (
+                        <span className="shrink-0 text-[9px] font-black text-blue-600">[{clubCode(match.slotA.club)}]</span>
+                      )}
+                      <span className={`text-[11px] font-bold truncate leading-tight ${match.slotA.isBye ? "text-slate-300 italic" : isWinnerA ? "text-emerald-700" : "text-slate-800"}`}>
+                        {match.slotA.playerName}
+                      </span>
+                      {isWinnerA && <span className="ml-auto text-emerald-500 text-[9px] shrink-0">✓</span>}
+                    </div>
+
+                    {/* Player B row */}
+                    <div className={`flex items-center gap-1.5 px-3 py-2 min-h-[34px] ${match.slotB.isBye ? "opacity-25" : ""} ${isWinnerB ? "bg-emerald-50" : "hover:bg-blue-50/50"} transition-colors`}>
+                      {match.slotB.seedNumber && (
+                        <span className="shrink-0 text-[8px] font-black text-amber-600 bg-amber-100 w-4 h-4 rounded flex items-center justify-center">
+                          {match.slotB.seedNumber}
+                        </span>
+                      )}
+                      {!match.slotB.isBye && match.slotB.club && (
+                        <span className="shrink-0 text-[9px] font-black text-blue-600">[{clubCode(match.slotB.club)}]</span>
+                      )}
+                      <span className={`text-[11px] font-bold truncate leading-tight ${match.slotB.isBye ? "text-slate-300 italic" : isWinnerB ? "text-emerald-700" : "text-slate-800"}`}>
+                        {match.slotB.playerName}
+                      </span>
+                      {isWinnerB && <span className="ml-auto text-emerald-500 text-[9px] shrink-0">✓</span>}
+                    </div>
+
+                    {/* Match info + Scoreboard button */}
+                    <div className="flex items-center justify-between px-2 py-0.5 bg-slate-50 border-t border-slate-100">
+                      <span className="text-[8px] text-slate-400 font-semibold">Mat {match.matNumber} · #{match.matchNumber}</span>
+                      {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                        <button
+                          onClick={() => onOpenScoreboard(match)}
+                          className="text-[8px] font-black text-orange-500 hover:text-orange-700 transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                          <Monitor size={8} /> Scoreboard ↗
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              });
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

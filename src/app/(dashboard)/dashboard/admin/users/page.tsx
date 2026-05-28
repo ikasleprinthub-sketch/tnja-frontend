@@ -23,6 +23,7 @@ import {
   MapPin,
   Eye,
   EyeOff,
+  Phone,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -38,6 +39,7 @@ interface TNJAUser {
   status: string;
   role: UserRole;
   createdAt: string;
+  validUntil?: string;
   wins?: number;
   losses?: number;
   draws?: number;
@@ -312,29 +314,35 @@ export default function UserManagementPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-grow w-full">
+      <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+        <div className="relative w-full lg:w-96 shrink-0">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
             placeholder="Search by name, email, or IDs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all text-black"
           />
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto">
-          {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setRoleFilter(r as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                roleFilter === r ? "bg-[#FF7400] text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        
+        <div className="flex gap-4 overflow-x-auto pb-2 w-full lg:w-auto lg:justify-end scrollbar-hide">
+          {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER"].map((r) => {
+            const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : "Members";
+            return (
+              <button
+                key={r}
+                onClick={() => setRoleFilter(r as any)}
+                className={`min-w-[130px] px-8 py-3 rounded-2xl text-base transition-all whitespace-nowrap border ${
+                  roleFilter === r
+                    ? "bg-gradient-to-r from-amber-100 to-amber-400 text-slate-900 border-amber-400 shadow-[0_8px_20px_-6px_rgba(251,191,36,0.6)] font-black"
+                    : "bg-white text-slate-700 border-orange-200 hover:border-[#FF7400] hover:bg-orange-50 font-bold shadow-sm"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -345,106 +353,98 @@ export default function UserManagementPage() {
             <p className="text-slate-400">Fetching users...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase">User Details</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase">Role & Status</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase">Login IDs</th>
-                  <th className="px-8 py-5 text-sm font-bold text-slate-400 uppercase text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm bg-gradient-to-br ${
-                          u.role === "CLUB" ? "from-purple-500 to-indigo-600" :
-                          u.role === "STUDENT" ? "from-[#FF7400] to-orange-600" :
-                          u.role === "COACH" ? "from-emerald-500 to-teal-600" :
-                          "from-amber-500 to-orange-600"
-                        }`}>
-                          {u.fullName.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-800">{u.fullName}</h4>
-                          <div className="flex flex-col gap-1 mt-1">
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                              <Mail size={10} /> {u.email}
-                            </div>
-                            {u.mobileNumber && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                <span className="font-bold text-slate-300">📞</span> {u.mobileNumber}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+            {filteredUsers.map((u) => (
+              <div key={u.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+                
+                {/* Header Section: Avatar, Name, Email */}
+                <div className="p-5 border-b border-slate-100 flex items-start gap-4">
+                  <div className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center font-black text-white shadow-inner bg-gradient-to-br ${
+                    u.role === "CLUB" ? "from-purple-500 to-indigo-600" :
+                    u.role === "STUDENT" ? "from-[#FF7400] to-orange-600" :
+                    u.role === "COACH" ? "from-emerald-500 to-teal-600" :
+                    "from-amber-500 to-orange-600"
+                  }`}>
+                    {u.fullName.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-slate-800 text-sm truncate">{u.fullName}</h4>
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] font-medium text-slate-500 truncate">
+                      <Mail size={12} className="text-black" /> {u.email}
+                    </div>
+                    {u.mobileNumber && (
+                      <div className="flex items-center gap-1.5 mt-1 text-[10px] font-medium text-slate-500">
+                        <Phone size={12} className="text-black" /> {u.mobileNumber}
                       </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${roleColors[u.role] || "bg-slate-100 text-slate-600"}`}>
-                            {getRoleIcon(u.role)}
-                            {getRoleLabel(u.role)}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black tracking-widest ${
-                            u.status === "APPROVED" ? "bg-emerald-100 text-emerald-600" : 
-                            u.status === "REJECTED" ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
-                          }`}>
-                            {u.status}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          {u.districtName && (
-                            <div className="flex items-center gap-1 text-[10px] font-bold text-[#FF7400]">
-                              <MapPin size={10} /> {u.districtName}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                            <Calendar size={10} /> {new Date(u.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-400 font-medium w-28 text-[10px] uppercase">{getTemporaryIdLabel(u.role)}</span>
-                          <code className="bg-slate-100 px-2 py-0.5 rounded text-[#FF7400] font-mono">{u.tempId}</code>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-400 font-medium w-28 text-[10px] uppercase">{getPermanentIdLabel(u.role)}</span>
-                          <code className="bg-blue-50 px-2 py-0.5 rounded text-blue-800 font-mono">{u.permanentId || "NOT SET"}</code>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {isMemberRole(u.role) && (
-                          <button
-                            onClick={() => handlePromoteClick(u)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                            title="Promote Member"
-                          >
-                            <Shield size={20} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleEdit(u)}
-                          className="p-2 text-[#FF7400] hover:bg-orange-50 rounded-xl transition-all"
-                          title="Manage Credentials"
-                        >
-                          <Edit size={20} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                  </div>
+                </div>
+
+                {/* Body Section: Details */}
+                <div className="p-5 space-y-4 flex-grow bg-slate-50/50">
+                  <div className="flex justify-between items-center">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${roleColors[u.role] || "bg-slate-100 text-slate-600"}`}>
+                      {getRoleIcon(u.role)}
+                      {getRoleLabel(u.role)}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black tracking-widest ${
+                      u.status === "APPROVED" ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : 
+                      u.status === "REJECTED" ? "bg-red-100 text-red-700 border border-red-200" : "bg-amber-100 text-amber-700 border border-amber-200"
+                    }`}>
+                      {u.status}
+                    </span>
+                  </div>
+
+                  {u.districtName && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                      <MapPin size={12} className="text-[#FF7400]" /> {u.districtName} District
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-400 font-bold uppercase">{getTemporaryIdLabel(u.role)}</span>
+                      <code className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-[#FF7400] font-mono shadow-sm">{u.tempId}</code>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-400 font-bold uppercase">{getPermanentIdLabel(u.role)}</span>
+                      <code className="bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md text-blue-800 font-mono shadow-sm">{u.permanentId || "NOT SET"}</code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Section: Actions */}
+                <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-white">
+                  <div className="text-[10px] font-semibold text-slate-400 flex flex-col gap-1">
+                    <span className="flex items-center gap-1"><Calendar size={12} /> Joined {new Date(u.createdAt).toLocaleDateString()}</span>
+                    {u.validUntil && (
+                      <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                        <CheckCircle2 size={10} /> Valid until {new Date(u.validUntil).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isMemberRole(u.role) && (
+                      <button
+                        onClick={() => handlePromoteClick(u)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                        title="Promote Member"
+                      >
+                        <Shield size={12} /> Promote
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleEdit(u)}
+                      className="px-3 py-1.5 text-[10px] font-bold text-[#FF7400] bg-orange-50 border border-orange-100 hover:bg-[#FF7400] hover:text-white rounded-lg transition-all flex items-center gap-1"
+                      title="Manage Credentials"
+                    >
+                      <Edit size={12} /> Edit
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            ))}
           </div>
         )}
       </div>

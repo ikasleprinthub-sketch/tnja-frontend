@@ -154,67 +154,7 @@ const BADGE_CFG: Record<ApprovalStatus, { label: string; cls: string }> = {
 };
 
 const ApprovalChain = ({ t }: { t: Tournament }) => {
-  // Coerce nulls so badge lookups never crash
-  const superAdminStatus = safeStatus(t.superAdminApproval);
-  const ceoStatus        = safeStatus(t.ceoApproval);
-
-  // Final approval is done if EITHER superAdmin OR ceo has approved
-  const finalApproved = superAdminStatus === "APPROVED" || ceoStatus === "APPROVED";
-  const finalRejected = superAdminStatus === "REJECTED" || ceoStatus === "REJECTED";
-  const finalStatus: ApprovalStatus = finalApproved
-    ? "APPROVED"
-    : finalRejected
-    ? "REJECTED"
-    : "PENDING";
-
-  // Who gave the final approval/rejection
-  const finalActor = superAdminStatus === "APPROVED"
-    ? "Super Admin"
-    : ceoStatus === "APPROVED"
-    ? "CEO"
-    : superAdminStatus === "REJECTED"
-    ? "Super Admin"
-    : ceoStatus === "REJECTED"
-    ? "CEO"
-    : null;
-
-  return (
-    <div className="mt-4 pt-4 border-t border-slate-100">
-      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Approval Chain</p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {/* Step 1 — District */}
-        {(
-          [
-            { key: "districtApproval" as keyof Tournament, label: "District" },
-            { key: "stateApproval"    as keyof Tournament, label: "State"    },
-          ]
-        ).map(({ key, label }) => {
-          const status = safeStatus(t[key] as ApprovalStatus | null | undefined);
-          const cfg = BADGE_CFG[status] ?? BADGE_CFG.PENDING;
-          return (
-            <React.Fragment key={String(key)}>
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${cfg.cls}`}>
-                <span className="opacity-60">{label}:</span> {cfg.label}
-              </span>
-              <span className="text-slate-300 text-[9px]">→</span>
-            </React.Fragment>
-          );
-        })}
-
-        {/* Final step — SuperAdmin OR CEO (parallel) */}
-        <span
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${
-            BADGE_CFG[finalStatus].cls
-          }`}
-        >
-          <span className="opacity-60">
-            {finalActor ? finalActor : "SuperAdmin / CEO"}:
-          </span>
-          {BADGE_CFG[finalStatus].label}
-        </span>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
@@ -382,56 +322,7 @@ export default function AdminTournamentsPage() {
 
   // ── Approval chain preview inside Create modal ────────────────────────────────
   const ApprovalChainPreview = () => {
-    const isStateRole =
-      userRole === "STATE_PRESIDENT" || userRole === "STATE_SECRETARY";
-    const isDistrictRole =
-      userRole === "DISTRICT_PRESIDENT" || userRole === "DISTRICT_SECRETARY";
-
-    // Steps before the final parallel step
-    const sequentialSteps: { label: string; skipped: boolean }[] = [];
-
-    // District step
-    if (!isStateRole) {
-      sequentialSteps.push({
-        label: "District",
-        skipped: isDistrictRole || userRole === "ZONE_PRESIDENT" || userRole === "ZONE_SECRETARY",
-      });
-    }
-
-    // State step
-    sequentialSteps.push({ label: "State", skipped: isStateRole });
-
-    return (
-      <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-        <p className="text-xs font-bold text-blue-700 mb-2">
-          Approval chain for your tournament:
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {sequentialSteps.map((s) => (
-            <React.Fragment key={s.label}>
-              <span
-                className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                  s.skipped
-                    ? "bg-slate-100 text-slate-400 border-slate-200"
-                    : "bg-amber-100 text-amber-700 border-amber-200"
-                }`}
-              >
-                {s.skipped ? `${s.label} ⏭ Auto-skip` : `${s.label} ✓ Required`}
-              </span>
-              <span className="text-slate-300 text-xs">→</span>
-            </React.Fragment>
-          ))}
-
-          {/* Final parallel step — SuperAdmin OR CEO */}
-          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold border bg-amber-100 text-amber-700 border-amber-200">
-            Super Admin <span className="opacity-60 font-normal">or</span> CEO ✓ One required
-          </span>
-        </div>
-        <p className="text-[10px] text-blue-500 mt-2 font-semibold">
-          ℹ️ Final approval: Super Admin and CEO are parallel — only one needs to approve.
-        </p>
-      </div>
-    );
+    return null;
   };
 
   // ── Stat cards ───────────────────────────────────────────────────────────────

@@ -18,7 +18,8 @@ import {
   XCircle,
   Scale,
   Contact,
-  Award
+  Award,
+  Calendar
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -243,6 +244,13 @@ export default function PlayerDashboard() {
           <p className="text-gray-500 font-medium">
             {playerData.permanentId ? `Player ID: ${playerData.permanentId}` : `Temporary Player ID: ${playerData.tempId}`}
           </p>
+          {playerData.validUntil && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-sm font-semibold">
+                <Calendar size={14} /> Valid until: {new Date(playerData.validUntil).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -382,12 +390,12 @@ export default function PlayerDashboard() {
 
                     <div className="flex flex-col gap-2 text-sm text-slate-500 font-medium">
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400">📧</span>
+                        <Mail size={14} className="text-black" />
                         <span>{playerData.coach.email}</span>
                       </div>
                       {playerData.coach.mobileNumber && (
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-400">📞</span>
+                          <Phone size={14} className="text-black" />
                           <span>{playerData.coach.mobileNumber}</span>
                         </div>
                       )}

@@ -280,10 +280,17 @@ function MemberDashboardContent() {
                 {memberData.permanentId ? "Active Member" : "Application Approved"}
               </span>
             </div>
-            <p className="text-slate-500 mb-4 flex items-center justify-center md:justify-start gap-2">
-              <IdCard size={16} />
-              {memberData.permanentId ? `${idLabel}: ${memberData.permanentId}` : `Temporary ${idLabel}: ${memberData.tempId}`}
-            </p>
+            <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-4 mb-4">
+              <p className="text-slate-500 flex items-center gap-2">
+                <IdCard size={16} />
+                {memberData.permanentId ? `${idLabel}: ${memberData.permanentId}` : `Temporary ${idLabel}: ${memberData.tempId}`}
+              </p>
+              {memberData.validUntil && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-sm font-semibold">
+                  <Calendar size={14} /> Valid until: {new Date(memberData.validUntil).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-center gap-3 text-slate-600 bg-slate-50 p-3 rounded-xl">

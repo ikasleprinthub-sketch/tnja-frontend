@@ -23,6 +23,7 @@ import {
   Trash2,
   ChevronRight,
   Globe,
+  Hourglass,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -372,13 +373,13 @@ export default function ClubTournamentsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-xl font-bold text-slate-800">{tournament.title}</h3>
                       {/* Status badge */}
-                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                      <span className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border ${
                         tournament.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                         tournament.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
                         "bg-amber-50 text-amber-700 border-amber-200"
                       }`}>
-                        {tournament.status === "APPROVED" ? "✓ Approved" :
-                         tournament.status === "REJECTED" ? "✗ Rejected" : "⏳ Pending Approval"}
+                        {tournament.status === "APPROVED" ? <><CheckCircle2 size={12}/> Approved</> :
+                         tournament.status === "REJECTED" ? <><XCircle size={12}/> Rejected</> : <><Hourglass size={12}/> Pending Approval</>}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500">
@@ -387,22 +388,7 @@ export default function ClubTournamentsPage() {
                       <span className="flex items-center gap-1.5"><IndianRupee size={14} className="text-[#FF7400]" />Entry: ₹{tournament.entryFee}</span>
                       <span className="flex items-center gap-1.5"><Users size={14} className="text-[#FF7400]" />{tournament.registrationCount ?? 0} / {tournament.totalSlots} Registered</span>
                     </div>
-                    {/* Approval chain mini-badges */}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {[
-                        { l: "District", v: tournament.districtApproval },
-                        { l: "State", v: tournament.stateApproval },
-                        { l: "Final", v: tournament.superAdminApproval === "APPROVED" || tournament.ceoApproval === "APPROVED" ? "APPROVED" : "PENDING" },
-                      ].map(({ l, v }) => v && v !== "NOT_REQUIRED" && (
-                        <span key={l} className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                          v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
-                          v === "REJECTED" ? "bg-red-100 text-red-600" :
-                          "bg-slate-100 text-slate-400"
-                        }`}>
-                          {l}: {v === "APPROVED" ? "✓" : v === "REJECTED" ? "✗" : "…"}
-                        </span>
-                      ))}
-                    </div>
+                    {/* Approval chain mini-badges removed as requested */}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
@@ -434,13 +420,15 @@ export default function ClubTournamentsPage() {
                       )}
                     </button>
                   </div>
-                  {/* Manage button — always visible */}
-                  <Link
-                    href={`/dashboard/admin/tournaments/${tournament.id}`}
-                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <Trophy size={14} /> Manage / Draw <ChevronRight size={13} />
-                  </Link>
+                  {/* Manage button — conditionally visible */}
+                  {tournament.status === "APPROVED" && (
+                    <Link
+                      href={`/dashboard/admin/tournaments/${tournament.id}`}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <Trophy size={14} /> Manage / Draw <ChevronRight size={13} />
+                    </Link>
+                  )}
                 </div>
               </div>
 
