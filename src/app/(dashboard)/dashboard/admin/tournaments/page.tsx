@@ -18,6 +18,7 @@ import {
   Plus,
   Calendar,
   ChevronRight,
+  Hourglass,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -330,6 +331,14 @@ export default function AdminTournamentsPage() {
   const approvedMine = myTournaments.filter(t => t.status === "APPROVED").length;
   const pendingQueue = approvalQueue.length;
 
+  const isExpired = (t: { date?: string; dateTo?: string }): boolean => {
+    const endDate = t.dateTo || t.date;
+    if (!endDate) return false;
+    const d = new Date(endDate);
+    d.setHours(23, 59, 59, 999);
+    return d < new Date();
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-8 relative">
@@ -630,17 +639,21 @@ export default function AdminTournamentsPage() {
                         <span className="absolute top-3 left-3 bg-white/90 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">
                           {t.level}
                         </span>
-                        <span
-                          className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                        {isExpired(t) ? (
+                          <span className="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border bg-slate-100 text-slate-500 border-slate-300 flex items-center gap-1">
+                            <Clock size={10} /> Expired
+                          </span>
+                        ) : (
+                          <span className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
                             t.status === "APPROVED"
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : t.status === "REJECTED"
                               ? "bg-red-50 text-red-600 border-red-200"
                               : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          {t.status}
-                        </span>
+                          }`}>
+                            {t.status === "APPROVED" ? <><CheckCircle2 size={10} /> Approved</> : t.status === "REJECTED" ? <><XCircle size={10} /> Rejected</> : <><Hourglass size={10} /> Pending</>}
+                          </span>
+                        )}
                       </div>
 
                       {/* Card body */}

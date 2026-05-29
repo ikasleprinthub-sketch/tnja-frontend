@@ -7,7 +7,7 @@ import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   IndianRupee, Target, Zap, ChevronRight, Award, Flag,
-  AlertCircle,
+  AlertCircle, Clock,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -403,6 +403,16 @@ export default function TournamentDetailPage() {
     </div>
   );
 
+  // ── Expired check ────────────────────────────────────────────────────────────
+  const expired = (() => {
+    if (!tournament) return false;
+    const end = tournament.dateTo || tournament.date;
+    if (!end) return false;
+    const d = new Date(end);
+    d.setHours(23, 59, 59, 999);
+    return d < new Date();
+  })();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -462,6 +472,21 @@ export default function TournamentDetailPage() {
         </div>
       )}
 
+      {/* Expired banner */}
+      {expired && (
+        <div className="flex items-center gap-4 px-6 py-4 bg-slate-800 border border-slate-600 rounded-2xl">
+          <div className="w-10 h-10 bg-slate-600 rounded-xl flex items-center justify-center shrink-0">
+            <Clock size={24} className="text-slate-300" />
+          </div>
+          <div>
+            <p className="text-white font-black text-sm">Tournament Expired</p>
+            <p className="text-slate-400 text-xs font-semibold mt-0.5">
+              This tournament date has passed. You can view details and results but cannot generate draws or open scoreboards.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Demo banner */}
       {usingDemo && (
         <div className="flex items-center justify-between px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
@@ -478,12 +503,26 @@ export default function TournamentDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
-        {(["overview", "players", "draws", "matches"] as Tab[]).map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-            {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
+        {(["overview", "players", "draws", "matches"] as Tab[]).map((tab) => {
+          const lockedByExpiry = expired && (tab === "draws" || tab === "matches");
+          return (
+            <button
+              key={tab}
+              onClick={() => !lockedByExpiry && setActiveTab(tab)}
+              title={lockedByExpiry ? "Not available — tournament has expired" : undefined}
+              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${
+                lockedByExpiry
+                  ? "text-slate-300 cursor-not-allowed"
+                  : activeTab === tab
+                  ? "bg-white text-[#FF7400] shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {lockedByExpiry && <span className="text-[10px]">🔒</span>}
+              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          );
+        })}
       </div>
 
       {/* ══ OVERVIEW ══════════════════════════════════════════════════════════ */}
@@ -596,7 +635,10 @@ export default function TournamentDetailPage() {
       )}
 
       {/* ══ DRAWS ═════════════════════════════════════════════════════════════ */}
-      {activeTab === "draws" && (
+      {activeTab === "draws" && expired && (
+        <ExpiredBlock label="Draw Generation" />
+      )}
+      {activeTab === "draws" && !expired && (
         <div className="space-y-4">
           <CategoryFilters />
 
@@ -875,7 +917,10 @@ export default function TournamentDetailPage() {
       )}
 
       {/* ══ MATCHES ═══════════════════════════════════════════════════════════ */}
-      {activeTab === "matches" && (
+      {activeTab === "matches" && expired && (
+        <ExpiredBlock label="Match Scoreboard" />
+      )}
+      {activeTab === "matches" && !expired && (
         <div className="space-y-4">
           <CategoryFilters />
 
@@ -1061,6 +1106,21 @@ export default function TournamentDetailPage() {
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Expired block ────────────────────────────────────────────────────────────
+function ExpiredBlock({ label }: { label: string }) {
+  return (
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-20 text-center space-y-3">
+      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+        <Clock size={32} className="text-slate-400" />
+      </div>
+      <p className="text-slate-700 font-black text-lg">{label} Unavailable</p>
+      <p className="text-slate-400 font-semibold text-sm max-w-sm mx-auto">
+        This tournament has expired. {label} is only available for active and upcoming tournaments.
+      </p>
     </div>
   );
 }

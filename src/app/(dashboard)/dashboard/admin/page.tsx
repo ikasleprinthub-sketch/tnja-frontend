@@ -1,287 +1,330 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { 
-  Users, 
-  Building2, 
-  GraduationCap, 
-  ShieldCheck, 
-  TrendingUp,
-  MapPin,
-  Clock,
-  ArrowUpRight,
-  Loader2
-} from "lucide-react";
+import { ShieldCheck, MapPin, Calendar, Loader2, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
+function roleLabel(role: string): string {
+  return role.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function fmtDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
 export default function AdminDashboard() {
-  const [statsData, setStatsData] = useState<any>(null);
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+  const [statsData,  setStatsData]  = useState<any>(null);
+  const [userData,   setUserData]   = useState<any>(null);
+  const [grievances, setGrievances] = useState<any[]>([]);
+  const [events,     setEvents]     = useState<any[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
 
   useEffect(() => {
-    const loadNotifs = () => {
-      const saved = localStorage.getItem("tnja_notifications");
-      if (saved) {
-        try {
-          setAdminNotifications(JSON.parse(saved));
-        } catch (err) {
-          console.error(err);
-        }
-      }
-    };
-    loadNotifs();
-
-    window.addEventListener("tnja_notifications_updated", loadNotifs);
-    return () => {
-      window.removeEventListener("tnja_notifications_updated", loadNotifs);
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
-        setError(null);
         const token = localStorage.getItem("token");
-        
-        const [statsRes, profileRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/stats`, {
-            headers: { "Authorization": `Bearer ${token}` }
-          }),
-          fetch(`${API_BASE}/auth/profile`, {
-            headers: { "Authorization": `Bearer ${token}` }
-          })
+        const H = { Authorization: `Bearer ${token}` };
+
+        const [statsRes, profileRes, grievRes, evRes] = await Promise.all([
+          fetch(`${API_BASE}/admin/stats`,  { headers: H }),
+          fetch(`${API_BASE}/auth/profile`, { headers: H }),
+          fetch(`${API_BASE}/grievances`,   { headers: H }).catch(() => null),
+          fetch(`${API_BASE}/events`,       { headers: H }).catch(() => null),
         ]);
 
-        if (!statsRes.ok) throw new Error(`Stats Server error: ${statsRes.status}`);
-        if (!profileRes.ok) throw new Error(`Profile Server error: ${profileRes.status}`);
+        if (!statsRes.ok || !profileRes.ok) throw new Error("Server error");
 
-        const stats = await statsRes.json();
+        const stats   = await statsRes.json();
         const profile = await profileRes.json();
-        
         setStatsData(stats);
         setUserData(profile.user);
-      } catch (err: any) {
-        console.error("Failed to fetch dashboard data", err);
-        setError(err.message || "Failed to connect to the backend server.");
+
+        if (grievRes?.ok) {
+          const gd = await grievRes.json();
+          setGrievances((Array.isArray(gd) ? gd : gd.grievances || []).slice(0, 6));
+        }
+        if (evRes?.ok) {
+          const ed = await evRes.json();
+          setEvents((Array.isArray(ed) ? ed : ed.events || []).slice(0, 4));
+        }
+      } catch (e: any) {
+        setError(e.message || "Failed to connect");
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
+    })();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400">
-        <Loader2 size={40} className="animate-spin text-[#FF7400]" />
-        <p className="font-medium">Fetching statistics...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center h-full gap-3 text-slate-400">
+      <Loader2 size={36} className="animate-spin text-[#FF7400]" />
+      <span className="font-semibold text-sm">Loading dashboard...</span>
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-6 p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-sm">
-        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center">
-          <ShieldCheck size={32} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Connection Error</h2>
-          <p className="text-slate-500 max-w-md mx-auto">
-            {error}. Please ensure the backend server and database are running.
-          </p>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-6 py-3 bg-[#FF7400] text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 transition-all"
-        >
-          Retry Connection
-        </button>
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-full gap-5">
+      <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center">
+        <ShieldCheck size={28} className="text-red-500" />
       </div>
-    );
-  }
+      <p className="text-slate-500 text-sm font-semibold">{error}</p>
+      <button onClick={() => window.location.reload()}
+        className="px-6 py-2.5 bg-[#FF7400] text-white font-bold rounded-xl text-sm">
+        Retry
+      </button>
+    </div>
+  );
 
-  const stats = [
-    { label: "Total Members", value: statsData?.counts?.MEMBER || 0, icon: Users, color: "bg-[#FF7400]", trend: "Active" },
-    { label: "Organizations", value: statsData?.counts?.CLUB || 0, icon: Building2, color: "bg-purple-500", trend: "Verified" },
-    { label: "Active Players", value: statsData?.counts?.STUDENT || 0, icon: GraduationCap, color: "bg-emerald-500", trend: "Players" },
-    { label: "Coaches", value: statsData?.counts?.COACH || 0, icon: ShieldCheck, color: "bg-amber-500", trend: "Verified" },
+  const role    = userData?.role || "";
+  const districtName = userData?.district?.name || userData?.state?.name || "Tamil Nadu";
+  const isSuper = role === "SUPER_ADMIN" || role === "CEO";
+  const canSeeGrievances =
+    role === "STATE_PRESIDENT" || role === "STATE_SECRETARY" ||
+    role === "SUPER_ADMIN"     || role === "CEO";
+
+  const statCards = [
+    { label: "MEMBERS", value: statsData?.counts?.MEMBER  ?? 0, dot: "bg-[#FF7400]", border: "border-[#FF7400]" },
+    { label: "PLAYERS", value: statsData?.counts?.STUDENT ?? 0, dot: "bg-yellow-400",  border: "border-yellow-400" },
+    { label: "COACHES", value: statsData?.counts?.COACH   ?? 0, dot: "bg-slate-800",   border: "border-slate-800" },
   ];
 
-  const recentApprovals = statsData?.recentApprovals || [];
-  const districtName = userData?.district?.name || "State Board";
+  // Placeholder events when API returns nothing
+  const displayEvents = events.length > 0 ? events : [
+    { id: "e1", title: "National Tournament", date: "2026-06-09", location: "Chennai",    imageUrl: "" },
+    { id: "e2", title: "State Championship",  date: "2026-07-15", location: "Coimbatore", imageUrl: "" },
+    { id: "e3", title: "District Open",       date: "2026-08-01", location: "Madurai",    imageUrl: "" },
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">{(userData?.role === 'SUPER_ADMIN' || userData?.role === 'CEO') ? 'State' : 'District'} Dashboard</h1>
-          <p className="text-slate-500">Overview for {districtName}</p>
-        </div>
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="p-2 bg-orange-50 text-[#FF7400] rounded-xl">
-            <MapPin size={20} />
-          </div>
-          <span className="pr-4 font-semibold text-slate-700">{districtName}</span>
-        </div>
-      </div>
+    <div className="space-y-6">
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, idx) => (
-          <motion.div 
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-xl hover:shadow-orange-500/5 transition-all"
-          >
-            <div className={`w-12 h-12 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-              <stat.icon size={24} />
-            </div>
-            <p className="text-sm font-medium text-slate-500 mb-1">{stat.label}</p>
-            <div className="flex items-end justify-between">
-              <h3 className="text-3xl font-bold text-slate-800">{stat.value}</h3>
-              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg flex items-center gap-1">
-                <TrendingUp size={12} />
-                {stat.trend}
-              </span>
-            </div>
-            
-            {/* Subtle background decoration */}
-            <div className={`absolute -right-4 -bottom-4 w-24 h-24 ${stat.color} opacity-[0.03] rounded-full`}></div>
+      {/* Breadcrumb */}
+      <p className="text-xs text-slate-400 font-semibold">
+        <span className="text-slate-700 font-bold">{roleLabel(role)} Dashboard</span>
+        {" / "}Overview
+      </p>
+
+      {/* Page title */}
+      <h1 className="text-3xl font-black text-[#FF7400]">Dashboard</h1>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-[1000px]">
+        {statCards.map((s, i) => (
+          <motion.div key={s.label}
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+            className={`bg-white rounded-2xl border-2 ${s.border} p-6 relative overflow-hidden shadow-sm`}>
+            <span className={`absolute top-4 right-4 w-3 h-3 rounded-full ${s.dot}`} />
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{s.label}</p>
+            <p className="text-5xl font-black text-slate-900">{s.value}</p>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Pending Approvals List */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-slate-200"
-        >
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-xl font-bold text-slate-800">Pending Approvals</h2>
-            <Link href="/dashboard/admin/approvals" className="text-[#FF7400] font-semibold text-sm hover:underline flex items-center gap-1">
-              View All <ArrowUpRight size={16} />
+      {/* Main two-column layout */}
+      <div className="flex flex-col xl:flex-row gap-8 justify-between items-start">
+
+        {/* ── LEFT: Grievances / Approvals ─────────────────────────────── */}
+        <div className="flex-1 w-full max-w-[1000px] bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black text-[#FF7400] uppercase tracking-widest">
+              {canSeeGrievances ? "Grievances" : "Pending Approvals"}
+            </h2>
+            <Link
+              href={canSeeGrievances ? "/dashboard/admin/grievances" : "/dashboard/admin/approvals"}
+              className="text-xs font-bold text-slate-400 hover:text-[#FF7400] flex items-center gap-1 transition-colors">
+              View All <ArrowUpRight size={13} />
+            </Link>
+          </div>
+
+          {canSeeGrievances ? (
+            /* ── Grievance cards (State/Super only) ── */
+            <div className="space-y-2">
+              {grievances.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm py-16 text-center">
+                  <p className="text-slate-400 font-bold text-sm">No grievances yet</p>
+                </div>
+              ) : grievances.map((g: any, i: number) => (
+                <motion.div key={g.id || i}
+                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="bg-white rounded-xl shadow-sm border border-slate-100 px-4 py-3 hover:shadow-md transition-shadow">
+
+                  {/* Row 1: Avatar + Name + Badge + Status */}
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center text-white font-black text-lg shrink-0 overflow-hidden shadow-sm">
+                      {g.userPhoto
+                        ? <img src={g.userPhoto} alt="" className="w-full h-full object-cover" />
+                        : (g.userName || "U").charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Name + Badge */}
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-black text-slate-900">{g.userName || "Unknown"}</p>
+                        {g.role && (
+                          <span className="text-[9px] font-black px-3 py-1 rounded-full bg-slate-900 uppercase tracking-widest text-[#FFDA00]">
+                            {g.role}
+                          </span>
+                        )}
+                      </div>
+                      {g.userId && (
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{g.userId}</p>
+                      )}
+                    </div>
+
+                    {/* Status — top right */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`w-2.5 h-2.5 rounded-full ${
+                        g.status === "CLOSED" ? "bg-emerald-500" :
+                        g.status === "REPLAY" ? "bg-blue-400" : "bg-red-500"
+                      }`} />
+                      <span className={`text-xs font-bold ${
+                        g.status === "CLOSED" ? "text-emerald-600" :
+                        g.status === "REPLAY" ? "text-blue-500" : "text-[#FF7400]"
+                      }`}>
+                        {g.status === "CLOSED" ? "Closed" : g.status === "REPLAY" ? "Replied" : "Pending"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Italic message */}
+                  <p className="text-xs text-slate-500 italic leading-relaxed mt-3 line-clamp-2">
+                    {g.subject || "No subject"}
+                  </p>
+
+                  {/* Row 3: Date — bottom right */}
+                  <div className="flex justify-end mt-2">
+                    <p className="text-[10px] font-bold text-[#FF7400] flex items-center gap-1">
+                      <Calendar size={9} />
+                      {fmtDate(g.createdAt || new Date().toISOString())}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            /* ── Pending Approvals (District) ── */
+            <div className="space-y-3">
+              {(statsData?.recentApprovals || []).length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm py-16 text-center">
+                  <ShieldCheck size={36} className="mx-auto text-slate-200 mb-3" />
+                  <p className="text-slate-400 font-bold text-sm">No pending approvals</p>
+                </div>
+              ) : (statsData?.recentApprovals || []).map((item: any, i: number) => (
+                <motion.div key={i}
+                  initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow flex items-center gap-4">
+                  <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-base shrink-0 ${
+                    item.type === "Club"   ? "bg-purple-100 text-purple-600" :
+                    item.type === "Player" ? "bg-orange-100 text-[#FF7400]"  : "bg-amber-100 text-amber-600"
+                  }`}>
+                    {(item.name || "?").charAt(0)}
+                  </div>
+                  <div className="flex-grow min-w-0">
+                    <p className="text-sm font-black text-slate-800 truncate">{item.name}</p>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{item.type} · {fmtDate(item.createdAt)}</p>
+                  </div>
+                  <Link href="/dashboard/admin/approvals"
+                    className="shrink-0 px-4 py-2 bg-[#FF7400] text-white text-[10px] font-black rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                    Review
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: Events ────────────────────────────────────────────── */}
+        <div className="w-full xl:w-[400px] shrink-0 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 xl:mr-12">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black text-[#FF7400] uppercase tracking-widest">Events</h2>
+            <Link href="/dashboard/admin/events"
+              className="text-xs font-bold text-slate-400 hover:text-[#FF7400] flex items-center gap-1 transition-colors">
+              View All <ArrowUpRight size={13} />
             </Link>
           </div>
 
           <div className="space-y-4">
-            {recentApprovals.map((item: any, idx: number) => (
-              <div 
-                key={idx} 
-                className="flex items-center justify-between p-4 rounded-2xl border border-slate-50 hover:bg-slate-50 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${
-                    item.type === "Club" ? "bg-purple-100 text-purple-600" : 
-                    item.type === "Player" ? "bg-orange-100 text-[#FF7400]" : "bg-amber-100 text-amber-600"
-                  }`}>
-                    {item.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-800">{item.name}</h4>
-                    <p className="text-xs text-slate-400 flex items-center gap-1">
-                      <Clock size={12} /> {new Date(item.createdAt).toLocaleDateString()} • {item.type}
-                    </p>
+            {displayEvents.map((ev: any, i: number) => (
+              <motion.div key={ev.id || i}
+                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.1 }}
+                className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow">
+
+                {/* Event image with yellow bottom accent */}
+                <div className="relative h-40 overflow-hidden">
+                  {ev.imageUrl ? (
+                    <img src={ev.imageUrl} alt={ev.title || ev.name}
+                      className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 via-purple-700 to-slate-900 flex items-center justify-center">
+                      {/* Judo silhouette placeholder */}
+                      <svg viewBox="0 0 120 100" className="w-20 h-20 opacity-20 fill-white">
+                        <ellipse cx="60" cy="30" rx="12" ry="14" />
+                        <rect x="48" y="42" width="24" height="30" rx="4" />
+                        <rect x="30" y="48" width="20" height="6" rx="3" />
+                        <rect x="70" y="48" width="20" height="6" rx="3" />
+                        <rect x="50" y="70" width="8" height="22" rx="3" />
+                        <rect x="62" y="70" width="8" height="22" rx="3" />
+                      </svg>
+                    </div>
+                  )}
+                  {/* Yellow bottom accent bar */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-yellow-400" />
+                </div>
+
+                {/* Event details */}
+                <div className="p-4 space-y-2">
+                  <h3 className="text-base font-black text-slate-900 leading-tight">
+                    {ev.title || ev.name || "Event"}
+                  </h3>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                      <Calendar size={12} className="text-[#FF7400] shrink-0" />
+                      {ev.date ? fmtDate(ev.date) : "TBD"}
+                    </div>
+                    {(ev.location || ev.venue) && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                        <MapPin size={12} className="text-[#FF7400] shrink-0" />
+                        {ev.location || ev.venue}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Link 
-                    href="/dashboard/admin/approvals"
-                    className="px-4 py-2 bg-[#FF7400] text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    Review
-                  </Link>
-                </div>
-              </div>
+              </motion.div>
             ))}
-            {recentApprovals.length === 0 && (
-              <div className="text-center py-10 text-slate-400">
-                No pending applications at the moment.
-              </div>
-            )}
           </div>
-        </motion.div>
 
-        {/* Sidebar Column */}
-        <div className="space-y-8">
-          {/* Location Based Stats - Super Admin Only */}
-          {(userData?.role === 'SUPER_ADMIN' || userData?.role === 'CEO') && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl"
-            >
-              <h2 className="text-xl font-bold mb-6">Taluk Breakdown</h2>
-              <div className="space-y-6">
-                {(statsData?.talukBreakdown || []).map((taluk: any, idx: number) => (
-                  <div key={taluk.name} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">{taluk.name}</span>
-                      <span className="font-bold">{taluk.count}</span>
-                    </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(taluk.count / Math.max(...(statsData?.talukBreakdown?.map((t: any) => t.count) || [1]))) * 100}%` }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                        className={`h-full ${
-                          idx === 0 ? "bg-[#FF7400]" : 
-                          idx === 1 ? "bg-orange-400" : 
-                          idx === 2 ? "bg-purple-500" : "bg-emerald-500"
-                        }`}
-                      ></motion.div>
-                    </div>
-                  </div>
-                ))}
-                {(!statsData?.talukBreakdown || statsData.talukBreakdown.length === 0) && (
-                  <p className="text-slate-500 text-sm italic">No data available yet.</p>
-                )}
+          {/* Jurisdiction card */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white space-y-3">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Jurisdiction</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+                <MapPin size={18} className="text-orange-400" />
               </div>
-
-              <div className="mt-12 p-6 bg-white/5 rounded-2xl border border-white/10">
-                <h4 className="text-sm font-bold mb-2">Registration Flow</h4>
-                <p className="text-xs text-slate-400 mb-4">Live distribution of registrations across taluks.</p>
-                <button className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-orange-100 transition-colors">
-                  Download Report
-                </button>
+              <div>
+                <p className="font-black text-base">{districtName}</p>
+                <p className="text-slate-400 text-xs font-semibold">{roleLabel(role)}</p>
               </div>
-            </motion.div>
-          )}
-
-          {/* Notifications Card */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <h4 className="font-bold text-slate-800">Recent Notifications</h4>
-            {adminNotifications.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-xs font-semibold">
-                No notifications found.
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                {adminNotifications.map((n: any) => (
-                  <div key={n.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 rounded-2xl border border-slate-100/50 transition-colors flex items-start gap-2.5">
-                    <span className="w-1.5 h-1.5 bg-[#FF7400] rounded-full mt-1.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
-                        {n.message}
-                      </p>
-                      <span className="text-[10px] text-slate-400 font-medium block">
-                        {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            </div>
+            {!isSuper && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Link href="/dashboard/admin/members"
+                  className="text-center py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black transition-colors">
+                  Members
+                </Link>
+                <Link href="/dashboard/admin/approvals"
+                  className="text-center py-2 bg-[#FF7400]/80 hover:bg-[#FF7400] rounded-xl text-[10px] font-black transition-colors">
+                  Approvals
+                </Link>
               </div>
             )}
           </div>

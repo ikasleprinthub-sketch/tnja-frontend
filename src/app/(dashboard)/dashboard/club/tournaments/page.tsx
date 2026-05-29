@@ -276,6 +276,15 @@ export default function ClubTournamentsPage() {
     REJECTED: "bg-red-50 text-red-700 border-red-100",
   };
 
+  // Returns true if the tournament end date (or start date) is in the past
+  const isExpired = (t: any): boolean => {
+    const endDate = t.dateTo || t.date;
+    if (!endDate) return false;
+    const d = new Date(endDate);
+    d.setHours(23, 59, 59, 999); // end of that day
+    return d < new Date();
+  };
+
   return (
     <div className="space-y-8 relative">
       {/* Toast */}
@@ -373,14 +382,20 @@ export default function ClubTournamentsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-xl font-bold text-slate-800">{tournament.title}</h3>
                       {/* Status badge */}
-                      <span className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border ${
-                        tournament.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                        tournament.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
-                        "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}>
-                        {tournament.status === "APPROVED" ? <><CheckCircle2 size={12}/> Approved</> :
-                         tournament.status === "REJECTED" ? <><XCircle size={12}/> Rejected</> : <><Hourglass size={12}/> Pending Approval</>}
-                      </span>
+                      {isExpired(tournament) ? (
+                        <span className="flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border bg-slate-100 text-slate-500 border-slate-300">
+                          <AlertCircle size={11} /> Expired
+                        </span>
+                      ) : (
+                        <span className={`flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border ${
+                          tournament.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                          tournament.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
+                          "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                          {tournament.status === "APPROVED" ? <><CheckCircle2 size={12}/> Approved</> :
+                           tournament.status === "REJECTED" ? <><XCircle size={12}/> Rejected</> : <><AlertCircle size={12}/> Pending</>}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500">
                       <span className="flex items-center gap-1.5"><Clock size={14} className="text-[#FF7400]" />{new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
@@ -541,9 +556,15 @@ export default function ClubTournamentsPage() {
                       <span className="absolute top-3 left-3 bg-white/20 text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
                         {t.level}
                       </span>
-                      <span className="absolute top-3 right-3 bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-2.5 py-1 rounded-full border border-emerald-500/30">
-                        ✓ Approved
-                      </span>
+                      {isExpired(t) ? (
+                        <span className="absolute top-3 right-3 bg-slate-500/30 text-slate-300 text-[9px] font-black px-2.5 py-1 rounded-full border border-slate-400/30 flex items-center gap-1">
+                          <Clock size={10} /> Expired
+                        </span>
+                      ) : (
+                        <span className="absolute top-3 right-3 bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Approved
+                        </span>
+                      )}
                     </div>
                     <div className="p-5 flex-grow flex flex-col gap-3">
                       <h3 className="text-base font-bold text-slate-800 leading-snug">{t.title}</h3>
