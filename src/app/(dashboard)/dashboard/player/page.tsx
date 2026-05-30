@@ -19,11 +19,41 @@ import {
   Scale,
   Contact,
   Award,
-  Calendar
+  Calendar,
+  Swords
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+const Field = ({
+  label,
+  value,
+  readOnly = false,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string | number;
+  readOnly?: boolean;
+  onChange?: (v: string) => void;
+  type?: string;
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-xs font-semibold text-slate-500">{label}</label>
+    <input
+      type={type}
+      value={value}
+      readOnly={readOnly}
+      onChange={(e) => onChange?.(e.target.value)}
+      className={`w-full px-3 py-2.5 border rounded-lg text-sm font-medium text-slate-700 focus:outline-none transition-all ${
+        readOnly
+          ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+          : "bg-white border-slate-200 focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10"
+      }`}
+    />
+  </div>
+);
 
 export default function PlayerDashboard() {
   const [playerData, setPlayerData] = useState<any>(null);
@@ -32,7 +62,62 @@ export default function PlayerDashboard() {
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
   const [playerNotifications, setPlayerNotifications] = useState<any[]>([]);
+  const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<any>({});
+  const [saving, setSaving] = useState(false);
 
+  const buildForm = (u: any) => {
+    return {
+      fullName: u?.fullName || "",
+      fatherName: u?.fatherName || "",
+      bloodGroup: u?.bloodGroup || "",
+      gender: u?.gender || "",
+      height: u?.height || "",
+      weight: u?.weight || "",
+      mobileNumber: u?.mobileNumber || "",
+      address: u?.address || "",
+      city: u?.city || "",
+      state: u?.state || "",
+      addressPincode: u?.addressPincode || "",
+      dob: u?.dob ? new Date(u.dob).toISOString().split('T')[0] : "",
+      email: u?.email || "",
+      tempId: u?.tempId || "",
+    };
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPlayerData(data.user);
+        setFormData(buildForm(data.user));
+        setIsEditing(false);
+        alert("Profile updated successfully!");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to update profile");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error updating profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setF = (key: string) => (v: string) =>
+    setFormData((p: any) => ({ ...p, [key]: v }));
   useEffect(() => {
     fetchData();
   }, []);
@@ -80,7 +165,68 @@ export default function PlayerDashboard() {
       if (!settingsRes.ok) throw new Error(settingsData.error || "Failed to fetch settings");
 
       setPlayerData(profileData.user);
+      setFormData(buildForm(profileData.user));
       setSettings(settingsData);
+
+      // Fetch tournaments & draws for upcoming matches
+      try {
+        const trnRes = await fetch(`${API_BASE}/tournaments/player`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (trnRes.ok) {
+          const tournaments = await trnRes.json();
+          const matches: any[] = [];
+
+          for (const trn of tournaments) {
+            if (trn.myRegistration && (trn.myRegistration.status === "APPROVED" || trn.myRegistration.status === "PENDING")) {
+              const drawRes = await fetch(`${API_BASE}/tournaments/${trn.id}/draws`, {
+                headers: { "Authorization": `Bearer ${token}` }
+              });
+              if (drawRes.ok) {
+                const draws = await drawRes.json();
+                for (const draw of draws) {
+                  if (draw.rounds) {
+                    for (let rIdx = 0; rIdx < draw.rounds.length; rIdx++) {
+                      const round = draw.rounds[rIdx];
+                      for (const match of round) {
+                        if (
+                          match.status !== "COMPLETED" &&
+                          (match.slotA?.playerId === profileData.user.id || match.slotB?.playerId === profileData.user.id)
+                        ) {
+                          const opponent = match.slotA.playerId === profileData.user.id ? match.slotB : match.slotA;
+                          const existingMatchForTrn = matches.find(m => m.tournamentId === trn.id);
+                          if (!existingMatchForTrn || existingMatchForTrn.roundNum > (rIdx + 1)) {
+                            const newMatchInfo = {
+                              tournamentId: trn.id,
+                              tournamentName: trn.title,
+                              tournamentDate: trn.date,
+                              tournamentLocation: trn.location,
+                              opponent,
+                              roundNum: rIdx + 1,
+                              matNumber: match.matNumber,
+                              matchNumber: match.matchNumber
+                            };
+                            if (existingMatchForTrn) {
+                              const index = matches.indexOf(existingMatchForTrn);
+                              matches[index] = newMatchInfo;
+                            } else {
+                              matches.push(newMatchInfo);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          setUpcomingMatches(matches);
+        }
+      } catch (err) {
+        console.error("Error fetching upcoming matches:", err);
+      }
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -205,14 +351,54 @@ export default function PlayerDashboard() {
   // Check if payment is required
   const needsPayment = !playerData.isBPL && !playerData.isPaid;
 
+  const infoGroups = [
+    {
+      title: "Basic Information",
+      icon: User,
+      items: [
+        { label: "Name", value: playerData.fullName, icon: User },
+        { label: "Father's Name", value: playerData.fatherName, icon: User },
+        { label: "Date of Birth", value: playerData.dob ? new Date(playerData.dob).toLocaleDateString() : "N/A", icon: Calendar },
+        { label: "Blood Group", value: playerData.bloodGroup, icon: ShieldCheck },
+      ]
+    },
+    {
+      title: "Contact & Address",
+      icon: MapPin,
+      items: [
+        { label: "Email", value: playerData.email, icon: Mail },
+        { label: "Mobile Number", value: playerData.mobileNumber, icon: Phone },
+        { label: "Address", value: playerData.address, icon: MapPin },
+        { label: "City", value: playerData.city, icon: MapPin },
+      ]
+    },
+    {
+      title: "Physical Attributes",
+      icon: Trophy,
+      items: [
+        { label: "Height (cm)", value: playerData.height, icon: Award },
+        { label: "Weight (kg)", value: playerData.weight, icon: Scale },
+        { label: "Gender", value: playerData.gender, icon: User },
+      ]
+    }
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      {/* Header Card */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-8"
-      >
+    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800">Player Dashboard</h1>
+          <p className="text-slate-500">Welcome back, {playerData.fullName.split(" ")[0]}</p>
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        {/* Header Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center md:items-start gap-8"
+        >
         <div className="relative">
           <div className="w-32 h-32 bg-gradient-to-br from-[#FF7400] to-[#FF9100] rounded-2xl flex items-center justify-center text-white text-5xl font-bold shadow-xl shadow-[#FF7400]/20 overflow-hidden">
             {playerData.profilePhoto ? (
@@ -252,11 +438,26 @@ export default function PlayerDashboard() {
             </div>
           )}
         </div>
+        
+        <div className="md:ml-auto">
+          <button 
+            onClick={() => {
+              if (isEditing) {
+                setIsEditing(false);
+                setFormData(buildForm(playerData));
+              } else {
+                setIsEditing(true);
+              }
+            }}
+            className="px-6 py-2.5 bg-white border border-[#FF7400] text-[#FF7400] rounded-xl font-bold hover:bg-orange-50 transition-all flex items-center gap-2"
+          >
+            {isEditing ? "Cancel Editing" : "Edit Profile"}
+          </button>
+        </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
+      {/* Main Content Area */}
+      <div className="space-y-8">
           {needsPayment ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
@@ -319,6 +520,91 @@ export default function PlayerDashboard() {
             </motion.div>
           ) : (
             <div className="space-y-8">
+              {/* Profile Information / Edit Form */}
+              {isEditing ? (
+                <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-6 shadow-sm">
+                  <h3 className="text-xl font-bold text-[#FF7400] flex items-center gap-2">
+                    <User size={24} />
+                    Edit Personal Information
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Field label="Full Name" value={formData.fullName} onChange={setF("fullName")} />
+                    <Field label="Father's Name" value={formData.fatherName} onChange={setF("fatherName")} />
+                    <Field label="Blood Group" value={formData.bloodGroup} onChange={setF("bloodGroup")} />
+                    <Field label="Gender" value={formData.gender} onChange={setF("gender")} />
+                    <Field label="Height (cm)" type="number" value={formData.height} onChange={setF("height")} />
+                    <Field label="Weight (kg)" type="number" value={formData.weight} onChange={setF("weight")} />
+                    <Field label="Mobile Number" value={formData.mobileNumber} onChange={setF("mobileNumber")} />
+                    <Field label="Date of Birth" type="date" value={formData.dob} readOnly />
+                    <Field label="Email Address" value={formData.email} readOnly />
+                    <Field label="Student ID (Temporary)" value={formData.tempId} readOnly />
+                  </div>
+                  
+                  <h3 className="text-xl font-bold text-[#FF7400] flex items-center gap-2 mt-8 border-t pt-8">
+                    <MapPin size={24} />
+                    Address Details
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Field label="Address" value={formData.address} onChange={setF("address")} />
+                    <Field label="City" value={formData.city} onChange={setF("city")} />
+                    <Field label="State" value={formData.state} onChange={setF("state")} />
+                    <Field label="Pincode" value={formData.addressPincode} onChange={setF("addressPincode")} />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setFormData(buildForm(playerData));
+                      }}
+                      className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={saving}
+                      className="px-6 py-3 bg-[#FF7400] text-white rounded-xl font-bold hover:bg-[#E56900] transition-all disabled:opacity-60 shadow-lg shadow-orange-200 flex items-center gap-2"
+                    >
+                      {saving && <Loader2 size={18} className="animate-spin" />}
+                      {saving ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {infoGroups.map((group, groupIdx) => (
+                    <motion.div 
+                      key={group.title}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: groupIdx * 0.1 }}
+                      className={`bg-white rounded-3xl p-6 shadow-sm border border-slate-200 ${groupIdx === 2 ? "md:col-span-2" : ""}`}
+                    >
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-orange-50 text-[#FF7400] rounded-lg">
+                          <group.icon size={20} />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-800">{group.title}</h2>
+                      </div>
+
+                      <div className={`grid gap-6 ${groupIdx === 2 ? "md:grid-cols-3" : "grid-cols-1"}`}>
+                        {group.items.map((item) => (
+                          <div key={item.label} className="space-y-1">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{item.label}</p>
+                            <div className="flex items-center gap-2 text-slate-700">
+                              <item.icon size={16} className="text-slate-300" />
+                              <p className="font-medium">{item.value || "N/A"}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
               {/* Match Statistics Card Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Wins Card */}
@@ -363,6 +649,62 @@ export default function PlayerDashboard() {
                   </div>
                 </motion.div>
               </div>
+
+              {/* Upcoming Matches Card */}
+              {upcomingMatches.length > 0 && (
+                <div className="bg-white rounded-3xl p-8 border border-[#FF7400]/20 shadow-lg shadow-orange-500/5 space-y-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                  
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-4 relative z-10">
+                    <div className="p-2.5 bg-orange-100 text-[#FF7400] rounded-xl">
+                      <Swords size={20} />
+                    </div>
+                    <h3 className="text-xl font-black text-[#1A1A1A]">Upcoming Matches</h3>
+                  </div>
+
+                  <div className="space-y-4 relative z-10">
+                    {upcomingMatches.map((match, idx) => (
+                      <div key={idx} className="p-5 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                        
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Tournament</span>
+                            <h4 className="font-bold text-slate-800 text-lg leading-tight">{match.tournamentName}</h4>
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500">
+                            <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm">
+                              <Calendar size={14} className="text-[#FF7400]" />
+                              {new Date(match.tournamentDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm">
+                              <MapPin size={14} className="text-[#FF7400]" />
+                              {match.tournamentLocation} • Mat {match.matNumber}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 md:text-right p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                          <span className="text-[10px] font-black text-orange-500 uppercase tracking-wider block mb-1">
+                            Opponent — Round {match.roundNum}
+                          </span>
+                          {match.opponent?.playerId ? (
+                            <div>
+                              <p className="font-extrabold text-slate-800 text-lg">{match.opponent.playerName}</p>
+                              <p className="text-xs font-bold text-slate-500">{match.opponent.club || "No Club"}</p>
+                            </div>
+                          ) : match.opponent?.isBye ? (
+                            <p className="font-extrabold text-emerald-600 text-lg">BYE (Auto-Advance)</p>
+                          ) : (
+                            <p className="font-extrabold text-slate-400 text-lg">To Be Decided</p>
+                          )}
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Coach Assignment Card */}
               <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
@@ -412,10 +754,8 @@ export default function PlayerDashboard() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Sidebar / Quick Stats */}
-        <div className="space-y-8">
+        {/* Additional Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h4 className="font-bold text-[#1A1A1A] mb-4">Membership Status</h4>
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl mb-4">
@@ -459,6 +799,7 @@ export default function PlayerDashboard() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -290,22 +290,22 @@ export default function DashboardLayout({
         {/* Personal Details heading */}
         {isSidebarOpen && (
           <div className="px-5 pt-5 pb-3">
-            {(isPresident || isSecretary) ? (
-              <Link
-                href="/dashboard/admin/profile"
-                className={`block text-sm font-bold pb-2 border-b-2 transition-opacity hover:opacity-75 ${
-                  pathname === "/dashboard/admin/profile"
-                    ? "text-[#FF7400] border-[#FF7400]"
-                    : "text-[#FF7400] border-[#FF7400]"
-                }`}
-              >
-                Personal Details
-              </Link>
-            ) : (
-              <p className="text-sm font-bold text-[#FF7400] pb-2 border-b-2 border-[#FF7400]">
-                Personal Details
-              </p>
-            )}
+            <Link
+              href={
+                (isPresident || isSecretary || userRole === "SUPER_ADMIN" || userRole === "CEO")
+                  ? "/dashboard/admin/profile"
+                  : userRole === "PLAYER"
+                  ? "/dashboard/player/profile"
+                  : "/dashboard/member"
+              }
+              className={`block text-sm font-bold pb-2 border-b-2 transition-opacity hover:opacity-75 ${
+                pathname === "/dashboard/admin/profile" || pathname === "/dashboard/player/profile" || pathname === "/dashboard/member"
+                  ? "text-[#FF7400] border-[#FF7400]"
+                  : "text-[#FF7400] border-[#FF7400]"
+              }`}
+            >
+              Personal Details
+            </Link>
           </div>
         )}
 

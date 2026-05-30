@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   Phone,
+  Plus,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -97,6 +98,19 @@ export default function UserManagementPage() {
   const [coachesList, setCoachesList] = useState<any[]>([]);
   const [districtsList, setDistrictsList] = useState<any[]>([]);
 
+  // Create User State
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createType, setCreateType] = useState<"STUDENT" | "CLUB" | "MEMBER">("STUDENT");
+  const [createForm, setCreateForm] = useState({
+    fullName: "", name: "", email: "", mobileNumber: "", districtId: "", talukId: "",
+    gender: "MALE", dob: "", aadhaarNumber: "", bloodGroup: "", address: "", city: "", state: "",
+    addressPincode: "", nationality: "Indian", annualIncome: "", schoolName: "", grade: "",
+    areaOfInterest: "", areaOfStudy: "", preferLocation: "", clubId: "",
+    address1: "", address2: "", pincode: "", president: "", secretary: "", coach: "",
+    fatherName: "", addressLine1: "", addressLine2: ""
+  });
+  const [taluksList, setTaluksList] = useState<any[]>([]);
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -143,6 +157,17 @@ export default function UserManagementPage() {
     fetchCoaches();
     fetchDistricts();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    if (createForm.districtId) {
+      fetch(`${API_BASE}/districts/${createForm.districtId}/taluks`)
+        .then(res => res.json())
+        .then(data => setTaluksList(data))
+        .catch(err => console.error(err));
+    } else {
+      setTaluksList([]);
+    }
+  }, [createForm.districtId]);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -230,6 +255,43 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleCreate = async () => {
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      let endpoint = "";
+      if (createType === "STUDENT") endpoint = "/admin/create-student";
+      if (createType === "CLUB") endpoint = "/admin/create-club";
+      if (createType === "MEMBER") endpoint = "/admin/create-member";
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Creation failed");
+      showToast(`${createType} created successfully`, "success");
+      setCreateModalOpen(false);
+      fetchUsers();
+      setCreateForm({ 
+        fullName: "", name: "", email: "", mobileNumber: "", districtId: "", talukId: "",
+        gender: "MALE", dob: "", aadhaarNumber: "", bloodGroup: "", address: "", city: "", state: "",
+        addressPincode: "", nationality: "Indian", annualIncome: "", schoolName: "", grade: "",
+        areaOfInterest: "", areaOfStudy: "", preferLocation: "", clubId: "",
+        address1: "", address2: "", pincode: "", president: "", secretary: "", coach: "",
+        fatherName: "", addressLine1: "", addressLine2: ""
+      });
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -305,13 +367,22 @@ export default function UserManagementPage() {
           <h1 className="text-2xl font-black text-slate-800">User Management</h1>
           <p className="text-slate-500 text-sm mt-1">Manage passwords, IDs and roles for all registered users.</p>
         </div>
-        <button
-          onClick={fetchUsers}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-all text-sm shadow-sm"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all text-sm shadow-sm"
+          >
+            <Plus size={16} />
+            Create New
+          </button>
+          <button
+            onClick={fetchUsers}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-all text-sm shadow-sm"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
@@ -673,6 +744,306 @@ export default function UserManagementPage() {
                 >
                   {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
                   Confirm Promotion
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create User Modal */}
+      <AnimatePresence>
+        {createModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-2xl bg-white rounded-3xl p-8 shadow-2xl my-auto max-h-screen overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
+                    <Plus size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800">Create New Entity</h3>
+                    <p className="text-slate-500 text-sm">Force create an approved Player, Club, or Member.</p>
+                  </div>
+                </div>
+                <button onClick={() => setCreateModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                  <X size={20} className="text-slate-400" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                    Entity Type
+                  </label>
+                  <select
+                    value={createType}
+                    onChange={(e) => setCreateType(e.target.value as any)}
+                    className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700"
+                  >
+                    <option value="STUDENT">Player</option>
+                    <option value="CLUB">Club</option>
+                    <option value="MEMBER">Member</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {createType === "CLUB" ? (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Club Name
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.name}
+                          onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                          placeholder="Enter Club Name"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 1</label>
+                        <input type="text" value={createForm.address1} onChange={(e) => setCreateForm({ ...createForm, address1: e.target.value })} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 2 (Optional)</label>
+                        <input type="text" value={createForm.address2} onChange={(e) => setCreateForm({ ...createForm, address2: e.target.value })} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
+                        <input type="text" value={createForm.pincode} onChange={(e) => setCreateForm({ ...createForm, pincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">President Name</label>
+                        <input type="text" value={createForm.president} onChange={(e) => setCreateForm({ ...createForm, president: e.target.value })} placeholder="President Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Secretary Name</label>
+                        <input type="text" value={createForm.secretary} onChange={(e) => setCreateForm({ ...createForm, secretary: e.target.value })} placeholder="Secretary Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Coach Name</label>
+                        <input type="text" value={createForm.coach} onChange={(e) => setCreateForm({ ...createForm, coach: e.target.value })} placeholder="Coach Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={createForm.fullName}
+                        onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
+                        placeholder="Enter Full Name"
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                      placeholder="Enter Email Address"
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.mobileNumber}
+                      onChange={(e) => setCreateForm({ ...createForm, mobileNumber: e.target.value })}
+                      placeholder="10-digit Mobile Number"
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                      District
+                    </label>
+                    <select
+                      value={createForm.districtId}
+                      onChange={(e) => setCreateForm({ ...createForm, districtId: e.target.value, talukId: "" })}
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    >
+                      <option value="">Select District</option>
+                      {districtsList.map((d: any) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                      Taluk
+                    </label>
+                    <select
+                      value={createForm.talukId}
+                      onChange={(e) => setCreateForm({ ...createForm, talukId: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                    >
+                      <option value="">Select Taluk</option>
+                      {taluksList.map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {createType !== "CLUB" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Gender
+                        </label>
+                        <select
+                          value={createForm.gender}
+                          onChange={(e) => setCreateForm({ ...createForm, gender: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        >
+                          <option value="MALE">Male</option>
+                          <option value="FEMALE">Female</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Date of Birth
+                        </label>
+                        <input
+                          type="date"
+                          value={createForm.dob}
+                          onChange={(e) => setCreateForm({ ...createForm, dob: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                          Aadhaar Number
+                        </label>
+                        <input
+                          type="text"
+                          value={createForm.aadhaarNumber}
+                          onChange={(e) => setCreateForm({ ...createForm, aadhaarNumber: e.target.value })}
+                          placeholder="12-digit Aadhaar Number"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {createType === "STUDENT" && (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Blood Group</label>
+                        <input type="text" value={createForm.bloodGroup} onChange={(e) => setCreateForm({ ...createForm, bloodGroup: e.target.value })} placeholder="e.g. O+, A-" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address</label>
+                        <input type="text" value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })} placeholder="Full Address" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">City</label>
+                        <input type="text" value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">State</label>
+                        <input type="text" value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} placeholder="State" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
+                        <input type="text" value={createForm.addressPincode} onChange={(e) => setCreateForm({ ...createForm, addressPincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Nationality</label>
+                        <input type="text" value={createForm.nationality} onChange={(e) => setCreateForm({ ...createForm, nationality: e.target.value })} placeholder="Nationality" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Annual Income</label>
+                        <input type="number" value={createForm.annualIncome} onChange={(e) => setCreateForm({ ...createForm, annualIncome: e.target.value })} placeholder="Annual Income" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">School Name</label>
+                        <input type="text" value={createForm.schoolName} onChange={(e) => setCreateForm({ ...createForm, schoolName: e.target.value })} placeholder="School Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Grade</label>
+                        <input type="text" value={createForm.grade} onChange={(e) => setCreateForm({ ...createForm, grade: e.target.value })} placeholder="Grade" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Area of Interest</label>
+                        <input type="text" value={createForm.areaOfInterest} onChange={(e) => setCreateForm({ ...createForm, areaOfInterest: e.target.value })} placeholder="Area of Interest" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Area of Study</label>
+                        <input type="text" value={createForm.areaOfStudy} onChange={(e) => setCreateForm({ ...createForm, areaOfStudy: e.target.value })} placeholder="Area of Study" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Prefer Location</label>
+                        <input type="text" value={createForm.preferLocation} onChange={(e) => setCreateForm({ ...createForm, preferLocation: e.target.value })} placeholder="Prefer Location" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                    </>
+                  )}
+
+                  {createType === "MEMBER" && (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Father's Name</label>
+                        <input type="text" value={createForm.fatherName} onChange={(e) => setCreateForm({ ...createForm, fatherName: e.target.value })} placeholder="Father's Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Blood Group</label>
+                        <input type="text" value={createForm.bloodGroup} onChange={(e) => setCreateForm({ ...createForm, bloodGroup: e.target.value })} placeholder="e.g. O+, A-" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 1</label>
+                        <input type="text" value={createForm.addressLine1} onChange={(e) => setCreateForm({ ...createForm, addressLine1: e.target.value })} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 2 (Optional)</label>
+                        <input type="text" value={createForm.addressLine2} onChange={(e) => setCreateForm({ ...createForm, addressLine2: e.target.value })} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">City</label>
+                        <input type="text" value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
+                        <input type="text" value={createForm.addressPincode} onChange={(e) => setCreateForm({ ...createForm, addressPincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                      </div>
+                    </>
+                  )}
+
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-10">
+                <button
+                  onClick={() => setCreateModalOpen(false)}
+                  className="flex-grow py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={actionLoading}
+                  className="flex-grow py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                  Create {createType === "STUDENT" ? "Player" : createType === "CLUB" ? "Club" : "Member"}
                 </button>
               </div>
             </motion.div>
