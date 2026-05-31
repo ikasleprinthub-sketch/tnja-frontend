@@ -66,9 +66,9 @@ const Footer = () => {
           </ul>
         </div>
 
-        {/* Column 3: About TJA */}
+        {/* Column 3: About TNJA */}
         <div>
-          <h3 className="text-[#FF7400] font-bold text-xl mb-8">About TJA</h3>
+          <h3 className="text-[#FF7400] font-bold text-xl mb-8">About TNJA</h3>
           <p className="text-black font-bold text-sm mb-4 leading-relaxed">
             Empowering Tamil Nadu Through <br /> the Spirit of Judo
           </p>

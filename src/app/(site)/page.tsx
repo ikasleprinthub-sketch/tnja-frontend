@@ -4,6 +4,7 @@ import NewsMarquee from "@/components/features/NewsMarquee";
 import PhilosophySection from "@/components/features/PhilosophySection";
 import TalentedPlayers from "@/components/features/TalentedPlayers";
 import TalentedCoaches from "@/components/features/TalentedCoaches";
+import VisionMission from "@/components/features/VisionMission";
 
 export default function Home() {
   return (
@@ -12,6 +13,7 @@ export default function Home() {
       <WhatIsJudo />
       <NewsMarquee />
       <PhilosophySection />
+      <VisionMission />
       <TalentedCoaches />
       <TalentedPlayers />
       
