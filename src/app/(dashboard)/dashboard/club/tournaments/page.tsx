@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -13,7 +13,6 @@ import {
   XCircle,
   Loader2,
   Users,
-  Lock,
   ChevronDown,
   ChevronUp,
   IndianRupee,
@@ -23,7 +22,7 @@ import {
   Trash2,
   ChevronRight,
   Globe,
-  Hourglass,
+  Send,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -39,6 +38,10 @@ export default function ClubTournamentsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [registrations, setRegistrations] = useState<Record<string, any[]>>({});
   const [loadingRegs, setLoadingRegs] = useState<Record<string, boolean>>({});
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
+  const [messages, setMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
+  const [regSearch, setRegSearch] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     title: "",
@@ -134,6 +137,10 @@ export default function ClubTournamentsPage() {
       if (res.ok) {
         const json = await res.json();
         setRegistrations((prev) => ({ ...prev, [tournamentId]: json }));
+        // Fetch messages for each registration
+        for (const reg of json) {
+          fetchMessages(tournamentId, reg.id);
+        }
       }
     } catch (err) {
       console.error("Failed to load registrations", err);
@@ -154,10 +161,11 @@ export default function ClubTournamentsPage() {
   const handleApproveReg = async (tournamentId: string, registrationId: string, action: "APPROVE" | "REJECT") => {
     try {
       const token = localStorage.getItem("token");
+      const message = replyTexts[registrationId]?.trim() || "";
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${registrationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: action === "APPROVE" ? "APPROVED" : "REJECTED" }),
+        body: JSON.stringify({ status: action === "APPROVE" ? "APPROVED" : "REJECTED", message }),
       });
       if (!res.ok) throw new Error("Failed to update registration");
       setRegistrations((prev) => ({
@@ -166,9 +174,49 @@ export default function ClubTournamentsPage() {
           r.id === registrationId ? { ...r, status: action === "APPROVE" ? "APPROVED" : "REJECTED" } : r
         ),
       }));
+      setReplyTexts((prev) => { const n = { ...prev }; delete n[registrationId]; return n; });
+      await fetchMessages(tournamentId, registrationId);
       showToast(`Registration ${action === "APPROVE" ? "approved" : "rejected"}.`, "success");
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
+    }
+  };
+
+  const fetchMessages = async (tournamentId: string, registrationId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${registrationId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((prev) => ({ ...prev, [registrationId]: data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch messages", err);
+    }
+  };
+
+  const handleSendReply = async (tournamentId: string, registrationId: string) => {
+    const message = replyTexts[registrationId]?.trim();
+    if (!message) return;
+    setReplyLoading((prev) => ({ ...prev, [registrationId]: true }));
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${registrationId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("Failed to send reply");
+      setReplyTexts((prev) => { const n = { ...prev }; delete n[registrationId]; return n; });
+      // Refresh messages after sending
+      await fetchMessages(tournamentId, registrationId);
+      showToast("Reply sent to player.", "success");
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setReplyLoading((prev) => ({ ...prev, [registrationId]: false }));
     }
   };
 
@@ -191,7 +239,7 @@ export default function ClubTournamentsPage() {
     setEditingTournament(tournament);
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!editingTournament) return;
     setSubmitLoading(true);
@@ -239,7 +287,7 @@ export default function ClubTournamentsPage() {
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setSubmitLoading(true);
     try {
@@ -270,11 +318,6 @@ export default function ClubTournamentsPage() {
     !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const statusColor: Record<string, string> = {
-    PENDING: "bg-amber-50 text-amber-700 border-amber-100",
-    APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    REJECTED: "bg-red-50 text-red-700 border-red-100",
-  };
 
   // Returns true if the tournament end date (or start date) is in the past
   const isExpired = (t: any): boolean => {
@@ -307,14 +350,14 @@ export default function ClubTournamentsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Tournaments</h1>
-          <p className="text-slate-500 mt-1">Manage your club tournaments and view all approved events</p>
+          <h1 className="text-3xl font-black text-[#FF7400]">Tournament Details</h1>
+          <p className="text-slate-500 mt-1 text-sm">Manage your club tournaments and approve player registrations</p>
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-4 bg-[#FF7400] text-white font-bold rounded-2xl shadow-lg shadow-[#FF7400]/20 hover:scale-105 active:scale-95 transition-all w-fit"
+          className="flex items-center gap-2 px-5 py-3 bg-[#FF7400] text-white font-bold rounded-xl shadow-lg shadow-[#FF7400]/20 hover:scale-105 active:scale-95 transition-all w-fit border border-[#E56900]"
         >
-          <Plus size={20} />
+          <Plus size={18} />
           Create Tournament
         </button>
       </div>
@@ -447,7 +490,7 @@ export default function ClubTournamentsPage() {
                 </div>
               </div>
 
-              {/* Registrations List */}
+              {/* Registrations Panel */}
               <AnimatePresence>
                 {expandedId === tournament.id && (
                   <motion.div
@@ -456,54 +499,142 @@ export default function ClubTournamentsPage() {
                     exit={{ height: 0, opacity: 0 }}
                     className="border-t border-slate-100 overflow-hidden"
                   >
-                    <div className="p-6">
-                      <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">Registered Players</h4>
+                    <div className="p-6 space-y-4">
+
+                      {/* Search + Filter bar — matches screenshot top bar */}
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-grow">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="text"
+                            value={regSearch[tournament.id] || ""}
+                            onChange={(e) => setRegSearch((prev) => ({ ...prev, [tournament.id]: e.target.value }))}
+                            placeholder="Search Tournaments"
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 text-sm font-medium text-slate-700 shadow-sm"
+                          />
+                        </div>
+                        <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#FF7400] text-[#FF7400] font-bold rounded-xl text-sm shadow-sm hover:bg-orange-50 transition-all">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                          Filter
+                        </button>
+                      </div>
+
+                      {/* Registration count label */}
+                      <h4 className="text-[13px] font-bold text-slate-400 uppercase tracking-widest">
+                        Registered Players{registrations[tournament.id] ? ` (${registrations[tournament.id].length})` : ""}
+                      </h4>
+
                       {!registrations[tournament.id] || registrations[tournament.id].length === 0 ? (
-                        <div className="text-center py-8 text-slate-400 text-sm border border-dashed border-slate-200 rounded-2xl">
+                        <div className="text-center py-10 text-slate-400 text-sm border border-dashed border-slate-200 rounded-2xl">
                           No players have registered yet.
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {registrations[tournament.id].map((reg) => (
-                            <div
-                              key={reg.id}
-                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-[#FF7400]/10 text-[#FF7400] flex items-center justify-center font-bold text-lg">
-                                  {reg.player?.fullName?.charAt(0) || "P"}
+                        <div className="space-y-5">
+                          {registrations[tournament.id]
+                            .filter((reg) => {
+                              const q = (regSearch[tournament.id] || "").toLowerCase();
+                              if (!q) return true;
+                              const name = reg.player?.fullName || reg.playerName || "";
+                              return name.toLowerCase().includes(q) || tournament.title.toLowerCase().includes(q);
+                            })
+                            .map((reg) => (
+                            <div key={reg.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+                              {/* Top — image + details */}
+                              <div className="flex" style={{ minHeight: 200 }}>
+                                <div className="w-44 flex-shrink-0 relative">
+                                  <img src="/homepage/whatjudo/judo1.png" alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
                                 </div>
-                                <div>
-                                  <p className="font-bold text-slate-800 text-sm">{reg.player?.fullName || "—"}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {reg.player?.permanentId || reg.player?.tempId || "—"} 
-                                    {reg.height && reg.weight && ` | ${reg.height}cm, ${reg.weight}kg`}
-                                  </p>
+                                <div className="flex-grow p-5">
+                                  <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                                    {[
+                                      { label: "Tournament Name", value: tournament.title },
+                                      { label: "Role",            value: "Player" },
+                                      { label: "Gender",          value: (() => { const g = tournament.gender; return g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : g || "—"; })() },
+                                      { label: "Age",             value: (() => { const from = tournament.ageFrom, to = tournament.ageTo; if (to <= 16) return `Sub-Junior (${from}-${to})`; if (to <= 18) return `Cadet (${from}-${to})`; if (to <= 21) return `Junior (${from}-${to})`; return `Senior (${from}+)`; })() },
+                                      { label: "Date",            value: new Date(tournament.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
+                                      { label: "Time",            value: new Date(tournament.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+                                      { label: "Location",        value: tournament.location },
+                                      { label: "Tournament Fees", value: tournament.entryFee === 0 ? "Free" : String(tournament.entryFee) },
+                                    ].map(({ label, value }) => (
+                                      <div key={label}>
+                                        <p className="text-[11px] font-bold text-[#FF7400] mb-0.5">{label}</p>
+                                        <p className="text-sm font-semibold text-slate-700 leading-tight">{value}</p>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColor[reg.status] || "bg-slate-50 text-slate-500 border-slate-200"}`}>
-                                  {reg.status}
-                                </span>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${reg.isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-amber-50 text-amber-700 border-amber-100"}`}>
-                                  {reg.isPaid ? "Paid" : "Unpaid"}
-                                </span>
-                                {reg.status === "PENDING" && reg.isPaid && (
-                                  <div className="flex gap-2">
+
+                              {/* Chat thread */}
+                              {messages[reg.id]?.length > 0 && (
+                                <div className="px-4 py-3 border-t border-slate-100 space-y-2 max-h-36 overflow-y-auto bg-slate-50/50">
+                                  {messages[reg.id].map((msg) => (
+                                    <div key={msg.id} className="flex items-start gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
+                                        <span className="text-[10px] font-black text-[#FF7400]">C</span>
+                                      </div>
+                                      <div className="flex-grow">
+                                        <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                          {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Bottom row */}
+                              <div className="flex items-center px-4 py-3 border-t border-slate-100">
+                                {/* Send Reply — fixed width, orange border */}
+                                <div className="w-72 rounded-[10px] p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                                  <div className="flex items-center gap-2 bg-white rounded-[8.5px] px-3 py-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Send Reply"
+                                      value={replyTexts[reg.id] || ""}
+                                      onChange={(e) => setReplyTexts((prev) => ({ ...prev, [reg.id]: e.target.value }))}
+                                      onKeyDown={(e) => e.key === "Enter" && handleSendReply(tournament.id, reg.id)}
+                                      className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none"
+                                    />
                                     <button
-                                      onClick={() => handleApproveReg(tournament.id, reg.id, "APPROVE")}
-                                      className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-all"
+                                      onClick={() => handleSendReply(tournament.id, reg.id)}
+                                      disabled={!replyTexts[reg.id]?.trim() || replyLoading[reg.id]}
+                                      className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0"
                                     >
-                                      Approve
-                                    </button>
-                                    <button
-                                      onClick={() => handleApproveReg(tournament.id, reg.id, "REJECT")}
-                                      className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-all"
-                                    >
-                                      Reject
+                                      {replyLoading[reg.id] ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                                     </button>
                                   </div>
-                                )}
+                                </div>
+
+                                {/* Buttons pushed to far right */}
+                                <div className="ml-auto flex items-center gap-2">
+                                  {reg.status === "PENDING" && reg.isPaid ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveReg(tournament.id, reg.id, "APPROVE")}
+                                        className="px-5 py-2 bg-[#FF7400] text-white text-sm font-bold rounded-lg hover:bg-[#E56900] transition-all"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() => handleApproveReg(tournament.id, reg.id, "REJECT")}
+                                        className="px-5 py-2 bg-white border border-[#FF7400] text-slate-700 text-sm font-bold rounded-lg hover:bg-orange-50 transition-all"
+                                      >
+                                        Reject
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                      reg.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                      reg.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
+                                      "bg-amber-50 text-amber-700 border-amber-200"
+                                    }`}>
+                                      {reg.status}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}

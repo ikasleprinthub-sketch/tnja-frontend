@@ -22,6 +22,7 @@ import {
   ClipboardList,
   ScrollText,
   FileCheck2,
+  ChevronDown,
 } from "lucide-react";
 
 export default function DashboardLayout({
@@ -30,6 +31,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("User");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -177,11 +179,24 @@ export default function DashboardLayout({
     "STATE_SECRETARY", "ZONE_SECRETARY", "DISTRICT_SECRETARY"
   ].includes(userRole);
 
+  const stateDistrictRoles = ["STATE_PRESIDENT", "DISTRICT_PRESIDENT", "STATE_SECRETARY", "DISTRICT_SECRETARY"];
+  const tournamentChildren = stateDistrictRoles.includes(userRole || "") ? [
+    { name: "Approval Queue", href: "/dashboard/admin/tournaments?tab=approval" },
+    { name: "My Tournaments", href: "/dashboard/admin/tournaments?tab=mine" },
+    { name: "Approved Tournaments", href: "/dashboard/admin/tournaments?tab=approved" },
+  ] : undefined;
+
+  // Super Admin & CEO: no "My Tournaments" (they can't create tournaments)
+  const superAdminCeoChildren = (userRole === "SUPER_ADMIN" || userRole === "CEO") ? [
+    { name: "Approval Queue", href: "/dashboard/admin/tournaments?tab=approval" },
+    { name: "Approved Tournaments", href: "/dashboard/admin/tournaments?tab=approved" },
+  ] : undefined;
+
   const adminNavItems = [
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ShieldCheck },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
-    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy, children: superAdminCeoChildren },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
@@ -197,7 +212,7 @@ export default function DashboardLayout({
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: FileCheck2 },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
-    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy, children: tournamentChildren },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
@@ -206,7 +221,7 @@ export default function DashboardLayout({
     { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
     { name: "Members", href: "/dashboard/admin/members", icon: Users },
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
-    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy },
+    { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy, children: tournamentChildren },
     { name: "Approvals", href: "/dashboard/admin/approvals", icon: ClipboardList },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: ScrollText },
   ];
@@ -323,21 +338,76 @@ export default function DashboardLayout({
                 return true;
               })
               .map((item) => {
+              const hasChildren = !!(item as any).children?.length;
+              const children = (item as any).children as { name: string; href: string }[] | undefined;
+              const isOnTournamentsRoute = pathname.startsWith("/dashboard/admin/tournaments");
+              const isDropdownOpen = openDropdown === item.name || (hasChildren && isOnTournamentsRoute && openDropdown !== `${item.name}_closed`);
               const isActive = pathname === item.href;
+              const isParentHighlighted = hasChildren ? isOnTournamentsRoute : isActive;
+
+              if (hasChildren && isSidebarOpen) {
+                return (
+                  <div key={item.name}>
+                    <button
+                      onClick={() => setOpenDropdown(isDropdownOpen ? `${item.name}_closed` : item.name)}
+                      className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-all ${
+                        isParentHighlighted ? "bg-orange-50" : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <div
+                        style={{
+                          backgroundColor: isParentHighlighted ? "#FF7400" : "#FFA726",
+                          boxShadow: isParentHighlighted
+                            ? "0 4px 10px rgba(255,116,0,0.3)"
+                            : "0 2px 6px rgba(255,167,38,0.25)",
+                        }}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all"
+                      >
+                        <item.icon size={17} color="#ffffff" />
+                      </div>
+                      <span className={`text-sm font-semibold flex-grow text-left ${
+                        isParentHighlighted ? "text-[#FF7400]" : "text-slate-700"
+                      }`}>
+                        {item.name}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-200 text-slate-400 ${isDropdownOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {isDropdownOpen && (
+                      <div className="ml-3 mt-0.5 pl-4 border-l-2 border-orange-100 space-y-0.5">
+                        {children?.map(child => (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-[#FF7400] hover:bg-orange-50 transition-all"
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#FFA726] shrink-0" />
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   className={`flex items-center gap-3 px-2 py-2 rounded-xl transition-all ${
-                    isActive
+                    isParentHighlighted
                       ? "bg-orange-50"
                       : "hover:bg-slate-50"
                   } ${!isSidebarOpen ? "justify-center" : ""}`}
                 >
                   <div
                     style={{
-                      backgroundColor: isActive ? "#FF7400" : "#FFA726",
-                      boxShadow: isActive
+                      backgroundColor: isParentHighlighted ? "#FF7400" : "#FFA726",
+                      boxShadow: isParentHighlighted
                         ? "0 4px 10px rgba(255,116,0,0.3)"
                         : "0 2px 6px rgba(255,167,38,0.25)",
                     }}
@@ -348,7 +418,7 @@ export default function DashboardLayout({
                   {isSidebarOpen && (
                     <span
                       className={`text-sm font-semibold ${
-                        isActive ? "text-[#FF7400]" : "text-slate-700"
+                        isParentHighlighted ? "text-[#FF7400]" : "text-slate-700"
                       }`}
                     >
                       {item.name}

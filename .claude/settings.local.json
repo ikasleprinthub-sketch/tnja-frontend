@@ -14,7 +14,11 @@
       "Bash(mkdir -p \"c:/Users/Admin/Desktop/tnja-frontend/src/app/\\(dashboard\\)/dashboard/admin/tournaments/[id]\")",
       "Bash(mkdir -p \"c:/Users/Admin/Desktop/tnja-frontend/src/app/\\(dashboard\\)/dashboard/admin/tournaments/[id]/scoreboard\")",
       "Bash(npx next *)",
-      "Bash(findstr /i \"dev\\\\|start\\\\|build\\\\|scripts\")"
+      "Bash(findstr /i \"dev\\\\|start\\\\|build\\\\|scripts\")",
+      "Bash(ls \"c:\\\\Users\\\\Admin\\\\Desktop\" 2>&1)",
+      "Read(//c/Users/Admin/Desktop/**)",
+      "Bash(npx tsx *)",
+      "Bash(npx prisma *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Admin\\Desktop\\tnja-frontend\\src\\app\\(dashboard)\\dashboard\\club"

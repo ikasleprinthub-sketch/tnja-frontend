@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
-  IndianRupee, Target, Zap, ChevronRight, Award, Flag,
+  Target, Zap, Award,
   AlertCircle, Clock,
 } from "lucide-react";
 
@@ -172,7 +172,7 @@ export default function TournamentDetailPage() {
   const [seeds, setSeeds] = useState<Seeds>({ 1: null, 2: null, 3: null, 4: null });
   const [showSeedModal, setShowSeedModal] = useState(false);
   const [assigningSeed, setAssigningSeed] = useState<1 | 2 | 3 | 4 | null>(null);
-  const [hasShuffled, setHasShuffled] = useState(false);
+  const [champion, setChampion] = useState<{ name: string; club: string; categoryKey: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [usingDemo, setUsingDemo] = useState(false);
@@ -285,7 +285,7 @@ export default function TournamentDetailPage() {
     setDrawPhase("shuffling");
     setShuffleKey(k => k + 1);
     setTimeout(() => {
-      setHasShuffled(true);
+      // draw shuffled
       setDrawPhase("idle");
       setDraws((prev) => {
         const d = prev[currentKey];
@@ -354,6 +354,8 @@ export default function TournamentDetailPage() {
   const openScoreboard = (match: BracketMatch) => {
     const p = new URLSearchParams({
       matchId: match.matchId,
+      fighterAId:   match.slotA.playerId || "",
+      fighterBId:   match.slotB.playerId || "",
       fighterAName: match.slotA.playerName,
       fighterBName: match.slotB.playerName,
       fighterAClub: match.slotA.club,
@@ -369,6 +371,69 @@ export default function TournamentDetailPage() {
       "_blank"
     );
   };
+
+  // ── Handle match result from scoreboard tab ──────────────────────────────────
+  const handleMatchResult = useCallback((
+    matchId: string, winnerId: string, winnerName: string, winnerClub: string
+  ) => {
+    setDraws(prev => {
+      const newDraws = { ...prev };
+
+      for (const catKey of Object.keys(newDraws)) {
+        const cat = newDraws[catKey];
+        // Deep-clone rounds so React detects the change
+        const newRounds: BracketMatch[][] = cat.rounds.map(r => r.map(m => ({ ...m })));
+
+        let foundRi = -1, foundMi = -1;
+        for (let ri = 0; ri < newRounds.length; ri++) {
+          for (let mi = 0; mi < newRounds[ri].length; mi++) {
+            if (newRounds[ri][mi].matchId === matchId) {
+              foundRi = ri; foundMi = mi; break;
+            }
+          }
+          if (foundRi !== -1) break;
+        }
+        if (foundRi === -1) continue;
+
+        // Mark match completed
+        newRounds[foundRi][foundMi] = {
+          ...newRounds[foundRi][foundMi],
+          winnerId,
+          status: "COMPLETED",
+        };
+
+        // Advance winner to next round TBD slot
+        if (foundRi + 1 < newRounds.length) {
+          const nextMatchIdx = Math.floor(foundMi / 2);
+          const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
+          const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
+          if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
+          else                   nextMatch.slotB = winnerSlot;
+          newRounds[foundRi + 1][nextMatchIdx] = nextMatch;
+        }
+
+        // If this was the final match → set champion
+        if (foundRi === newRounds.length - 1) {
+          setTimeout(() => setChampion({ name: winnerName, club: winnerClub, categoryKey: catKey }), 0);
+        }
+
+        newDraws[catKey] = { ...cat, rounds: newRounds, saved: false };
+        break; // match found, stop searching categories
+      }
+
+      return newDraws;
+    });
+  }, []);
+
+  // ── Listen for results from scoreboard tab via BroadcastChannel ──────────────
+  useEffect(() => {
+    const channel = new BroadcastChannel("tnja_match_results");
+    channel.onmessage = (e) => {
+      const { matchId, winnerId, winnerName, winnerClub } = e.data;
+      if (matchId && winnerName) handleMatchResult(matchId, winnerId, winnerName, winnerClub);
+    };
+    return () => channel.close();
+  }, [handleMatchResult]);
 
   // ── Category filters UI ─────────────────────────────────────────────────────
   const CategoryFilters = () => (
@@ -633,6 +698,30 @@ export default function TournamentDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ══ CHAMPION BANNER ═══════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {champion && activeTab === "draws" && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            className="bg-gradient-to-r from-yellow-400 via-[#FF7400] to-yellow-500 rounded-3xl p-6 shadow-2xl shadow-orange-500/30 flex items-center gap-5"
+          >
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+              <Trophy size={32} className="text-white" />
+            </div>
+            <div>
+              <p className="text-white/70 text-xs font-black uppercase tracking-widest mb-0.5">🏆 Tournament Champion</p>
+              <h2 className="text-2xl font-black text-white leading-tight">{champion.name}</h2>
+              <p className="text-white/80 text-sm font-bold">{champion.club}</p>
+            </div>
+            <button onClick={() => setChampion(null)} className="ml-auto text-white/50 hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ══ DRAWS ═════════════════════════════════════════════════════════════ */}
       {activeTab === "draws" && expired && (
@@ -1300,8 +1389,12 @@ function BracketView({
 
                     {/* Match info + Scoreboard button */}
                     <div className="flex items-center justify-between px-2 py-0.5 bg-slate-50 border-t border-slate-100">
-                      <span className="text-[8px] text-slate-400 font-semibold">Mat {match.matNumber} · #{match.matchNumber}</span>
-                      {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                      <span className="text-[8px] text-slate-400 font-semibold">
+                        {match.status === "COMPLETED" ? "✓ Done" : `Mat ${match.matNumber} · #${match.matchNumber}`}
+                      </span>
+                      {!match.slotA.isBye && !match.slotB.isBye &&
+                       match.slotA.playerId && match.slotB.playerId &&
+                       match.status !== "COMPLETED" && (
                         <button
                           onClick={() => onOpenScoreboard(match)}
                           className="text-[8px] font-black text-orange-500 hover:text-orange-700 transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100">

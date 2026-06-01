@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Trophy,
   MapPin,
@@ -19,6 +20,7 @@ import {
   Calendar,
   ChevronRight,
   Hourglass,
+  Send,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -116,9 +118,6 @@ function inApprovalQueue(t: Tournament, role: string): boolean {
   const superAdmin   = safeStatus(t.superAdminApproval);
   const ceo          = safeStatus(t.ceoApproval);
 
-  // "Final approval already done" = either superAdmin OR ceo has approved
-  const finalApprovalDone = superAdmin === "APPROVED" || ceo === "APPROVED";
-
   switch (normaliseRole(role)) {
     case "DISTRICT_PRESIDENT":
     case "DISTRICT_SECRETARY":
@@ -133,12 +132,12 @@ function inApprovalQueue(t: Tournament, role: string): boolean {
       );
 
     case "SUPER_ADMIN":
-      // Show every tournament where SuperAdmin hasn't acted yet
-      return superAdmin === "PENDING";
+      // Super Admin sees their own queue + CEO's queue combined
+      return superAdmin === "PENDING" || ceo === "PENDING";
 
     case "CEO":
-      // Show every tournament where CEO hasn't acted yet
-      return ceo === "PENDING";
+      // CEO sees their own queue + Super Admin's queue combined
+      return ceo === "PENDING" || superAdmin === "PENDING";
 
     default:
       console.warn("[Tournaments] unrecognised role in inApprovalQueue:", role);
@@ -146,17 +145,7 @@ function inApprovalQueue(t: Tournament, role: string): boolean {
   }
 }
 
-// ─── Approval chain badge colours ─────────────────────────────────────────────
-const BADGE_CFG: Record<ApprovalStatus, { label: string; cls: string }> = {
-  PENDING:      { label: "Pending",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
-  APPROVED:     { label: "Approved", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  REJECTED:     { label: "Rejected", cls: "bg-red-100 text-red-700 border-red-200" },
-  NOT_REQUIRED: { label: "N/A",      cls: "bg-slate-100 text-slate-400 border-slate-200" },
-};
-
-const ApprovalChain = ({ t }: { t: Tournament }) => {
-  return null;
-};
+const ApprovalChain = () => null;
 
 // ─── Empty form ───────────────────────────────────────────────────────────────
 const emptyForm = {
@@ -167,16 +156,21 @@ const emptyForm = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function AdminTournamentsPage() {
+  const searchParams = useSearchParams();
   const [userRole, setUserRole] = useState<string>("");
 
   // "approval" = show pending approvals for this role
   // "mine"     = show tournaments created by this role
-  const [activeTab, setActiveTab] = useState<"approval" | "mine">("approval");
+  // "approved" = show fully approved tournaments
+  const [activeTab, setActiveTab] = useState<"approval" | "mine" | "approved">("approval");
 
-  const [allTournaments,  setAllTournaments]  = useState<Tournament[]>([]);
-  const [myTournaments,   setMyTournaments]   = useState<Tournament[]>([]);
-  const [loading,         setLoading]         = useState(false);
-  const [actionLoading,   setActionLoading]   = useState<string | null>(null);
+  const [allTournaments,   setAllTournaments]   = useState<Tournament[]>([]);
+  const [myTournaments,    setMyTournaments]    = useState<Tournament[]>([]);
+  const [approvedByMeList, setApprovedByMeList] = useState<Tournament[]>([]);
+  const [loading,          setLoading]          = useState(false);
+  const [actionLoading,    setActionLoading]    = useState<string | null>(null);
+  const [replyTexts,       setReplyTexts]       = useState<Record<string, string>>({});
+  const [replyLoading,     setReplyLoading]     = useState<Record<string, boolean>>({});
 
   const [searchQuery,   setSearchQuery]   = useState("");
   const [filter,        setFilter]        = useState("ALL");
@@ -198,57 +192,51 @@ export default function AdminTournamentsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // ── Initialise role ──────────────────────────────────────────────────────────
+  // ── Initialise role & active tab ─────────────────────────────────────────────
   useEffect(() => {
     const raw  = localStorage.getItem("userRole") || "";
-    const role = normaliseRole(raw);   // e.g. "superAdmin" → "SUPER_ADMIN"
+    const role = normaliseRole(raw);
     console.log("[Tournaments] resolved role:", role, "(raw from localStorage:", raw, ")");
     setUserRole(role);
-    // Zone officials don't have an approval queue → default to "mine" tab
-    const isCreatorOnly = role === "ZONE_PRESIDENT" || role === "ZONE_SECRETARY";
-    setActiveTab(isCreatorOnly ? "mine" : "approval");
-  }, []);
 
-  // ── Fetch all tournaments (for approval queue) ────────────────────────────────
-  const fetchAll = useCallback(async () => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "approval" || tabParam === "mine" || tabParam === "approved") {
+      setActiveTab(tabParam);
+    } else {
+      const isCreatorOnly = role === "ZONE_PRESIDENT" || role === "ZONE_SECRETARY";
+      setActiveTab(isCreatorOnly ? "mine" : "approval");
+    }
+  }, [searchParams]);
+
+  // ── Per-tab fetch — fires whenever activeTab or userRole changes ─────────────
+  const fetchTabData = useCallback(async (tab: "approval" | "mine" | "approved", role: string) => {
+    if (!role) return;
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/tournaments/admin`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        console.log("[Tournaments] /admin returned", data.length, "tournaments:", data);
-        setAllTournaments(data);
-      } else {
-        console.error("[Tournaments] /admin responded with status", res.status);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (tab === "approval") {
+        const res = await fetch(`${API_BASE}/tournaments/admin`, { headers });
+        if (res.ok) setAllTournaments(await res.json());
+      } else if (tab === "mine") {
+        const res = await fetch(`${API_BASE}/tournaments/official/my`, { headers });
+        if (res.ok) setMyTournaments(await res.json());
+      } else if (tab === "approved") {
+        const res = await fetch(`${API_BASE}/tournaments/admin/approved`, { headers });
+        if (res.ok) setApprovedByMeList(await res.json());
       }
     } catch (err) {
-      console.error("[Tournaments] fetchAll error:", err);
+      console.error("[Tournaments] fetchTabData error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // ── Fetch my created tournaments ─────────────────────────────────────────────
-  const fetchMine = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/tournaments/official/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setMyTournaments(await res.json());
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
-
   useEffect(() => {
-    if (!userRole) return;
-    fetchAll();
-    if (CAN_CREATE_ROLES.includes(userRole)) fetchMine();
-  }, [userRole, fetchAll, fetchMine]);
+    if (!userRole || !activeTab) return;
+    fetchTabData(activeTab, userRole);
+  }, [activeTab, userRole, fetchTabData]);
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const approvalLevel = APPROVAL_LEVEL_MAP[userRole] ?? null;
@@ -265,9 +253,14 @@ export default function AdminTournamentsPage() {
     .filter(t => filter === "ALL" || t.status === filter)
     .filter(t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  const displayedApproved = approvedByMeList.filter(
+    t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // ── Approve / Reject action ──────────────────────────────────────────────────
   const handleAction = async (id: string, status: "APPROVED" | "REJECTED", remark?: string) => {
-    if (status === "REJECTED" && !remark) {
+    const message = replyTexts[id]?.trim() || remark || "";
+    if (status === "REJECTED" && !message) {
       setRejectModal({ id });
       return;
     }
@@ -277,15 +270,15 @@ export default function AdminTournamentsPage() {
       const res = await fetch(`${API_BASE}/tournaments/${id}/approve`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        // approvalLevel tells the backend WHICH field to update
-        body: JSON.stringify({ status, remark, approvalLevel }),
+        body: JSON.stringify({ status, remark: message, message, approvalLevel }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to update");
       showToast(`Tournament ${status.toLowerCase()} successfully`, "success");
+      setReplyTexts(prev => { const n = { ...prev }; delete n[id]; return n; });
       setRejectModal(null);
       setRejectRemark("");
-      fetchAll();
+      fetchTabData("approval", userRole);
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
     } finally {
@@ -293,8 +286,29 @@ export default function AdminTournamentsPage() {
     }
   };
 
+  const handleSendTournamentReply = async (id: string) => {
+    const message = replyTexts[id]?.trim();
+    if (!message) return;
+    setReplyLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("Failed to send reply");
+      setReplyTexts(prev => { const n = { ...prev }; delete n[id]; return n; });
+      showToast("Reply sent to creator.", "success");
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setReplyLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
   // ── Create tournament ────────────────────────────────────────────────────────
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitLoading(true);
     try {
@@ -313,7 +327,7 @@ export default function AdminTournamentsPage() {
       showToast("Tournament created! Awaiting approvals.", "success");
       setIsCreateOpen(false);
       setFormData({ ...emptyForm });
-      fetchMine();
+      fetchTabData("mine", userRole);
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
     } finally {
@@ -420,7 +434,7 @@ export default function AdminTournamentsPage() {
         ) : (
           <>
             <div className="bg-white p-6 rounded-[14px] border border-b-[4px] border-[#FF7400] shadow-md flex flex-col justify-between h-[120px]">
-              <p className="text-[11px] font-semibold text-slate-500 tracking-[0.15em]">TOTAL IN SYSTEM</p>
+              <p className="text-[11px] font-semibold text-slate-500 tracking-[0.15em]">PENDING IN QUEUE</p>
               <div className="flex items-center justify-between">
                 <h3 className="text-4xl font-black text-slate-900">{allTournaments.length}</h3>
                 <div className="w-[46px] h-[46px] bg-orange-50 rounded-full flex items-center justify-center shadow-inner">
@@ -429,9 +443,9 @@ export default function AdminTournamentsPage() {
               </div>
             </div>
             <div className="bg-white p-6 rounded-[14px] border border-b-[4px] border-emerald-500 shadow-md flex flex-col justify-between h-[120px]">
-              <p className="text-[11px] font-semibold text-slate-500 tracking-[0.15em]">APPROVED</p>
+              <p className="text-[11px] font-semibold text-slate-500 tracking-[0.15em]">APPROVED BY ME</p>
               <div className="flex items-center justify-between">
-                <h3 className="text-4xl font-black text-slate-900">{allTournaments.filter(t => t.status === "APPROVED").length}</h3>
+                <h3 className="text-4xl font-black text-slate-900">{approvedByMeList.length}</h3>
                 <div className="w-[46px] h-[46px] bg-emerald-50 rounded-full flex items-center justify-center shadow-inner">
                   <CheckCircle2 size={22} className="text-emerald-500" />
                 </div>
@@ -441,30 +455,29 @@ export default function AdminTournamentsPage() {
         )}
       </div>
 
-      {/* ── Tabs (only shown when role has BOTH approval + create) ── */}
-      {canCreate && hasApprovalRole && (
-        <div className="flex gap-0 border-b border-slate-200">
-          {[
-            {
-              key: "approval" as const,
-              label: `Approval Queue${pendingQueue > 0 ? ` (${pendingQueue})` : ""}`,
-            },
-            { key: "mine" as const, label: "My Tournaments" },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-5 py-3 text-sm font-bold border-b-2 -mb-[2px] transition-all ${
-                activeTab === tab.key
-                  ? "border-[#FF7400] text-[#FF7400]"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── Tabs ── */}
+      <div className="flex gap-0 border-b border-slate-200">
+        {[
+          ...(hasApprovalRole ? [{
+            key: "approval" as const,
+            label: `Approval Queue${pendingQueue > 0 ? ` (${pendingQueue})` : ""}`,
+          }] : []),
+          ...(canCreate ? [{ key: "mine" as const, label: "My Tournaments" }] : []),
+          { key: "approved" as const, label: "Approved Tournaments" },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-3 text-sm font-bold border-b-2 -mb-[2px] transition-all ${
+              activeTab === tab.key
+                ? "border-[#FF7400] text-[#FF7400]"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Search + filter bar ── */}
       <div className="flex flex-col md:flex-row gap-4 items-center">
@@ -480,7 +493,7 @@ export default function AdminTournamentsPage() {
         </div>
 
         {/* Status filter only for "My Tournaments" tab */}
-        {(activeTab === "mine" || (!hasApprovalRole && canCreate)) && (
+        {activeTab === "mine" && (
           <div className="relative">
             <div
               className="p-[1.5px] rounded-[10px] inline-flex shadow-sm"
@@ -521,7 +534,7 @@ export default function AdminTournamentsPage() {
       ) : (
         <>
           {/* ════════════ APPROVAL QUEUE ════════════ */}
-          {(activeTab === "approval" || (!canCreate && hasApprovalRole)) && (
+          {activeTab === "approval" && (
             <>
               {displayedApproval.length === 0 ? (
                 <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
@@ -530,18 +543,133 @@ export default function AdminTournamentsPage() {
                   <p className="text-slate-400 text-sm mt-1">You're all caught up!</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-4">
                   {displayedApproval.map(t => (
+                    <div key={t.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+                      {/* Top — image + details */}
+                      <div className="flex">
+                        <div className="w-44 flex-shrink-0 relative" style={{ minHeight: 200 }}>
+                          <img src="/homepage/whatjudo/judo1.png" alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-grow p-5">
+                          <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                            {[
+                              { label: "Tournament Name", value: t.title },
+                              { label: "Level",           value: t.level },
+                              { label: "Gender",          value: t.gender || "—" },
+                              { label: "Age",             value: `${t.ageFrom}–${t.ageTo} yrs` },
+                              { label: "Date",            value: new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
+                              { label: "Time",            value: new Date(t.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+                              { label: "Location",        value: t.location },
+                              { label: "Tournament Fees", value: t.entryFee === 0 ? "Free" : String(t.entryFee) },
+                            ].map(({ label, value }) => (
+                              <div key={label}>
+                                <p className="text-[11px] font-bold text-[#FF7400] mb-0.5">{label}</p>
+                                <p className="text-sm font-semibold text-slate-700 leading-tight">{value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom row */}
+                      <div className="flex items-center px-4 py-3 border-t border-slate-100">
+                        {/* Send Reply — fixed width, orange border */}
+                        <div className="w-72 rounded-[10px] p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                          <div className="flex items-center gap-2 bg-white rounded-[8.5px] px-3 py-2">
+                            <input
+                              type="text"
+                              placeholder="Send Reply"
+                              value={replyTexts[t.id] || ""}
+                              onChange={(e) => setReplyTexts(prev => ({ ...prev, [t.id]: e.target.value }))}
+                              onKeyDown={(e) => e.key === "Enter" && handleSendTournamentReply(t.id)}
+                              className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none"
+                            />
+                            <button
+                              onClick={() => handleSendTournamentReply(t.id)}
+                              disabled={!replyTexts[t.id]?.trim() || replyLoading[t.id]}
+                              className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0"
+                            >
+                              {replyLoading[t.id] ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Buttons pushed to far right */}
+                        <div className="ml-auto flex items-center gap-2">
+                          {(safeStatus(t.superAdminApproval) === "APPROVED" || safeStatus(t.ceoApproval) === "APPROVED") ? (
+                            <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                              <span className="text-xs font-bold text-emerald-700 whitespace-nowrap">
+                                Approved by {safeStatus(t.superAdminApproval) === "APPROVED" ? "Super Admin" : "CEO"}
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleAction(t.id, "APPROVED")}
+                                disabled={actionLoading === t.id}
+                                className="px-5 py-2 bg-[#FF7400] text-white text-sm font-bold rounded-lg hover:bg-[#E56900] disabled:opacity-50 transition-all"
+                              >
+                                {actionLoading === t.id ? <Loader2 size={15} className="animate-spin" /> : "Approve"}
+                              </button>
+                              <button
+                                onClick={() => handleAction(t.id, "REJECTED")}
+                                disabled={!!actionLoading}
+                                className="px-5 py-2 bg-white border border-slate-300 text-slate-600 text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-50 transition-all"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Manage link */}
+                      <div className="px-4 pb-3">
+                        <Link
+                          href={`/dashboard/admin/tournaments/${t.id}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all"
+                        >
+                          <Trophy size={12} /> Manage / Generate Draw <ChevronRight size={12} />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ════════════ APPROVED TOURNAMENTS ════════════ */}
+          {activeTab === "approved" && (
+            <>
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 size={32} className="animate-spin text-[#FF7400]" />
+                </div>
+              ) : displayedApproved.length === 0 ? (
+                <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
+                  <CheckCircle2 size={40} className="mx-auto mb-3 text-slate-200" />
+                  <h3 className="text-lg font-bold text-slate-500">No Approved Tournaments</h3>
+                  <p className="text-slate-400 text-sm mt-1">You haven't approved any tournaments yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {displayedApproved.map(t => (
                     <motion.div
                       key={t.id}
                       whileHover={{ y: -4 }}
                       className="bg-white rounded-[20px] shadow-lg overflow-hidden flex flex-col"
                     >
-                      {/* Card banner */}
-                      <div className="h-32 bg-gradient-to-br from-blue-900 via-indigo-700 to-[#FF7400] relative overflow-hidden">
+                      <div className="h-32 bg-gradient-to-br from-emerald-900 via-emerald-700 to-[#FF7400] relative overflow-hidden">
                         <div className="absolute inset-0 bg-black/20" />
                         <div className="absolute top-3 left-3 bg-white/20 backdrop-blur text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/30">
                           {t.level}
+                        </div>
+                        <div className="absolute top-3 right-3 bg-emerald-500/80 backdrop-blur text-white text-[10px] font-bold px-3 py-1 rounded-full border border-emerald-400/30 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Approved
                         </div>
                         {t.club && (
                           <div className="absolute bottom-3 left-3 right-3 bg-black/40 backdrop-blur rounded-xl p-2.5 border border-white/20">
@@ -553,7 +681,6 @@ export default function AdminTournamentsPage() {
                         )}
                       </div>
 
-                      {/* Card body */}
                       <div className="p-5 flex-grow flex flex-col">
                         <h3 className="text-lg font-bold text-slate-800 mb-3 leading-snug">{t.title}</h3>
 
@@ -576,32 +703,9 @@ export default function AdminTournamentsPage() {
                           </div>
                         </div>
 
-                        <ApprovalChain t={t} />
-
-                        {/* Action buttons */}
-                        <div className="flex gap-2 mt-4">
-                          <button
-                            onClick={() => handleAction(t.id, "APPROVED")}
-                            disabled={actionLoading === t.id}
-                            className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl text-sm flex justify-center items-center disabled:opacity-50 transition-all"
-                          >
-                            {actionLoading === t.id
-                              ? <Loader2 size={15} className="animate-spin" />
-                              : "Approve"}
-                          </button>
-                          <button
-                            onClick={() => handleAction(t.id, "REJECTED")}
-                            disabled={!!actionLoading}
-                            className="flex-1 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl text-sm disabled:opacity-50 transition-all"
-                          >
-                            Reject
-                          </button>
-                        </div>
-
-                        {/* Manage link — always visible */}
                         <Link
                           href={`/dashboard/admin/tournaments/${t.id}`}
-                          className="mt-2 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
+                          className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
                         >
                           <Trophy size={12} /> Manage / Generate Draw
                           <ChevronRight size={12} />
@@ -615,7 +719,7 @@ export default function AdminTournamentsPage() {
           )}
 
           {/* ════════════ MY TOURNAMENTS ════════════ */}
-          {(activeTab === "mine" && canCreate) && (
+          {activeTab === "mine" && (
             <>
               {displayedMine.length === 0 ? (
                 <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
@@ -675,7 +779,7 @@ export default function AdminTournamentsPage() {
                           </div>
                         </div>
 
-                        <ApprovalChain t={t} />
+                        <ApprovalChain />
 
                         {t.rejectionRemark && (
                           <div className="mt-3 p-3 bg-red-50 rounded-xl border border-red-100 text-xs text-red-700">
