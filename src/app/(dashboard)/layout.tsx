@@ -133,12 +133,12 @@ export default function DashboardLayout({
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "GRIEVANCE_REPLY" || data.type === "NEW_GRIEVANCE") {
-          showToast(data.message || "New notification received!", "success");
+        if (data.message) {
+          showToast(data.message, "success");
           const newNotif = {
-            id: data.grievanceId || Date.now().toString(),
-            message: data.message || "Notification received",
-            createdAt: new Date().toISOString(),
+            id: data.grievanceId || data.tournamentId || data.id || Date.now().toString(),
+            message: data.message,
+            createdAt: data.createdAt || new Date().toISOString(),
             read: false,
           };
           setNotifications(prev => {
@@ -239,6 +239,12 @@ export default function DashboardLayout({
         { name: "Events", href: "/dashboard/member/events", icon: Calendar },
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ]
+    : userRole === "COACH"
+    ? [
+        { name: "My Profile", href: "/dashboard/member", icon: User },
+        { name: "Events", href: "/dashboard/member/events", icon: Calendar },
+        { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
+      ]
     : userRole === "CLUB"
     ? [
         { name: "My Profile", href: "/dashboard/member", icon: User },
@@ -331,12 +337,6 @@ export default function DashboardLayout({
           )}
           <div className="space-y-1">
             {navItems
-              .filter((item) => {
-                if (item.name === "Grievances") {
-                  return ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole || "");
-                }
-                return true;
-              })
               .map((item) => {
               const hasChildren = !!(item as any).children?.length;
               const children = (item as any).children as { name: string; href: string }[] | undefined;

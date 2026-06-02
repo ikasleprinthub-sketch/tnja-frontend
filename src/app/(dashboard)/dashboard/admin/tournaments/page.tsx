@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Hourglass,
   Send,
+  MessageSquare,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -70,12 +71,12 @@ interface Tournament {
 const APPROVAL_LEVEL_MAP: Record<string, string | null> = {
   DISTRICT_PRESIDENT: "district",
   DISTRICT_SECRETARY: "district",
-  ZONE_PRESIDENT:     null,   // creator only, no approval seat
-  ZONE_SECRETARY:     null,
-  STATE_PRESIDENT:    "state",
-  STATE_SECRETARY:    "state",
-  SUPER_ADMIN:        "superAdmin",
-  CEO:                "ceo",
+  ZONE_PRESIDENT: null,   // creator only, no approval seat
+  ZONE_SECRETARY: null,
+  STATE_PRESIDENT: "state",
+  STATE_SECRETARY: "state",
+  SUPER_ADMIN: "superAdmin",
+  CEO: "ceo",
 };
 
 /** Roles that are allowed to create tournaments. */
@@ -91,12 +92,12 @@ const CAN_CREATE_ROLES = [
 const ROLE_LABEL: Record<string, string> = {
   DISTRICT_PRESIDENT: "District President",
   DISTRICT_SECRETARY: "District Secretary",
-  ZONE_PRESIDENT:     "Zone President",
-  ZONE_SECRETARY:     "Zone Secretary",
-  STATE_PRESIDENT:    "State President",
-  STATE_SECRETARY:    "State Secretary",
-  SUPER_ADMIN:        "Super Admin",
-  CEO:                "CEO",
+  ZONE_PRESIDENT: "Zone President",
+  ZONE_SECRETARY: "Zone Secretary",
+  STATE_PRESIDENT: "State President",
+  STATE_SECRETARY: "State Secretary",
+  SUPER_ADMIN: "Super Admin",
+  CEO: "CEO",
 };
 
 /**
@@ -113,10 +114,10 @@ const ROLE_LABEL: Record<string, string> = {
  */
 function inApprovalQueue(t: Tournament, role: string): boolean {
   // Coerce null/undefined fields from the API into proper status strings
-  const district     = safeStatus(t.districtApproval);
-  const state        = safeStatus(t.stateApproval);
-  const superAdmin   = safeStatus(t.superAdminApproval);
-  const ceo          = safeStatus(t.ceoApproval);
+  const district = safeStatus(t.districtApproval);
+  const state = safeStatus(t.stateApproval);
+  const superAdmin = safeStatus(t.superAdminApproval);
+  const ceo = safeStatus(t.ceoApproval);
 
   switch (normaliseRole(role)) {
     case "DISTRICT_PRESIDENT":
@@ -164,25 +165,41 @@ export default function AdminTournamentsPage() {
   // "approved" = show fully approved tournaments
   const [activeTab, setActiveTab] = useState<"approval" | "mine" | "approved">("approval");
 
-  const [allTournaments,   setAllTournaments]   = useState<Tournament[]>([]);
-  const [myTournaments,    setMyTournaments]    = useState<Tournament[]>([]);
+  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
+  const [myTournaments, setMyTournaments] = useState<Tournament[]>([]);
   const [approvedByMeList, setApprovedByMeList] = useState<Tournament[]>([]);
-  const [loading,          setLoading]          = useState(false);
-  const [actionLoading,    setActionLoading]    = useState<string | null>(null);
-  const [replyTexts,       setReplyTexts]       = useState<Record<string, string>>({});
-  const [replyLoading,     setReplyLoading]     = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
+  const [tMessages, setTMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
 
-  const [searchQuery,   setSearchQuery]   = useState("");
-  const [filter,        setFilter]        = useState("ALL");
-  const [isFilterOpen,  setIsFilterOpen]  = useState(false);
+  const fetchTournamentMessages = useCallback(async (tournamentId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTMessages((prev) => ({ ...prev, [tournamentId]: data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch tournament messages", err);
+    }
+  }, []);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState("ALL");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Create modal
-  const [isCreateOpen,   setIsCreateOpen]   = useState(false);
-  const [formData,       setFormData]       = useState({ ...emptyForm });
-  const [submitLoading,  setSubmitLoading]  = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({ ...emptyForm });
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   // Reject modal
-  const [rejectModal,  setRejectModal]  = useState<{ id: string } | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
   const [rejectRemark, setRejectRemark] = useState("");
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -194,7 +211,7 @@ export default function AdminTournamentsPage() {
 
   // ── Initialise role & active tab ─────────────────────────────────────────────
   useEffect(() => {
-    const raw  = localStorage.getItem("userRole") || "";
+    const raw = localStorage.getItem("userRole") || "";
     const role = normaliseRole(raw);
     console.log("[Tournaments] resolved role:", role, "(raw from localStorage:", raw, ")");
     setUserRole(role);
@@ -218,20 +235,32 @@ export default function AdminTournamentsPage() {
 
       if (tab === "approval") {
         const res = await fetch(`${API_BASE}/tournaments/admin`, { headers });
-        if (res.ok) setAllTournaments(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setAllTournaments(data);
+          data.forEach((t: any) => fetchTournamentMessages(t.id));
+        }
       } else if (tab === "mine") {
         const res = await fetch(`${API_BASE}/tournaments/official/my`, { headers });
-        if (res.ok) setMyTournaments(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setMyTournaments(data);
+          data.forEach((t: any) => fetchTournamentMessages(t.id));
+        }
       } else if (tab === "approved") {
         const res = await fetch(`${API_BASE}/tournaments/admin/approved`, { headers });
-        if (res.ok) setApprovedByMeList(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          setApprovedByMeList(data);
+          data.forEach((t: any) => fetchTournamentMessages(t.id));
+        }
       }
     } catch (err) {
       console.error("[Tournaments] fetchTabData error:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchTournamentMessages]);
 
   useEffect(() => {
     if (!userRole || !activeTab) return;
@@ -240,7 +269,7 @@ export default function AdminTournamentsPage() {
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const approvalLevel = APPROVAL_LEVEL_MAP[userRole] ?? null;
-  const canCreate     = CAN_CREATE_ROLES.includes(userRole);
+  const canCreate = CAN_CREATE_ROLES.includes(userRole);
   const hasApprovalRole = approvalLevel !== null;
 
   const approvalQueue = allTournaments.filter(t => inApprovalQueue(t, userRole));
@@ -299,6 +328,7 @@ export default function AdminTournamentsPage() {
       });
       if (!res.ok) throw new Error("Failed to send reply");
       setReplyTexts(prev => { const n = { ...prev }; delete n[id]; return n; });
+      await fetchTournamentMessages(id);
       showToast("Reply sent to creator.", "success");
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -318,7 +348,7 @@ export default function AdminTournamentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
-          entryFee:   Number(formData.entryFee),
+          entryFee: Number(formData.entryFee),
           totalSlots: Number(formData.totalSlots),
         }),
       });
@@ -341,7 +371,7 @@ export default function AdminTournamentsPage() {
   };
 
   // ── Stat cards ───────────────────────────────────────────────────────────────
-  const totalMine    = myTournaments.length;
+  const totalMine = myTournaments.length;
   const approvedMine = myTournaments.filter(t => t.status === "APPROVED").length;
   const pendingQueue = approvalQueue.length;
 
@@ -364,9 +394,8 @@ export default function AdminTournamentsPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
-              toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-            }`}
+            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+              }`}
           >
             {toast.type === "success" ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
             {toast.msg}
@@ -468,11 +497,10 @@ export default function AdminTournamentsPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-3 text-sm font-bold border-b-2 -mb-[2px] transition-all ${
-              activeTab === tab.key
-                ? "border-[#FF7400] text-[#FF7400]"
-                : "border-transparent text-slate-400 hover:text-slate-600"
-            }`}
+            className={`px-5 py-3 text-sm font-bold border-b-2 -mb-[2px] transition-all ${activeTab === tab.key
+              ? "border-[#FF7400] text-[#FF7400]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
           >
             {tab.label}
           </button>
@@ -513,9 +541,8 @@ export default function AdminTournamentsPage() {
                   <button
                     key={f}
                     onClick={() => { setFilter(f); setIsFilterOpen(false); }}
-                    className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${
-                      filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
-                    }`}
+                    className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     {f === "ALL" ? "All Tournaments" : f}
                   </button>
@@ -556,12 +583,12 @@ export default function AdminTournamentsPage() {
                           <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                             {[
                               { label: "Tournament Name", value: t.title },
-                              { label: "Level",           value: t.level },
-                              { label: "Gender",          value: t.gender || "—" },
-                              { label: "Age",             value: `${t.ageFrom}–${t.ageTo} yrs` },
-                              { label: "Date",            value: new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
-                              { label: "Time",            value: new Date(t.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
-                              { label: "Location",        value: t.location },
+                              { label: "Level", value: t.level },
+                              { label: "Gender", value: t.gender || "—" },
+                              { label: "Age", value: `${t.ageFrom}–${t.ageTo} yrs` },
+                              { label: "Date", value: new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
+                              { label: "Time", value: new Date(t.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+                              { label: "Location", value: t.location },
                               { label: "Tournament Fees", value: t.entryFee === 0 ? "Free" : String(t.entryFee) },
                             ].map(({ label, value }) => (
                               <div key={label}>
@@ -571,6 +598,40 @@ export default function AdminTournamentsPage() {
                             ))}
                           </div>
                         </div>
+                      </div>
+
+                      {/* Tournament Chat Section */}
+                      <div className="bg-slate-50/50 border-t border-slate-100 p-5 space-y-3">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <MessageSquare size={13} className="text-[#FF7400]" />
+                          Communication History & Comments
+                        </h4>
+
+                        {/* Messages list */}
+                        {tMessages[t.id]?.length > 0 ? (
+                          <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+                            {tMessages[t.id].map((msg) => (
+                              <div key={msg.id} className="flex items-start gap-2.5">
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-black ${
+                                  msg.senderRole === "CLUB" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-[#FF7400]"
+                                }`}>
+                                  {msg.senderName.charAt(0)}
+                                </div>
+                                <div className="flex-grow">
+                                  <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                                    <span className="font-bold text-slate-900 mr-1.5">{msg.senderName}:</span>
+                                    {msg.message}
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 mt-0.5">
+                                    {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs font-semibold text-slate-400">No communication history yet.</p>
+                        )}
                       </div>
 
                       {/* Bottom row */}
@@ -748,13 +809,12 @@ export default function AdminTournamentsPage() {
                             <Clock size={10} /> Expired
                           </span>
                         ) : (
-                          <span className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
-                            t.status === "APPROVED"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : t.status === "REJECTED"
+                          <span className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${t.status === "APPROVED"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : t.status === "REJECTED"
                               ? "bg-red-50 text-red-600 border-red-200"
                               : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>
+                            }`}>
                             {t.status === "APPROVED" ? <><CheckCircle2 size={10} /> Approved</> : t.status === "REJECTED" ? <><XCircle size={10} /> Rejected</> : <><Hourglass size={10} /> Pending</>}
                           </span>
                         )}
@@ -786,6 +846,40 @@ export default function AdminTournamentsPage() {
                             <span className="font-bold">Rejected: </span>{t.rejectionRemark}
                           </div>
                         )}
+
+                        {/* Tournament Chat Section */}
+                        <div className="mt-4 bg-slate-50 border-t border-slate-100 p-4 rounded-xl space-y-3">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <MessageSquare size={13} className="text-[#FF7400]" />
+                            Communication History
+                          </h4>
+
+                          {/* Messages list */}
+                          {tMessages[t.id]?.length > 0 ? (
+                            <div className="space-y-3 max-h-32 overflow-y-auto pr-1">
+                              {tMessages[t.id].map((msg) => (
+                                <div key={msg.id} className="flex items-start gap-2">
+                                  <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-black ${
+                                    msg.senderRole === "CLUB" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-[#FF7400]"
+                                  }`}>
+                                    {msg.senderName.charAt(0)}
+                                  </div>
+                                  <div className="flex-grow">
+                                    <p className="text-[11px] text-slate-700 font-semibold leading-relaxed">
+                                      <span className="font-bold text-slate-900 mr-1">{msg.senderName}:</span>
+                                      {msg.message}
+                                    </p>
+                                    <p className="text-[8px] text-slate-400">
+                                      {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] font-semibold text-slate-400">No communication history yet.</p>
+                          )}
+                        </div>
 
                         {/* Manage button — always visible */}
                         <Link
@@ -854,7 +948,7 @@ export default function AdminTournamentsPage() {
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
                     >
                       <option value="DISTRICT">District</option>
-                      <option value="ZONAL">Zonal</option>
+                      <option value="ZONE">Zonal</option>
                       <option value="STATE">State</option>
                       <option value="NATIONAL">National</option>
                     </select>

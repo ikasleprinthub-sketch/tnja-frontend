@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Globe,
   Send,
+  MessageSquare,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -41,6 +42,9 @@ export default function ClubTournamentsPage() {
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
   const [messages, setMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
+  const [tMessages, setTMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
+  const [tReplyTexts, setTReplyTexts] = useState<Record<string, string>>({});
+  const [tReplyLoading, setTReplyLoading] = useState<Record<string, boolean>>({});
   const [regSearch, setRegSearch] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
@@ -100,6 +104,43 @@ export default function ClubTournamentsPage() {
     }
   }, []);
 
+  const fetchTournamentMessages = async (tournamentId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTMessages((prev) => ({ ...prev, [tournamentId]: data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch tournament messages", err);
+    }
+  };
+
+  const handleSendTournamentReply = async (tournamentId: string) => {
+    const message = tReplyTexts[tournamentId]?.trim();
+    if (!message) return;
+    setTReplyLoading((prev) => ({ ...prev, [tournamentId]: true }));
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("Failed to send reply");
+      setTReplyTexts((prev) => { const n = { ...prev }; delete n[tournamentId]; return n; });
+      await fetchTournamentMessages(tournamentId);
+      showToast("Reply sent to admin.", "success");
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setTReplyLoading((prev) => ({ ...prev, [tournamentId]: false }));
+    }
+  };
+
   const fetchTournaments = useCallback(async () => {
     setLoading(true);
     try {
@@ -110,6 +151,10 @@ export default function ClubTournamentsPage() {
       if (res.ok) {
         const json = await res.json();
         setTournaments(json);
+        // Fetch messages for each tournament
+        json.forEach((t: any) => {
+          fetchTournamentMessages(t.id);
+        });
       }
     } catch (err) {
       console.error("Failed to load tournaments", err);
@@ -446,6 +491,16 @@ export default function ClubTournamentsPage() {
                       <span className="flex items-center gap-1.5"><IndianRupee size={14} className="text-[#FF7400]" />Entry: ₹{tournament.entryFee}</span>
                       <span className="flex items-center gap-1.5"><Users size={14} className="text-[#FF7400]" />{tournament.registrationCount ?? 0} / {tournament.totalSlots} Registered</span>
                     </div>
+                    {/* Rejection remark / Admin reply */}
+                    {tournament.status === "REJECTED" && tournament.rejectionRemark && (
+                      <div className="mt-3 px-4 py-2.5 bg-red-50 text-red-700 border border-red-100 rounded-xl text-xs font-bold flex items-start gap-2 max-w-lg">
+                        <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-500" />
+                        <div>
+                          <span className="font-black">Rejection Reason: </span>
+                          {tournament.rejectionRemark}
+                        </div>
+                      </div>
+                    )}
                     {/* Approval chain mini-badges removed as requested */}
                   </div>
                 </div>
@@ -488,6 +543,62 @@ export default function ClubTournamentsPage() {
                     </Link>
                   )}
                 </div>
+              </div>
+
+              {/* Tournament Chat Section */}
+              <div className="bg-slate-50/50 border-t border-slate-100 p-6 space-y-4">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <MessageSquare size={14} className="text-[#FF7400]" />
+                  Admin Communication & Comments
+                </h4>
+
+                {/* Messages list */}
+                {tMessages[tournament.id]?.length > 0 ? (
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
+                    {tMessages[tournament.id].map((msg) => (
+                      <div key={msg.id} className="flex items-start gap-2.5">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-black ${
+                          msg.senderRole === "CLUB" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-[#FF7400]"
+                        }`}>
+                          {msg.senderName.charAt(0)}
+                        </div>
+                        <div className="flex-grow">
+                          <p className="text-xs text-slate-700 font-semibold leading-relaxed">
+                            <span className="font-bold text-slate-900 mr-1.5">{msg.senderName}:</span>
+                            {msg.message}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">
+                            {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-400">No communication history yet.</p>
+                )}
+
+                {/* Send Reply to Admin */}
+                <div className="w-full rounded-[10px] p-[1.5px] mt-4" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                  <div className="flex items-center gap-2 bg-white rounded-[8.5px] px-3 py-2">
+                    <input
+                      type="text"
+                      placeholder="Send message/reply to admin..."
+                      value={tReplyTexts[tournament.id] || ""}
+                      onChange={(e) => setTReplyTexts((prev) => ({ ...prev, [tournament.id]: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && handleSendTournamentReply(tournament.id)}
+                      className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none"
+                    />
+                    <button
+                      onClick={() => handleSendTournamentReply(tournament.id)}
+                      disabled={!tReplyTexts[tournament.id]?.trim() || tReplyLoading[tournament.id]}
+                      className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0"
+                    >
+                      {tReplyLoading[tournament.id] ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
               {/* Registrations Panel */}
@@ -769,7 +880,7 @@ export default function ClubTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                      <option value="DISTRICT">District</option><option value="ZONAL">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
+                      <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
                   <div>
@@ -886,7 +997,7 @@ export default function ClubTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                      <option value="DISTRICT">District</option><option value="ZONAL">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
+                      <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
                   <div>

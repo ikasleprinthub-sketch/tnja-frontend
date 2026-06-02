@@ -63,6 +63,7 @@ export default function PlayerDashboard() {
   const [paying, setPaying] = useState(false);
   const [playerNotifications, setPlayerNotifications] = useState<any[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
+  const [tournamentWins, setTournamentWins] = useState<{ tournamentId: string; tournamentName: string; category: string }[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [saving, setSaving] = useState(false);
@@ -222,6 +223,31 @@ export default function PlayerDashboard() {
             }
           }
           setUpcomingMatches(matches);
+
+          // Detect tournament wins (player won the final round)
+          const wins: { tournamentId: string; tournamentName: string; category: string }[] = [];
+          for (const trn of tournaments) {
+            if (trn.myRegistration?.status !== "APPROVED") continue;
+            const drawRes2 = await fetch(`${API_BASE}/tournaments/${trn.id}/draws`, {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (!drawRes2.ok) continue;
+            const draws2 = await drawRes2.json();
+            for (const draw of draws2) {
+              if (!draw.rounds || draw.rounds.length === 0) continue;
+              const finalRound = draw.rounds[draw.rounds.length - 1];
+              for (const match of finalRound) {
+                if (match.status === "COMPLETED" && match.winnerId === profileData.user.id) {
+                  wins.push({
+                    tournamentId: trn.id,
+                    tournamentName: trn.title,
+                    category: `${draw.ageGroup} ${draw.gender} ${draw.weightCategory}kg`,
+                  });
+                }
+              }
+            }
+          }
+          setTournamentWins(wins);
         }
       } catch (err) {
         console.error("Error fetching upcoming matches:", err);
@@ -603,6 +629,38 @@ export default function PlayerDashboard() {
                     </motion.div>
                   ))}
                 </div>
+              )}
+
+              {/* Tournament Champion Banner */}
+              {tournamentWins.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-3xl overflow-hidden shadow-2xl shadow-yellow-500/20"
+                >
+                  <div className="bg-gradient-to-r from-yellow-400 via-[#FF7400] to-yellow-500 px-8 py-5 flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                      <Trophy size={28} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-white/80 text-xs font-black uppercase tracking-widest">Congratulations</p>
+                      <h2 className="text-2xl font-black text-white leading-tight">Tournament Champion!</h2>
+                    </div>
+                  </div>
+                  <div className="bg-white border border-yellow-200 divide-y divide-yellow-100">
+                    {tournamentWins.map((win, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-8 py-4">
+                        <div>
+                          <p className="font-black text-slate-800">{win.tournamentName}</p>
+                          <p className="text-xs font-semibold text-slate-400 mt-0.5">{win.category}</p>
+                        </div>
+                        <span className="flex items-center gap-1.5 px-4 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-black">
+                          <Trophy size={13} /> 1st Place
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
               )}
 
               {/* Match Statistics Card Grid */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -76,6 +76,32 @@ interface Seeds {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function nextPow2(n: number): number { let p = 1; while (p < n) p <<= 1; return p; }
+
+// Auto-advance non-BYE players through any BYE match (cascades through all rounds)
+function processByeMatches(rounds: BracketMatch[][]): BracketMatch[][] {
+  const r = rounds.map(row => row.map(m => ({ ...m })));
+  for (let ri = 0; ri < r.length; ri++) {
+    for (let mi = 0; mi < r[ri].length; mi++) {
+      const m = r[ri][mi];
+      if (m.status === "COMPLETED") continue;
+      const aIsBye = m.slotA.isBye || (!m.slotA.playerId && m.slotA.playerName !== "TBD");
+      const bIsBye = m.slotB.isBye || (!m.slotB.playerId && m.slotB.playerName !== "TBD");
+      let winner: BracketSlot | null = null;
+      if (aIsBye && m.slotB.playerId) winner = m.slotB;
+      else if (bIsBye && m.slotA.playerId) winner = m.slotA;
+      if (!winner) continue;
+      r[ri][mi] = { ...m, winnerId: winner.playerId, status: "COMPLETED" };
+      if (ri + 1 < r.length) {
+        const nextIdx = Math.floor(mi / 2);
+        const next = { ...r[ri + 1][nextIdx] };
+        if (mi % 2 === 0) next.slotA = { ...winner };
+        else next.slotB = { ...winner };
+        r[ri + 1][nextIdx] = next;
+      }
+    }
+  }
+  return r;
+}
 
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -169,6 +195,7 @@ export default function TournamentDetailPage() {
   const [weightFilter, setWeightFilter] = useState("ALL");
 
   const [draws, setDraws] = useState<Record<string, DrawCategory>>({});
+  const drawsRef = useRef<Record<string, DrawCategory>>({});
   const [seeds, setSeeds] = useState<Seeds>({ 1: null, 2: null, 3: null, 4: null });
   const [showSeedModal, setShowSeedModal] = useState(false);
   const [assigningSeed, setAssigningSeed] = useState<1 | 2 | 3 | 4 | null>(null);
@@ -178,6 +205,8 @@ export default function TournamentDetailPage() {
   const [usingDemo, setUsingDemo] = useState(false);
   const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
   const [shuffleKey, setShuffleKey] = useState(0);
+  const [autoGenerating, setAutoGenerating] = useState(false);
+  const [autoGenProgress, setAutoGenProgress] = useState("");
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
 
@@ -252,7 +281,9 @@ export default function TournamentDetailPage() {
         const drawMap: Record<string, DrawCategory> = {};
         (Array.isArray(data) ? data : []).forEach((d: DrawCategory) => {
           drawMap[categoryKey(d.ageGroup, d.gender, d.weightCategory)] = {
-            ...d, generated: true, saved: true,
+            ...d,
+            rounds: processByeMatches(d.rounds),
+            generated: true, saved: true,
           };
         });
         setDraws(drawMap);
@@ -314,7 +345,8 @@ export default function TournamentDetailPage() {
       return;
     }
     setDrawPhase("dealing");
-    const rounds = generateIJFBracket(filteredPlayers, seeds);
+    const rawRounds = generateIJFBracket(filteredPlayers, seeds);
+    const rounds = processByeMatches(rawRounds);
     setTimeout(() => {
       setDraws((prev) => ({
         ...prev,
@@ -351,6 +383,84 @@ export default function TournamentDetailPage() {
     finally { setSaving(false); }
   };
 
+  const handleAutoGenerateAllDraws = async () => {
+    if (players.length === 0) {
+      showToast("No players registered in the tournament", false);
+      return;
+    }
+
+    // Group players by category
+    const categoryGroups: Record<string, RegisteredPlayer[]> = {};
+    players.forEach((p) => {
+      const key = categoryKey(p.ageGroup, p.gender, String(p.weight));
+      if (!categoryGroups[key]) categoryGroups[key] = [];
+      categoryGroups[key].push(p);
+    });
+
+    // Filter categories with 2 or more players
+    const eligibleCategories = Object.entries(categoryGroups).filter(
+      ([_, catPlayers]) => catPlayers.length >= 2
+    );
+
+    if (eligibleCategories.length === 0) {
+      showToast("No categories found with 2 or more players", false);
+      return;
+    }
+
+    const confirmMsg = `Found ${eligibleCategories.length} categories with 2 or more players. This will auto-shuffle and generate draws for all of them. Any existing draws for these categories will be overwritten. Proceed?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setAutoGenerating(true);
+    let successCount = 0;
+
+    try {
+      for (const [key, catPlayers] of eligibleCategories) {
+        const firstPlayer = catPlayers[0];
+        const ageGroup = firstPlayer.ageGroup;
+        const gender = firstPlayer.gender;
+        const weightCategory = String(firstPlayer.weight);
+        const displayLabel = `${ageGroup} ${gender} ${weightCategory}kg`;
+
+        setAutoGenProgress(`Generating & saving draw for ${displayLabel}...`);
+
+        const emptySeeds: Seeds = { 1: null, 2: null, 3: null, 4: null };
+        const rounds = processByeMatches(generateIJFBracket(catPlayers, emptySeeds));
+
+        try {
+          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ageGroup,
+              gender,
+              weightCategory,
+              rounds,
+            }),
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            console.error(`Failed to save draw for ${key}`);
+          }
+        } catch (err) {
+          console.error(`Error saving draw for ${key}:`, err);
+        }
+      }
+
+      showToast(`Successfully auto-generated and saved draws for ${successCount} categories!`);
+      await fetchDraws();
+    } catch (err) {
+      console.error("Error in bulk draw generation:", err);
+      showToast("An error occurred during bulk generation", false);
+    } finally {
+      setAutoGenerating(false);
+      setAutoGenProgress("");
+    }
+  };
+
   const openScoreboard = (match: BracketMatch) => {
     const p = new URLSearchParams({
       matchId: match.matchId,
@@ -376,54 +486,67 @@ export default function TournamentDetailPage() {
   const handleMatchResult = useCallback((
     matchId: string, winnerId: string, winnerName: string, winnerClub: string
   ) => {
-    setDraws(prev => {
-      const newDraws = { ...prev };
+    const prev = drawsRef.current;
+    const newDraws = { ...prev };
+    let affectedCatKey = "";
 
-      for (const catKey of Object.keys(newDraws)) {
-        const cat = newDraws[catKey];
-        // Deep-clone rounds so React detects the change
-        const newRounds: BracketMatch[][] = cat.rounds.map(r => r.map(m => ({ ...m })));
+    for (const catKey of Object.keys(newDraws)) {
+      const cat = newDraws[catKey];
+      const newRounds: BracketMatch[][] = cat.rounds.map(r => r.map(m => ({ ...m })));
 
-        let foundRi = -1, foundMi = -1;
-        for (let ri = 0; ri < newRounds.length; ri++) {
-          for (let mi = 0; mi < newRounds[ri].length; mi++) {
-            if (newRounds[ri][mi].matchId === matchId) {
-              foundRi = ri; foundMi = mi; break;
-            }
-          }
-          if (foundRi !== -1) break;
+      let foundRi = -1, foundMi = -1;
+      for (let ri = 0; ri < newRounds.length; ri++) {
+        for (let mi = 0; mi < newRounds[ri].length; mi++) {
+          if (newRounds[ri][mi].matchId === matchId) { foundRi = ri; foundMi = mi; break; }
         }
-        if (foundRi === -1) continue;
+        if (foundRi !== -1) break;
+      }
+      if (foundRi === -1) continue;
 
-        // Mark match completed
-        newRounds[foundRi][foundMi] = {
-          ...newRounds[foundRi][foundMi],
-          winnerId,
-          status: "COMPLETED",
-        };
+      newRounds[foundRi][foundMi] = { ...newRounds[foundRi][foundMi], winnerId, status: "COMPLETED" };
 
-        // Advance winner to next round TBD slot
-        if (foundRi + 1 < newRounds.length) {
-          const nextMatchIdx = Math.floor(foundMi / 2);
-          const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
-          const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
-          if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
-          else                   nextMatch.slotB = winnerSlot;
-          newRounds[foundRi + 1][nextMatchIdx] = nextMatch;
-        }
-
-        // If this was the final match → set champion
-        if (foundRi === newRounds.length - 1) {
-          setTimeout(() => setChampion({ name: winnerName, club: winnerClub, categoryKey: catKey }), 0);
-        }
-
-        newDraws[catKey] = { ...cat, rounds: newRounds, saved: false };
-        break; // match found, stop searching categories
+      if (foundRi + 1 < newRounds.length) {
+        const nextMatchIdx = Math.floor(foundMi / 2);
+        const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
+        const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
+        if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
+        else                   nextMatch.slotB = winnerSlot;
+        newRounds[foundRi + 1][nextMatchIdx] = nextMatch;
       }
 
-      return newDraws;
-    });
-  }, []);
+      if (foundRi === newRounds.length - 1) {
+        setTimeout(() => setChampion({ name: winnerName, club: winnerClub, categoryKey: catKey }), 0);
+      }
+
+      newDraws[catKey] = { ...cat, rounds: newRounds, saved: true };
+      affectedCatKey = catKey;
+      break;
+    }
+
+    drawsRef.current = newDraws;
+    setDraws(newDraws);
+
+    // Auto-save the affected draw so next-round matches persist after refresh
+    if (affectedCatKey) {
+      const draw = newDraws[affectedCatKey];
+      fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ageGroup: draw.ageGroup,
+          gender: draw.gender,
+          weightCategory: draw.weightCategory,
+          rounds: draw.rounds,
+        }),
+      }).catch(() => {
+        // mark unsaved if server save fails
+        setDraws(d => ({ ...d, [affectedCatKey]: { ...d[affectedCatKey], saved: false } }));
+      });
+    }
+  }, [token, tournamentId]);
+
+  // Keep drawsRef in sync with draws state
+  useEffect(() => { drawsRef.current = draws; }, [draws]);
 
   // ── Listen for results from scoreboard tab via BroadcastChannel ──────────────
   useEffect(() => {
@@ -740,23 +863,32 @@ export default function TournamentDetailPage() {
             ) : (
               <>
                 <button onClick={() => setShowSeedModal(true)}
-                  disabled={drawPhase === "shuffling" || drawPhase === "dealing"}
+                  disabled={drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
                   <Star size={16} /> Manage Seeds (IJF)
                 </button>
                 <button onClick={handleShuffle}
-                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing"}
+                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {drawPhase === "shuffling"
                     ? <><Loader2 size={15} className="animate-spin" /> Shuffling...</>
                     : <><Shuffle size={16} /> Shuffle Players</>}
                 </button>
                 <button onClick={handleGenerateDraw}
-                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing"}
+                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {drawPhase === "dealing"
                     ? <><Loader2 size={15} className="animate-spin" /> Dealing Cards...</>
                     : <><Zap size={16} /> Generate Draw</>}
+                </button>
+                <button onClick={handleAutoGenerateAllDraws}
+                  disabled={players.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {autoGenerating ? (
+                    <><Loader2 size={15} className="animate-spin" /> Generating All...</>
+                  ) : (
+                    <><Zap size={16} /> Auto-Generate All Category Draws</>
+                  )}
                 </button>
                 {currentDraw?.generated && !currentDraw.saved && (
                   <button onClick={handleSaveDraw} disabled={saving}
@@ -773,6 +905,14 @@ export default function TournamentDetailPage() {
               </>
             )}
           </div>
+
+          {/* Progress status for bulk auto generation */}
+          {autoGenerating && (
+            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center gap-3">
+              <Loader2 className="animate-spin text-indigo-600 shrink-0" size={18} />
+              <span className="text-sm font-bold text-indigo-700">{autoGenProgress}</span>
+            </div>
+          )}
 
           {/* Seed pills */}
           <div className="flex flex-wrap gap-2">
@@ -1067,11 +1207,14 @@ export default function TournamentDetailPage() {
                           }`}>
                             {match.status}
                           </span>
-                          {!match.slotA.isBye && !match.slotB.isBye && (
+                          {match.slotA.playerId && match.slotB.playerId && match.status !== "COMPLETED" && (
                             <button onClick={() => openScoreboard(match)}
                               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-xl text-xs font-black shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all">
                               <Monitor size={13} /> Open Scoreboard ↗
                             </button>
+                          )}
+                          {match.slotA.playerId && !match.slotB.playerId && match.status !== "COMPLETED" && (
+                            <span className="text-xs text-amber-600 font-bold px-3 py-1 bg-amber-50 rounded-xl border border-amber-100">Waiting for opponent...</span>
                           )}
                           {(match.slotA.isBye || match.slotB.isBye) && (
                             <span className="text-xs text-slate-400 font-bold px-3 py-1 bg-slate-50 rounded-xl">BYE — auto advance</span>

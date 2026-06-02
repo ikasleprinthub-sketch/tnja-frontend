@@ -1,19 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Calendar, 
-  Plus, 
-  MapPin, 
-  Clock, 
+import {
+  Calendar,
+  Plus,
+  MapPin,
+  Clock,
   Search,
   ChevronRight,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Loader2,
-  Filter
+  Filter,
+  ChevronDown,
+  Video,
+  User
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -27,7 +30,22 @@ export default function EventsPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [districts, setDistricts] = useState<any[]>([]);
-  
+  const [eventSections, setEventSections] = useState<string[]>([]);
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+
+  const EVENT_COLORS = [
+    { label: "Black", value: "#000000", gradient: "from-black via-zinc-800 to-zinc-600" },
+    { label: "Orange", value: "#FF7400", gradient: "from-orange-900 via-orange-600 to-[#FF7400]" },
+    { label: "Indigo", value: "#4F46E5", gradient: "from-indigo-900 via-purple-700 to-[#FF7400]" },
+    { label: "Green", value: "#16A34A", gradient: "from-green-900 via-emerald-700 to-emerald-400" },
+    { label: "Red", value: "#DC2626", gradient: "from-red-900 via-red-700 to-rose-400" },
+    { label: "Blue", value: "#2563EB", gradient: "from-blue-900 via-blue-700 to-sky-400" },
+  ];
+
+
+
   const [formData, setFormData] = useState({
     title: "",
     date: "",
@@ -39,9 +57,12 @@ export default function EventsPage() {
     zoneId: "",
     isPaid: false,
     entryFee: "",
+    color: "#FF7400",
+    eventSection: "",
+    meetingLink: "",
   });
 
-  const [toast, setToast] = useState<{msg: string, type: "success" | "error"} | null>(null);
+  const [toast, setToast] = useState<{ msg: string, type: "success" | "error" } | null>(null);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -69,19 +90,45 @@ export default function EventsPage() {
   const fetchDistricts = async () => {
     try {
       const res = await fetch(`${API_BASE}/districts`);
-      if (res.ok) {
-        const json = await res.json();
-        setDistricts(json);
-      }
+      if (res.ok) setDistricts(await res.json());
     } catch (err) {
       console.error("Failed to load districts", err);
+    }
+  };
+
+  const fetchEventSections = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/events/sections`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json: { name: string }[] = await res.json();
+        setEventSections(
+          json.map(s => s.name).filter(n => n.toLowerCase() !== "competition")
+        );
+      } else {
+        setEventSections([]);
+      }
+    } catch {
+      setEventSections([]);
     }
   };
 
   useEffect(() => {
     fetchEvents();
     fetchDistricts();
+    fetchEventSections();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sectionRef.current && !sectionRef.current.contains(e.target as Node))
+        setSectionOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,11 +145,11 @@ export default function EventsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create event");
-      
+
       showToast("Event created and submitted for approval!", "success");
       setIsCreateModalOpen(false);
       setFormData({
-        title: "", date: "", location: "", description: "", level: "DISTRICT", participantType: "ALL", districtId: "", zoneId: "", isPaid: false, entryFee: ""
+        title: "", date: "", location: "", description: "", level: "DISTRICT", participantType: "ALL", districtId: "", zoneId: "", isPaid: false, entryFee: "", color: "#FF7400", eventSection: "", meetingLink: "",
       });
       fetchEvents();
     } catch (err: any) {
@@ -130,9 +177,8 @@ export default function EventsPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
-              toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-            }`}
+            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+              }`}
           >
             {toast.type === "success" ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
             {toast.msg}
@@ -146,11 +192,11 @@ export default function EventsPage() {
           <h1 className="text-4xl font-black text-[#FF7400]">Events</h1>
           <p className="text-slate-500 text-sm mt-1">Create and Monitor events within your jurisdiction</p>
         </div>
-        <div 
+        <div
           className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
           style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
         >
-          <button 
+          <button
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm"
           >
@@ -183,8 +229,8 @@ export default function EventsPage() {
       <div className="flex flex-col md:flex-row gap-4 items-center mb-4">
         <div className="relative flex-grow w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search events"
@@ -192,11 +238,11 @@ export default function EventsPage() {
           />
         </div>
         <div className="relative">
-          <div 
+          <div
             className="p-[1.5px] rounded-[10px] shrink-0 inline-flex shadow-sm"
             style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
           >
-            <button 
+            <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm"
             >
@@ -207,12 +253,11 @@ export default function EventsPage() {
           {isFilterOpen && (
             <div className="absolute top-full mt-2 right-0 bg-white border border-slate-200 shadow-xl rounded-[10px] overflow-hidden z-50 w-44">
               {["ALL", "APPROVED", "PENDING", "REJECTED"].map((f) => (
-                <button 
+                <button
                   key={f}
                   onClick={() => { setFilter(f); setIsFilterOpen(false); }}
-                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${
-                    filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   {f === "ALL" ? "All Events" : f}
                 </button>
@@ -237,12 +282,16 @@ export default function EventsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredEvents.map((event) => (
-            <motion.div 
+            <motion.div
               key={event.id}
               whileHover={{ y: -5 }}
-              className="bg-white rounded-[20px] shadow-xl shadow-slate-200/60 overflow-hidden flex flex-col group"
+              onClick={() => setSelectedEvent(event)}
+              className="bg-white rounded-[20px] shadow-xl shadow-slate-200/60 overflow-hidden flex flex-col group cursor-pointer"
             >
-              <div className="h-44 bg-gradient-to-br from-indigo-900 via-purple-700 to-[#FF7400] relative overflow-hidden">
+              <div
+                className="h-44 relative overflow-hidden"
+                style={{ background: event.color ? `linear-gradient(135deg, ${event.color}dd, ${event.color}88, ${event.color}44)` : "linear-gradient(135deg, #1e1b4b, #7c3aed, #FF7400)" }}
+              >
                 <div className="absolute inset-0 bg-black/20"></div>
                 <div className="absolute inset-0 backdrop-blur-[2px]"></div>
               </div>
@@ -251,7 +300,7 @@ export default function EventsPage() {
                 <h3 className="text-[22px] font-bold text-black mb-5 leading-tight">
                   {event.title}
                 </h3>
-                
+
                 <div className="space-y-3 mb-6">
                   <div className="flex items-center gap-3 text-[14px] text-slate-700">
                     <Calendar size={18} className="text-[#FF7400] stroke-[1.5]" />
@@ -261,6 +310,20 @@ export default function EventsPage() {
                     <MapPin size={18} className="text-[#FF7400] stroke-[1.5]" />
                     {event.location}
                   </div>
+                  {event.meetingLink && (
+                    <div className="flex items-center gap-3 text-[14px] text-slate-700">
+                      <Video size={18} className="text-[#FF7400] stroke-[1.5]" />
+                      <a
+                        href={event.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-orange-600 hover:text-orange-700 hover:underline font-bold transition-all"
+                      >
+                        Join Meeting
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-6 mt-auto">
@@ -270,14 +333,13 @@ export default function EventsPage() {
                 </div>
 
                 {/* Status Box */}
-                <div className={`-mx-6 pl-[20px] pr-6 py-3.5 font-bold text-[15px] ${
-                  event.status === "APPROVED" ? "bg-gradient-to-r from-[#FFF9D6] via-[#FFF9D6] to-transparent text-black border-l-[4px] border-[#FFDA00]" :
+                <div className={`-mx-6 pl-[20px] pr-6 py-3.5 font-bold text-[15px] ${event.status === "APPROVED" ? "bg-gradient-to-r from-[#FFF9D6] via-[#FFF9D6] to-transparent text-black border-l-[4px] border-[#FFDA00]" :
                   event.status === "PENDING" ? "bg-gradient-to-r from-[#FDF0E6] via-[#FDF0E6] to-transparent text-black border-l-[4px] border-[#FF7400]" :
-                  "bg-gradient-to-r from-red-50 to-transparent text-red-600 border-l-[4px] border-red-500"
-                }`}>
-                  {event.status === "APPROVED" ? `Approved by ${event.approvedBy || 'Super Admin'}` : 
-                   event.status === "PENDING" ? "Pending Approval" : 
-                   "Rejected"}
+                    "bg-gradient-to-r from-red-50 to-transparent text-red-600 border-l-[4px] border-red-500"
+                  }`}>
+                  {event.status === "APPROVED" ? `Approved by ${event.approvedBy || 'Super Admin'}` :
+                    event.status === "PENDING" ? "Pending Approval" :
+                      "Rejected"}
                 </div>
               </div>
             </motion.div>
@@ -289,7 +351,7 @@ export default function EventsPage() {
       <AnimatePresence>
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -300,7 +362,7 @@ export default function EventsPage() {
                   <h2 className="text-3xl font-bold text-slate-800 mb-2">Propose New Event</h2>
                   <p className="text-slate-500">Fill in the details to propose a new event.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsCreateModalOpen(false)}
                   className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
                 >
@@ -310,36 +372,98 @@ export default function EventsPage() {
 
               <form className="space-y-6" onSubmit={handleCreate}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  {/* ── Event Section Dropdown ── */}
+                  <div className="md:col-span-2" ref={sectionRef}>
+                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      Event Section
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSectionOpen(o => !o)}
+                        className="w-full flex items-center justify-between px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-[#FF7400]/60 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 transition-all"
+                      >
+                        <span className={`text-sm font-semibold ${formData.eventSection ? "text-slate-800" : "text-slate-400"}`}>
+                          {formData.eventSection || "Select event section"}
+                        </span>
+                        <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${sectionOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {sectionOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute top-full mt-1 left-0 right-0 z-[150] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+                          >
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {eventSections.map((section) => (
+                                <button
+                                  key={section}
+                                  type="button"
+                                  onClick={() => { setFormData(f => ({ ...f, eventSection: section })); setSectionOpen(false); }}
+                                  className={`w-full text-left px-6 py-3 text-sm font-semibold transition-colors ${formData.eventSection === section
+                                    ? "bg-[#FF7400] text-white"
+                                    : "text-slate-700 hover:bg-orange-50 hover:text-[#FF7400]"
+                                    }`}
+                                >
+                                  {section}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {formData.eventSection === "Seminar (Online)" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Meeting Link</label>
+                      <input 
+                        type="url" 
+                        required
+                        value={formData.meetingLink}
+                        onChange={e => setFormData({ ...formData, meetingLink: e.target.value })}
+                        placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                      />
+                    </div>
+                  )}
+
                   <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Event Title</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       required
                       value={formData.title}
-                      onChange={e => setFormData({...formData, title: e.target.value})}
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
                       placeholder="Enter a descriptive title"
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Date</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       required
                       value={formData.date}
-                      onChange={e => setFormData({...formData, date: e.target.value})}
+                      onChange={e => setFormData({ ...formData, date: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Location</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       required
                       value={formData.location}
-                      onChange={e => setFormData({...formData, location: e.target.value})}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
                       placeholder="e.g. Nehru Stadium"
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                     />
@@ -349,7 +473,7 @@ export default function EventsPage() {
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Event Level</label>
                     <select
                       value={formData.level}
-                      onChange={e => setFormData({...formData, level: e.target.value})}
+                      onChange={e => setFormData({ ...formData, level: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                     >
                       <option value="DISTRICT">District Level</option>
@@ -362,7 +486,7 @@ export default function EventsPage() {
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Target Audience</label>
                     <select
                       value={formData.participantType}
-                      onChange={e => setFormData({...formData, participantType: e.target.value})}
+                      onChange={e => setFormData({ ...formData, participantType: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                     >
                       <option value="ALL">Everyone</option>
@@ -377,7 +501,7 @@ export default function EventsPage() {
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Type</label>
                     <select
                       value={formData.isPaid ? "paid" : "free"}
-                      onChange={e => setFormData({...formData, isPaid: e.target.value === "paid", entryFee: e.target.value === "free" ? "" : formData.entryFee})}
+                      onChange={e => setFormData({ ...formData, isPaid: e.target.value === "paid", entryFee: e.target.value === "free" ? "" : formData.entryFee })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                     >
                       <option value="free">Free</option>
@@ -388,12 +512,12 @@ export default function EventsPage() {
                   {formData.isPaid && (
                     <div className="md:col-span-1">
                       <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         required
                         min="1"
                         value={formData.entryFee}
-                        onChange={e => setFormData({...formData, entryFee: e.target.value})}
+                        onChange={e => setFormData({ ...formData, entryFee: e.target.value })}
                         placeholder="Enter amount in ₹"
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                       />
@@ -403,10 +527,10 @@ export default function EventsPage() {
                   {formData.level === "DISTRICT" && (
                     <div className="md:col-span-2">
                       <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Select District</label>
-                      <select 
+                      <select
                         required
                         value={formData.districtId}
-                        onChange={e => setFormData({...formData, districtId: e.target.value})}
+                        onChange={e => setFormData({ ...formData, districtId: e.target.value })}
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                       >
                         <option value="">Select District</option>
@@ -420,11 +544,11 @@ export default function EventsPage() {
                   {formData.level === "ZONE" && (
                     <div className="md:col-span-2">
                       <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Zone Identifier</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         required
                         value={formData.zoneId}
-                        onChange={e => setFormData({...formData, zoneId: e.target.value})}
+                        onChange={e => setFormData({ ...formData, zoneId: e.target.value })}
                         placeholder="e.g. North Zone"
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                       />
@@ -432,11 +556,39 @@ export default function EventsPage() {
                   )}
 
                   <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Event Banner Color</label>
+                    <div className="flex gap-3 flex-wrap">
+                      {EVENT_COLORS.map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, color: c.value })}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition-all ${formData.color === c.value
+                            ? "border-[#FF7400] shadow-md scale-105"
+                            : "border-slate-200 hover:border-slate-300"
+                            }`}
+                        >
+                          <span
+                            className="w-5 h-5 rounded-full border border-white/30 shadow-sm shrink-0"
+                            style={{ background: c.value }}
+                          />
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Preview */}
+                    <div
+                      className="mt-3 h-12 rounded-xl overflow-hidden"
+                      style={{ background: `linear-gradient(135deg, ${formData.color}dd, ${formData.color}88, ${formData.color}44)` }}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
-                    <textarea 
+                    <textarea
                       required
                       value={formData.description}
-                      onChange={e => setFormData({...formData, description: e.target.value})}
+                      onChange={e => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Detailed description of the event..."
                       className="w-full h-32 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none"
                     ></textarea>
@@ -444,14 +596,14 @@ export default function EventsPage() {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
                     className="flex-grow py-5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
                   >
                     Discard
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     disabled={submitLoading}
                     className="flex-grow py-5 bg-[#FF7400] text-white font-bold rounded-2xl shadow-xl shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2"
@@ -460,6 +612,128 @@ export default function EventsPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Details Modal */}
+      <AnimatePresence>
+        {selectedEvent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-2xl bg-white rounded-[2.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <span className="inline-block px-3 py-1.5 bg-[#FFEEDC] text-black text-[12px] font-bold rounded-md mb-2">
+                    {selectedEvent.eventSection || "Event"}
+                  </span>
+                  <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">{selectedEvent.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                >
+                  <XCircle size={28} />
+                </button>
+              </div>
+
+              {/* Event Cover / Banner Preview */}
+              <div
+                className="h-40 rounded-3xl mb-8 relative overflow-hidden flex items-end p-6 border-b-[4px] border-[#FFDA00]"
+                style={{ background: selectedEvent.color ? `linear-gradient(135deg, ${selectedEvent.color}dd, ${selectedEvent.color}88, ${selectedEvent.color}44)` : "linear-gradient(135deg, #1e1b4b, #7c3aed, #FF7400)" }}
+              >
+                <div className="absolute inset-0 bg-black/20"></div>
+                <div className="absolute inset-0 backdrop-blur-[1px]"></div>
+                <div className="relative z-10 text-white font-bold text-sm bg-black/30 backdrop-blur-md px-4 py-2 rounded-xl">
+                  {selectedEvent.level} Level Event
+                </div>
+              </div>
+
+              {/* Grid Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
+                    <p className="text-sm font-bold text-slate-700">{new Date(selectedEvent.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location / Venue</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.location}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Audience</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.participantType === "ALL" ? "Everyone" : `${selectedEvent.participantType}s Only`}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <span className="font-bold text-md text-[#FF7400]">₹</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Entry Fee</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.isPaid ? `₹ ${selectedEvent.entryFee}` : 'Free Entry'}</p>
+                  </div>
+                </div>
+
+                {selectedEvent.meetingLink && (
+                  <div className="flex items-center gap-3 md:col-span-2 border-t pt-4 mt-2">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                      <Video size={20} />
+                    </div>
+                    <div className="flex-grow">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online Meeting Link</p>
+                      <a
+                        href={selectedEvent.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-bold text-orange-600 hover:text-orange-700 hover:underline break-all"
+                      >
+                        {selectedEvent.meetingLink}
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="mb-8">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Event Details & Description</h4>
+                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 text-sm text-slate-600 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                  {selectedEvent.description || "No description provided."}
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(null)}
+                  className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all font-semibold"
+                >
+                  Close Details
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

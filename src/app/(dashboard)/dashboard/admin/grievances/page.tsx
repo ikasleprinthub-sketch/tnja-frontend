@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
+import {
   MessageSquare,
   Search,
-  Filter,
   Loader2,
   Clock,
   User,
@@ -12,7 +11,12 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Send
+  Send,
+  ImageIcon,
+  FileText,
+  Paperclip,
+  Download,
+  ZoomIn,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -29,6 +33,7 @@ export default function AdminGrievancePage() {
   const [submitting, setSubmitting] = useState(false);
   const [closing, setClosing] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setUserRole(localStorage.getItem("userRole"));
@@ -194,7 +199,7 @@ export default function AdminGrievancePage() {
                     </span>
                   </div>
                   <h3 className="text-xl font-bold text-slate-800 group-hover:text-brand-orange transition-colors">{g.subject}</h3>
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-4 text-sm text-slate-500 flex-wrap">
                     <span className="flex items-center gap-1.5 font-medium">
                       <User size={16} />
                       {g.userName} ({g.userId})
@@ -203,6 +208,12 @@ export default function AdminGrievancePage() {
                       <Clock size={16} />
                       {new Date(g.createdAt).toLocaleDateString()}
                     </span>
+                    {((g.images?.length > 0) || (g.documents?.length > 0)) && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
+                        <Paperclip size={11} />
+                        {(g.images?.length || 0) + (g.documents?.length || 0)} attachment{((g.images?.length || 0) + (g.documents?.length || 0)) > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center">
@@ -231,9 +242,9 @@ export default function AdminGrievancePage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="p-8 space-y-6">
+              <div className="p-8 space-y-6 overflow-y-auto flex-grow">
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -265,6 +276,64 @@ export default function AdminGrievancePage() {
                   </p>
                 </div>
 
+                {/* Attached Images */}
+                {selectedGrievance.images?.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <ImageIcon size={14} /> Attached Images ({selectedGrievance.images.length})
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {selectedGrievance.images.map((url: string, i: number) => (
+                        <div
+                          key={i}
+                          className="relative group rounded-2xl overflow-hidden border border-slate-200 aspect-square cursor-pointer"
+                          onClick={() => setLightboxUrl(url)}
+                        >
+                          <img
+                            src={url}
+                            alt={`attachment-${i + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                            <ZoomIn size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attached Documents */}
+                {selectedGrievance.documents?.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <FileText size={14} /> Attached Documents ({selectedGrievance.documents.length})
+                    </p>
+                    <div className="space-y-2">
+                      {selectedGrievance.documents.map((url: string, i: number) => {
+                        const fileName = url.split("/").pop() || `Document ${i + 1}`;
+                        return (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center shrink-0">
+                                <FileText size={16} className="text-white" />
+                              </div>
+                              <span className="text-sm font-semibold text-blue-800 truncate max-w-xs">{decodeURIComponent(fileName)}</span>
+                            </div>
+                            <Download size={16} className="text-blue-500 shrink-0 group-hover:text-blue-700" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {selectedGrievance.reply && (
                   <div className="space-y-2">
                     <p className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-4">Current Reply</p>
@@ -283,7 +352,7 @@ export default function AdminGrievancePage() {
                   </div>
                 )}
 
-                {(userRole === "SUPER_ADMIN" || userRole === "CEO") && selectedGrievance.status !== "CLOSED" && (
+                {["SUPER_ADMIN", "CEO", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole || "") && selectedGrievance.status !== "CLOSED" && (
                   <div className="space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -327,6 +396,35 @@ export default function AdminGrievancePage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Lightbox */}
+      <AnimatePresence>
+        {lightboxUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxUrl(null)}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out"
+          >
+            <motion.img
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              src={lightboxUrl}
+              alt="full view"
+              className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+              onClick={e => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

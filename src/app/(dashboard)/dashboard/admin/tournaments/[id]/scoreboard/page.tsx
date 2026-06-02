@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Maximize, Download } from "lucide-react";
+import { Trophy, Maximize, Save, Download, RefreshCw } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Score {
@@ -28,37 +28,38 @@ function fmt(s: number) {
 function ScoreboardInner() {
   const sp = useSearchParams();
 
-  const fighterAId      = sp.get("fighterAId")      || "";
-  const fighterBId      = sp.get("fighterBId")      || "";
-  const fighterAName    = sp.get("fighterAName")    || "FIGHTER WHITE";
-  const fighterBName    = sp.get("fighterBName")    || "FIGHTER BLUE";
-  const fighterAClub    = sp.get("fighterAClub")    || "Club A";
-  const fighterBClub    = sp.get("fighterBClub")    || "Club B";
-  const weightCategory  = sp.get("weightCategory")  || "— kg";
+  // A is White (Left), B is Blue (Right)
+  const fighterAName    = sp.get("fighterAName")    || "BHAVANA RUSTAM SINGH";
+  const fighterBName    = sp.get("fighterBName")    || "YOGESHWARI ANIL KALYANKAR";
+  const fighterAClub    = sp.get("fighterAClub")    || "Raigad";
+  const fighterBClub    = sp.get("fighterBClub")    || "Dhule";
+  const weightCategory  = sp.get("weightCategory")  || "48 kg";
   const matchNumber     = sp.get("matchNumber")     || "1";
-  const matNumber       = sp.get("matNumber")       || "1";
-  const tournamentTitle = sp.get("tournamentTitle") || "TNJA Championship";
+  const matNumber       = sp.get("matNumber")       || "2";
+  const tournamentTitle = sp.get("tournamentTitle") || "52th SENIOR STATE & NATIONAL SELECTION JUDO CHAMPIONSHIP 2025-26, MUMBAI";
 
-  const [scoreA, setScoreA] = useState<Score>(emptyScore());
-  const [scoreB, setScoreB] = useState<Score>(emptyScore());
+  // ── Scores ────────────────────────────────────────────────────────────────
+  const [scoreA, setScoreA] = useState<Score>(emptyScore()); // White
+  const [scoreB, setScoreB] = useState<Score>(emptyScore()); // Blue
   const [winner, setWinner] = useState<Fighter | null>(null);
   const [winMethod, setWinMethod] = useState("");
 
-  const [timeLeft, setTimeLeft]         = useState(MATCH_SECONDS);
+  // ── Timer ─────────────────────────────────────────────────────────────────
+  const [timeLeft, setTimeLeft]       = useState(MATCH_SECONDS);
   const [durationInput, setDurationInput] = useState(4);
-  const [running, setRunning]           = useState(false);
+  const [running, setRunning]         = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
-  const [goldenScore, setGoldenScore]   = useState(false);
+  const [goldenScore, setGoldenScore] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Osaekomi ──────────────────────────────────────────────────────────────
   const [osaActive, setOsaActive] = useState(false);
   const [osaFor, setOsaFor]       = useState<Fighter | null>(null);
   const [osaTime, setOsaTime]     = useState(0);
-  const osaRef         = useRef<ReturnType<typeof setInterval> | null>(null);
-  const osaMilestones  = useRef({ wazaAri: false });
+  const osaRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const osaMilestones = useRef({ wazaAri: false });
 
-  const [resultSent, setResultSent] = useState(false);
-
+  // ── Auto-win checker ──────────────────────────────────────────────────────
   const checkWin = useCallback(
     (sA: Score, sB: Score): { w: Fighter | null; m: string } => {
       if (sA.ippon >= 1)   return { w: "A", m: "Ippon" };
@@ -68,48 +69,52 @@ function ScoreboardInner() {
       if (sA.shido >= 3)   return { w: "B", m: "Hansoku-make (3× Shido)" };
       if (sB.shido >= 3)   return { w: "A", m: "Hansoku-make (3× Shido)" };
       return { w: null, m: "" };
-    }, []
+    },
+    []
   );
 
-  const sendResultToBracket = useCallback((f: Fighter, method: string) => {
-    const matchId = sp.get("matchId") || "";
-    if (!matchId) return;
-    const winnerId   = f === "A" ? fighterAId   : fighterBId;
-    const winnerName = f === "A" ? fighterAName : fighterBName;
-    const winnerClub = f === "A" ? fighterAClub : fighterBClub;
-    const channel = new BroadcastChannel("tnja_match_results");
-    channel.postMessage({ matchId, winnerId, winnerName, winnerClub, winMethod: method });
-    channel.close();
-    setResultSent(true);
-  }, [sp, fighterAId, fighterBId, fighterAName, fighterBName, fighterAClub, fighterBClub]);
+  const declareWinner = useCallback(
+    (f: Fighter, method: string) => {
+      setWinner(f);
+      setWinMethod(method);
+      setRunning(false);
+      setOsaActive(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (osaRef.current)   clearInterval(osaRef.current);
+    },
+    []
+  );
 
-  const declareWinner = useCallback((f: Fighter, method: string) => {
-    setWinner(f); setWinMethod(method); setRunning(false); setOsaActive(false);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (osaRef.current)   clearInterval(osaRef.current);
-  }, []);
-
+  // ── Add score ─────────────────────────────────────────────────────────────
   const canScore = running && !winner;
 
-  const addScore = useCallback((fighter: Fighter, field: keyof Score) => {
-    if (!canScore) return;
-    setRunning(false);
-    if (fighter === "A") {
-      setScoreA((prev) => {
-        const next = { ...prev, [field]: prev[field] + 1 };
-        const { w, m } = checkWin(next, scoreB);
-        if (w) setTimeout(() => declareWinner(w, m), 50);
-        return next;
-      });
-    } else {
-      setScoreB((prev) => {
-        const next = { ...prev, [field]: prev[field] + 1 };
-        const { w, m } = checkWin(scoreA, next);
-        if (w) setTimeout(() => declareWinner(w, m), 50);
-        return next;
-      });
-    }
-  }, [running, canScore, scoreA, scoreB, checkWin, declareWinner]);
+  const addScore = useCallback(
+    (fighter: Fighter, field: keyof Score) => {
+      if (!canScore) return;
+
+      // Only pause timer if it's running
+      if (running) {
+        setRunning(false);
+      }
+
+      if (fighter === "A") {
+        setScoreA((prev) => {
+          const next = { ...prev, [field]: prev[field] + 1 };
+          const { w, m } = checkWin(next, scoreB);
+          if (w) setTimeout(() => declareWinner(w, m), 50);
+          return next;
+        });
+      } else {
+        setScoreB((prev) => {
+          const next = { ...prev, [field]: prev[field] + 1 };
+          const { w, m } = checkWin(scoreA, next);
+          if (w) setTimeout(() => declareWinner(w, m), 50);
+          return next;
+        });
+      }
+    },
+    [running, canScore, scoreA, scoreB, checkWin, declareWinner]
+  );
 
   const undoScore = (fighter: Fighter, field: keyof Score) => {
     if (winner) return;
@@ -117,13 +122,20 @@ function ScoreboardInner() {
     else                 setScoreB((p) => ({ ...p, [field]: Math.max(0, p[field] - 1) }));
   };
 
+  // ── Timer Actions ────────────────────────────────────────────────────────
   const toggleTimer = () => {
     if (winner) return;
-    if (!running) { setRunning(true); setTimerStarted(true); }
-    else          { setRunning(false); }
+    if (!running) {
+      setRunning(true);
+      setTimerStarted(true);
+    } else {
+      setRunning(false);
+    }
   };
 
-  const stopTimer = () => setRunning(false);
+  const stopTimer = () => {
+    setRunning(false);
+  };
 
   useEffect(() => {
     if (running) {
@@ -144,6 +156,7 @@ function ScoreboardInner() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [running]);
 
+  // ── Osaekomi tick ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (osaActive && osaFor) {
       osaRef.current = setInterval(() => {
@@ -151,13 +164,33 @@ function ScoreboardInner() {
           const next = t + 1;
           if (next === OSAEKOMI_WAZAARI_S && !osaMilestones.current.wazaAri) {
             osaMilestones.current.wazaAri = true;
-            if (osaFor === "A") setScoreA((p) => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; const { w, m } = checkWin(nx, scoreB); if (w) setTimeout(() => declareWinner(w, m), 50); return nx; });
-            else                setScoreB((p) => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; const { w, m } = checkWin(scoreA, nx); if (w) setTimeout(() => declareWinner(w, m), 50); return nx; });
+            if (osaFor === "A") setScoreA((p) => {
+              const nx = { ...p, wazaAri: p.wazaAri + 1 };
+              const { w, m } = checkWin(nx, scoreB);
+              if (w) setTimeout(() => declareWinner(w, m), 50);
+              return nx;
+            });
+            else setScoreB((p) => {
+              const nx = { ...p, wazaAri: p.wazaAri + 1 };
+              const { w, m } = checkWin(scoreA, nx);
+              if (w) setTimeout(() => declareWinner(w, m), 50);
+              return nx;
+            });
           }
           if (next >= OSAEKOMI_IPPON_S) {
-            clearInterval(osaRef.current!); setOsaActive(false); setRunning(false);
-            if (osaFor === "A") setScoreA((p) => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => declareWinner("A", "Ippon (Osaekomi 20s)"), 50); return nx; });
-            else                setScoreB((p) => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => declareWinner("B", "Ippon (Osaekomi 20s)"), 50); return nx; });
+            clearInterval(osaRef.current!);
+            setOsaActive(false);
+            setRunning(false);
+            if (osaFor === "A") setScoreA((p) => {
+              const nx = { ...p, ippon: p.ippon + 1 };
+              setTimeout(() => declareWinner("A", "Ippon (Osaekomi 20s)"), 50);
+              return nx;
+            });
+            else setScoreB((p) => {
+              const nx = { ...p, ippon: p.ippon + 1 };
+              setTimeout(() => declareWinner("B", "Ippon (Osaekomi 20s)"), 50);
+              return nx;
+            });
             return next;
           }
           return next;
@@ -171,26 +204,38 @@ function ScoreboardInner() {
 
   const startOsaekomi = (fighter: Fighter) => {
     if (winner) return;
-    setOsaActive(true); setOsaFor(fighter); setOsaTime(0);
+    setOsaActive(true);
+    setOsaFor(fighter);
+    setOsaTime(0);
     osaMilestones.current = { wazaAri: false };
     if (!running) setRunning(true);
   };
 
-  const toketa = () => { setOsaActive(false); setOsaFor(null); setOsaTime(0); if (osaRef.current) clearInterval(osaRef.current); };
+  const toketa = () => {
+    setOsaActive(false);
+    setOsaFor(null);
+    setOsaTime(0);
+    if (osaRef.current) clearInterval(osaRef.current);
+  };
 
   const handleTimeUp = () => {
     const aScore = scoreA.wazaAri * 10 + scoreA.yuko + scoreA.ippon * 100;
     const bScore = scoreB.wazaAri * 10 + scoreB.yuko + scoreB.ippon * 100;
-    if (aScore > bScore) declareWinner("A", "Decision");
+    if (aScore > bScore)      declareWinner("A", "Decision");
     else if (bScore > aScore) declareWinner("B", "Decision");
-    else { setGoldenScore(true); setTimeLeft(MATCH_SECONDS); }
+    else {
+      setGoldenScore(true);
+      setTimeLeft(MATCH_SECONDS);
+    }
   };
 
   const resetAll = () => {
     setScoreA(emptyScore()); setScoreB(emptyScore());
-    setWinner(null); setWinMethod(""); setResultSent(false);
-    setGoldenScore(false); setTimeLeft(durationInput * 60);
-    setRunning(false); setTimerStarted(false); toketa();
+    setWinner(null); setWinMethod("");
+    setGoldenScore(false); 
+    setTimeLeft(durationInput * 60);
+    setRunning(false); setTimerStarted(false);
+    toketa();
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,323 +245,298 @@ function ScoreboardInner() {
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-    else document.exitFullscreen();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
   };
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // ─── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex flex-col font-sans select-none overflow-hidden">
-
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 py-2 bg-[#111] border-b border-white/10 shrink-0">
-        <div className="text-[#FF7400] text-[10px] font-black uppercase tracking-[0.2em]">TNJA</div>
-        <h1 className="text-white/80 text-xs font-bold text-center truncate flex-grow mx-6">{tournamentTitle}</h1>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black text-white/40 bg-white/5 px-2.5 py-1 rounded">{weightCategory}</span>
-          <span className="text-[10px] font-black text-white/40 bg-white/5 px-2.5 py-1 rounded">MAT {matNumber}</span>
-          <span className="text-[10px] font-black text-white/40 bg-white/5 px-2.5 py-1 rounded">#{matchNumber}</span>
-          <button onClick={toggleFullscreen} className="ml-1 text-white/30 hover:text-white transition-colors">
-            <Maximize size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* Golden Score strip */}
-      {goldenScore && (
-        <div className="bg-amber-500 text-black text-[10px] font-black text-center py-1 tracking-[0.3em] uppercase animate-pulse shrink-0">
-          ⚡ GOLDEN SCORE — SUDDEN DEATH
-        </div>
-      )}
-
-      {/* ── Main 3-column scoreboard ───────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-
-        {/* ── WHITE (Fighter A) ── */}
-        <div className="flex-1 bg-white flex flex-col">
-
-          {/* Name bar */}
-          <div className="px-6 pt-5 pb-4 border-b-2 border-gray-100">
-            <div className="text-[9px] font-black text-gray-400 uppercase tracking-[0.25em] mb-1">WHITE</div>
-            <div className="text-2xl font-black text-black leading-tight">{fighterAName}</div>
-            <div className="text-sm font-bold text-gray-400 mt-0.5">{fighterAClub}</div>
-          </div>
-
-          {/* Big scores */}
-          <div className="flex justify-center items-end gap-6 px-4 py-5 border-b border-gray-100">
-            {/* Ippon */}
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreA.ippon > 0 ? "text-emerald-600" : "text-gray-200"}`}>{scoreA.ippon}</div>
-              <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Ippon</div>
-            </div>
-            <div className="w-px h-16 bg-gray-100 self-center" />
-            {/* Waza-ari */}
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreA.wazaAri > 0 ? "text-amber-500" : "text-gray-200"}`}>{scoreA.wazaAri}</div>
-              <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Waza-ari</div>
-            </div>
-            <div className="w-px h-16 bg-gray-100 self-center" />
-            {/* Shido */}
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreA.shido > 0 ? "text-red-500" : "text-gray-200"}`}>{scoreA.shido}</div>
-              <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Shido</div>
-            </div>
-          </div>
-
-          {/* Osaekomi indicator */}
-          {osaActive && osaFor === "A" && (
-            <div className="mx-4 mt-2 bg-amber-400 text-black font-black text-center py-2 rounded-xl text-sm animate-pulse">
-              🤼 OSAEKOMI {osaTime}s
-            </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="mt-auto px-4 pb-5 space-y-2">
-            <div className="grid grid-cols-4 gap-2">
-              <button onClick={() => addScore("A", "ippon")} disabled={!canScore}
-                className="py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +IPPON
-              </button>
-              <button onClick={() => addScore("A", "wazaAri")} disabled={!canScore}
-                className="py-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +WAZA
-              </button>
-              <button onClick={() => addScore("A", "yuko")} disabled={!canScore}
-                className="py-4 bg-slate-400 hover:bg-slate-500 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +YUKO
-              </button>
-              <button onClick={() => addScore("A", "shido")} disabled={!canScore}
-                className="py-4 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 active:scale-95 font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                SHIDO
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => undoScore("A", "ippon")}
-                className="py-3 bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700 font-black rounded-xl text-xs transition-all">
-                ↩ UNDO
-              </button>
-              <button onClick={() => declareWinner("A", "Decision")}
-                className="py-3 bg-black hover:bg-gray-900 active:scale-95 text-white font-black rounded-xl text-xs transition-all">
-                🏆 WIN — WHITE
-              </button>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-[9999] bg-[#090b10] flex flex-col font-sans overflow-y-auto">
+      <div className="max-w-[1400px] w-full mx-auto p-4 flex flex-col gap-4">
+        
+        {/* ── Top Header Bar ─────────────────────────────────────────────── */}
+        <div className="bg-white text-black rounded-lg py-3 px-6 flex items-center justify-center relative shadow-md border border-gray-200">
+           {/* Logos placeholders */}
+           <div className="absolute left-6 top-1/2 -translate-y-1/2 flex gap-4">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200"><span className="text-[10px] font-bold text-blue-800">LOGO</span></div>
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center border border-red-200"><span className="text-[10px] font-bold text-red-800">LOGO</span></div>
+           </div>
+           <h1 className="text-xl md:text-2xl font-bold tracking-wide text-center">
+             {tournamentTitle}
+           </h1>
         </div>
 
-        {/* ── CENTER — Timer + Osaekomi + Controls ── */}
-        <div className="w-[220px] shrink-0 bg-[#0d0d0d] flex flex-col items-center border-x border-white/10">
-
-          {/* Timer */}
-          <div className="flex-1 flex flex-col items-center justify-center w-full px-4">
-            <div className={`text-[64px] font-black tabular-nums leading-none drop-shadow-lg tracking-tight ${
-              goldenScore ? "text-amber-400" : running ? "text-[#ff3333]" : "text-white/60"
-            }`}>
-              {fmt(timeLeft)}
-            </div>
-            {goldenScore && <div className="text-amber-400 text-[9px] font-black uppercase tracking-widest mt-1">Golden Score</div>}
-
-            {/* Duration picker (only before start) */}
-            {!timerStarted && (
-              <div className="flex items-center gap-1.5 mt-3">
-                <span className="text-white/30 text-[10px] font-bold">Duration</span>
-                <input type="number" value={durationInput} onChange={handleDurationChange}
-                  className="w-12 bg-white/10 text-white text-center font-black py-1 rounded text-sm" />
-                <span className="text-white/30 text-[10px] font-bold">min</span>
-              </div>
-            )}
-
-            {/* Start / End */}
-            <div className="flex gap-2 w-full mt-4">
-              <button onClick={toggleTimer} className={`flex-1 py-3 font-black text-xs rounded-xl transition-all active:scale-95 ${
-                running ? "bg-amber-500 text-black" : "bg-emerald-600 text-white hover:bg-emerald-500"
-              }`}>
-                {running ? "⏸ PAUSE" : "▶ START"}
-              </button>
-              <button onClick={stopTimer}
-                className="flex-1 py-3 bg-red-700 hover:bg-red-600 text-white font-black text-xs rounded-xl transition-all active:scale-95">
-                ⏹ END
-              </button>
+        {/* ── Info & Duration Bar ────────────────────────────────────────── */}
+        <div className="flex items-center justify-between text-white bg-[#10141e] rounded-lg p-3 border border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-400">Duration</span>
+            <input 
+              type="number" 
+              value={durationInput} 
+              onChange={handleDurationChange}
+              className="w-16 bg-white text-black text-center font-bold py-1 rounded" 
+            />
+            <span className="text-sm font-semibold text-gray-400">min</span>
+          </div>
+          
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-gray-400 font-bold mb-1">Match Information</span>
+            <div className="flex gap-2">
+              <div className="bg-white text-black font-bold px-6 py-1 rounded text-sm min-w-[80px] text-center">{weightCategory}</div>
+              <div className="bg-white text-black font-bold px-6 py-1 rounded text-sm min-w-[60px] text-center">{matNumber}</div>
+              <div className="bg-white text-black font-bold px-6 py-1 rounded text-sm min-w-[60px] text-center">{matchNumber}</div>
             </div>
           </div>
-
-          {/* Osaekomi controls */}
-          <div className="w-full px-3 pb-3 space-y-2">
-            <div className="border-t border-white/10 pt-3">
-              <div className="text-white/25 text-[8px] font-black uppercase tracking-widest text-center mb-2">Osaekomi</div>
-              {osaActive && (
-                <div className={`text-center text-3xl font-black tabular-nums mb-2 animate-pulse ${osaTime >= 15 ? "text-emerald-400" : "text-amber-400"}`}>
-                  {osaTime}s
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-1.5">
-                <button onClick={() => startOsaekomi("A")} disabled={!!winner}
-                  className="py-2.5 bg-white/10 hover:bg-white/20 text-white font-black text-[9px] rounded-lg disabled:opacity-30 active:scale-95 transition-all">
-                  WHITE
-                </button>
-                <button onClick={() => startOsaekomi("B")} disabled={!!winner}
-                  className="py-2.5 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 font-black text-[9px] rounded-lg disabled:opacity-30 active:scale-95 transition-all">
-                  BLUE
-                </button>
-                <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")} disabled={!osaActive || !!winner}
-                  className="py-2.5 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-black text-[9px] rounded-lg disabled:opacity-30 active:scale-95 transition-all">
-                  SWITCH
-                </button>
-                <button onClick={toketa} disabled={!osaActive}
-                  className="py-2.5 bg-red-600/30 hover:bg-red-600/50 text-red-300 font-black text-[9px] rounded-lg disabled:opacity-30 active:scale-95 transition-all">
-                  TOKETA
-                </button>
-              </div>
-            </div>
-            <button onClick={resetAll}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white/30 hover:text-white font-black text-[9px] rounded-lg transition-all active:scale-95">
-              ↺ RESET ALL
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-400">Controls</span>
+            <button className="flex items-center gap-2 bg-[#090b10] border border-white/20 hover:bg-white/10 px-4 py-1.5 rounded text-sm font-semibold transition-colors">
+              <RefreshCw size={14} className="text-blue-400" /> Scorecard
             </button>
           </div>
         </div>
 
-        {/* ── BLUE (Fighter B) ── */}
-        <div className="flex-1 bg-[#0e2a6e] flex flex-col">
+        {/* ── Main Scoreboard Area ───────────────────────────────────────── */}
+        <div className="flex gap-4 items-stretch min-h-[500px]">
+          
+          {/* Fighter A — WHITE */}
+          <div className="flex-[1.2] bg-white rounded-xl overflow-hidden flex flex-col border-2 border-gray-200 shadow-xl">
+            {/* Fighter Info */}
+            <div className="flex items-center gap-4 p-4 border-b border-gray-100">
+              <div className="w-20 h-24 bg-gray-200 rounded object-cover overflow-hidden flex-shrink-0 border border-gray-300 flex items-center justify-center">
+                <span className="text-xs text-gray-400">Photo</span>
+              </div>
+              <div className="flex-1 flex flex-col gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold mb-1 block">Name</label>
+                  <input type="text" readOnly value={fighterAName} className="w-full border border-gray-300 rounded px-3 py-2 text-black font-bold bg-gray-50 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold mb-1 block">Club / Team</label>
+                  <input type="text" readOnly value={fighterAClub} className="w-full border border-gray-300 rounded px-3 py-2 text-black font-bold bg-gray-50 focus:outline-none" />
+                </div>
+              </div>
+            </div>
 
-          {/* Name bar */}
-          <div className="px-6 pt-5 pb-4 border-b-2 border-blue-800/50">
-            <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.25em] mb-1">BLUE</div>
-            <div className="text-2xl font-black text-white leading-tight">{fighterBName}</div>
-            <div className="text-sm font-bold text-blue-300 mt-0.5">{fighterBClub}</div>
+            {/* Scores */}
+            <div className="flex justify-between px-8 py-6">
+              <ScoreBox label="IPPON" value={scoreA.ippon} color="text-black" />
+              <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} color="text-black" />
+              <ScoreBox label="YUKO" value={scoreA.yuko} color="text-black" />
+              <ScoreBox label="SHIDO" value={scoreA.shido} color="text-black" />
+            </div>
+
+            {/* Actions */}
+            <div className="px-4 pb-6 mt-auto">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <span className="text-sm font-bold text-gray-700 mb-3 block">Actions</span>
+                <div className="grid grid-cols-5 gap-2 mb-2">
+                  <ActionBtn label="Ippon" onClick={() => addScore("A", "ippon")} disabled={!canScore} className="bg-[#16a34a] text-white hover:bg-[#15803d]" />
+                  <ActionBtn label="Waza-ari" onClick={() => addScore("A", "wazaAri")} disabled={!canScore} className="bg-[#eab308] text-white hover:bg-[#ca8a04]" />
+                  <ActionBtn label="Yuko" onClick={() => addScore("A", "yuko")} disabled={!canScore} className="bg-[#6b7280] text-white hover:bg-[#4b5563]" />
+                  <ActionBtn label="Shido" onClick={() => addScore("A", "shido")} disabled={!canScore} className="bg-white text-gray-800 border-2 border-[#eab308] hover:bg-gray-100" />
+                  <ActionBtn label="Red Card" onClick={() => addScore("A", "shido")} disabled={!canScore} className="bg-white text-gray-800 border-2 border-red-500 hover:bg-gray-100" />
+                </div>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  <div className="col-span-1">
+                     <ActionBtn label="Undo" onClick={() => undoScore("A", "ippon")} className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 w-full" />
+                  </div>
+                  <div className="col-span-2">
+                     <ActionBtn label="Declare Winner" onClick={() => declareWinner("A", "Decision")} className="bg-[#16a34a] text-white hover:bg-[#15803d] w-full" />
+                  </div>
+                </div>
+                
+                {/* Selectors */}
+                <div className="flex gap-2">
+                  <div className="flex flex-1 gap-1">
+                    <select className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600 bg-white">
+                      <option>Select Technique</option>
+                    </select>
+                    <button className="px-4 py-2 text-green-700 font-bold text-sm border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">Apply</button>
+                  </div>
+                  <div className="flex flex-1 gap-1">
+                    <select className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600 bg-white">
+                      <option>Select Penalty</option>
+                    </select>
+                    <button className="px-4 py-2 text-[#eab308] font-bold text-sm border border-[#fef08a] bg-[#fef9c3] rounded-lg hover:bg-[#fef08a]">Apply</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Big scores */}
-          <div className="flex justify-center items-end gap-6 px-4 py-5 border-b border-blue-800/30">
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreB.ippon > 0 ? "text-emerald-400" : "text-white/15"}`}>{scoreB.ippon}</div>
-              <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Ippon</div>
+          {/* ── CENTER COLUMN ──────────────────────────────────────────────── */}
+          <div className="w-[280px] shrink-0 flex flex-col gap-3">
+            <div className="bg-[#10141e] border border-white/10 rounded-xl flex flex-col items-center justify-center p-6 shadow-xl flex-1">
+              <div className="text-[80px] font-black text-[#ff3333] tabular-nums leading-none tracking-tight drop-shadow-[0_0_15px_rgba(255,51,51,0.3)]">
+                {fmt(timeLeft)}
+              </div>
+              <div className="flex gap-2 w-full mt-6">
+                <button onClick={toggleTimer} className="flex-1 border border-white/20 bg-transparent hover:bg-white/10 text-white font-bold py-2 rounded text-sm transition-colors uppercase tracking-wider">
+                  {running ? "Pause" : "Start"}
+                </button>
+                <button onClick={stopTimer} className="flex-1 border border-white/20 bg-transparent hover:bg-white/10 text-white font-bold py-2 rounded text-sm transition-colors uppercase tracking-wider">
+                  End
+                </button>
+              </div>
             </div>
-            <div className="w-px h-16 bg-blue-800/40 self-center" />
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreB.wazaAri > 0 ? "text-amber-400" : "text-white/15"}`}>{scoreB.wazaAri}</div>
-              <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Waza-ari</div>
+
+            <div className="bg-[#10141e] border border-white/10 rounded-xl p-4 flex flex-col gap-2 shadow-xl">
+              <div className="text-center text-xs font-semibold text-gray-400 mb-1 border-b border-white/10 pb-2">Osaekomi Timer Controls</div>
+              {osaActive && (
+                 <div className="text-center text-3xl font-black text-[#eab308] tabular-nums mb-1">{osaTime}s</div>
+              )}
+              <button onClick={() => startOsaekomi("A")} className="w-full py-2 bg-transparent border border-white/30 text-white text-sm font-semibold rounded hover:bg-white/10 transition-colors">
+                Osaekomi (White)
+              </button>
+              <button onClick={() => startOsaekomi("B")} className="w-full py-2 bg-transparent border border-blue-500/50 text-blue-300 text-sm font-semibold rounded hover:bg-blue-900/30 transition-colors">
+                Osaekomi (Blue)
+              </button>
+              <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")} className="w-full py-2 bg-[#eab308] hover:bg-[#ca8a04] text-black text-sm font-bold rounded transition-colors">
+                Switch Hold
+              </button>
+              <button onClick={toketa} className="w-full py-2 bg-[#dc2626] hover:bg-[#b91c1c] text-white text-sm font-bold rounded transition-colors">
+                Toketa
+              </button>
             </div>
-            <div className="w-px h-16 bg-blue-800/40 self-center" />
-            <div className="flex flex-col items-center">
-              <div className={`text-[72px] font-black leading-none tabular-nums transition-colors ${scoreB.shido > 0 ? "text-red-400" : "text-white/15"}`}>{scoreB.shido}</div>
-              <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">Shido</div>
+
+            <div className="flex flex-col gap-2 mt-auto">
+              <button onClick={toggleFullscreen} className="w-full py-2.5 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold rounded transition-colors">
+                Fullscreen
+              </button>
+              <button onClick={resetAll} className="w-full py-2.5 bg-transparent border border-white/20 hover:bg-white/10 text-white text-sm font-bold rounded transition-colors">
+                Reset
+              </button>
             </div>
           </div>
 
-          {/* Osaekomi indicator */}
-          {osaActive && osaFor === "B" && (
-            <div className="mx-4 mt-2 bg-amber-400 text-black font-black text-center py-2 rounded-xl text-sm animate-pulse">
-              🤼 OSAEKOMI {osaTime}s
+          {/* Fighter B — BLUE */}
+          <div className="flex-[1.2] bg-[#02143b] rounded-xl overflow-hidden flex flex-col border-2 border-blue-900 shadow-xl relative">
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 pointer-events-none" />
+            
+            {/* Fighter Info */}
+            <div className="flex items-center gap-4 p-4 border-b border-blue-800/50 relative z-10">
+              <div className="w-20 h-24 bg-white rounded object-cover overflow-hidden flex-shrink-0 border border-gray-300 flex items-center justify-center">
+                <span className="text-xs text-gray-500">Photo</span>
+              </div>
+              <div className="flex-1 flex flex-col gap-2">
+                <div>
+                  <label className="text-xs text-blue-300 font-semibold mb-1 block">Name</label>
+                  <input type="text" readOnly value={fighterBName} className="w-full border border-blue-800/50 rounded px-3 py-2 text-white font-bold bg-[#041d4a] focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-blue-300 font-semibold mb-1 block">Club / Team</label>
+                  <input type="text" readOnly value={fighterBClub} className="w-full border border-blue-800/50 rounded px-3 py-2 text-white font-bold bg-[#041d4a] focus:outline-none" />
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Action buttons */}
-          <div className="mt-auto px-4 pb-5 space-y-2">
-            <div className="grid grid-cols-4 gap-2">
-              <button onClick={() => addScore("B", "ippon")} disabled={!canScore}
-                className="py-4 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +IPPON
-              </button>
-              <button onClick={() => addScore("B", "wazaAri")} disabled={!canScore}
-                className="py-4 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +WAZA
-              </button>
-              <button onClick={() => addScore("B", "yuko")} disabled={!canScore}
-                className="py-4 bg-slate-600 hover:bg-slate-500 active:scale-95 text-white font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                +YUKO
-              </button>
-              <button onClick={() => addScore("B", "shido")} disabled={!canScore}
-                className="py-4 bg-transparent border-2 border-red-400 text-red-300 hover:bg-red-900/30 active:scale-95 font-black rounded-xl text-xs disabled:opacity-25 transition-all">
-                SHIDO
-              </button>
+            {/* Scores */}
+            <div className="flex justify-between px-8 py-6 relative z-10">
+              <ScoreBox label="IPPON" value={scoreB.ippon} color="text-white" />
+              <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} color="text-white" />
+              <ScoreBox label="YUKO" value={scoreB.yuko} color="text-white" />
+              <ScoreBox label="SHIDO" value={scoreB.shido} color="text-blue-200" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => undoScore("B", "ippon")}
-                className="py-3 bg-blue-900/60 hover:bg-blue-900 active:scale-95 text-blue-200 font-black rounded-xl text-xs transition-all">
-                ↩ UNDO
-              </button>
-              <button onClick={() => declareWinner("B", "Decision")}
-                className="py-3 bg-blue-500 hover:bg-blue-400 active:scale-95 text-white font-black rounded-xl text-xs transition-all">
-                🏆 WIN — BLUE
-              </button>
+
+            {/* Actions */}
+            <div className="px-4 pb-6 mt-auto relative z-10">
+              <div className="bg-[#0f2a63] p-4 rounded-xl border border-blue-800/50">
+                <span className="text-sm font-bold text-blue-200 mb-3 block">Actions</span>
+                <div className="grid grid-cols-5 gap-2 mb-2">
+                  <ActionBtn label="Ippon" onClick={() => addScore("B", "ippon")} disabled={!canScore} className="bg-[#16a34a] text-white hover:bg-[#15803d]" />
+                  <ActionBtn label="Waza-ari" onClick={() => addScore("B", "wazaAri")} disabled={!canScore} className="bg-[#eab308] text-white hover:bg-[#ca8a04]" />
+                  <ActionBtn label="Yuko" onClick={() => addScore("B", "yuko")} disabled={!canScore} className="bg-[#6b7280] text-white hover:bg-[#4b5563]" />
+                  <ActionBtn label="Shido" onClick={() => addScore("B", "shido")} disabled={!canScore} className="bg-transparent text-white border-2 border-[#eab308] hover:bg-blue-900/50" />
+                  <ActionBtn label="Red Card" onClick={() => addScore("B", "shido")} disabled={!canScore} className="bg-transparent text-white border-2 border-red-500 hover:bg-blue-900/50" />
+                </div>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  <div className="col-span-1">
+                     <ActionBtn label="Undo" onClick={() => undoScore("B", "ippon")} className="bg-white text-gray-800 hover:bg-gray-200 w-full" />
+                  </div>
+                  <div className="col-span-2">
+                     <ActionBtn label="Declare Winner" onClick={() => declareWinner("B", "Decision")} className="bg-[#2563eb] text-white hover:bg-[#1d4ed8] w-full" />
+                  </div>
+                </div>
+                
+                {/* Selectors */}
+                <div className="flex gap-2">
+                  <div className="flex flex-1 gap-1">
+                    <select className="flex-1 border border-blue-800 rounded-lg px-3 py-2 text-sm text-blue-200 bg-[#041d4a]">
+                      <option>Select Technique</option>
+                    </select>
+                    <button className="px-4 py-2 text-green-400 font-bold text-sm border border-green-800 bg-green-900/30 rounded-lg hover:bg-green-900/50">Apply</button>
+                  </div>
+                  <div className="flex flex-1 gap-1">
+                    <select className="flex-1 border border-blue-800 rounded-lg px-3 py-2 text-sm text-blue-200 bg-[#041d4a]">
+                      <option>Select Penalty</option>
+                    </select>
+                    <button className="px-4 py-2 text-[#eab308] font-bold text-sm border border-yellow-800 bg-yellow-900/30 rounded-lg hover:bg-yellow-900/50">Apply</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Bottom bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 py-2 bg-[#111] border-t border-white/10 shrink-0">
-        <div className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em]">TNJA © 2026</div>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-white/70 rounded text-[10px] font-bold transition-colors">
-            <Download size={10} /> PDF
+        {/* ── Bottom Controls ────────────────────────────────────────────── */}
+        <div className="flex justify-center gap-3 mt-2">
+          <button className="flex items-center gap-2 px-5 py-2 bg-transparent border border-white/20 text-white rounded text-sm font-semibold hover:bg-white/10 transition-colors">
+            Save to PDF
           </button>
-          <button
-            onClick={() => winner && sendResultToBracket(winner, winMethod)}
-            disabled={!winner || resultSent}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-[10px] font-black transition-all active:scale-95 ${
-              resultSent ? "bg-emerald-900/50 text-emerald-400 cursor-default" :
-              winner ? "bg-[#FF7400] text-white hover:bg-[#E56900] shadow-lg shadow-orange-500/20" :
-              "bg-white/5 text-white/20 cursor-not-allowed"
-            }`}
-          >
-            🏆 {resultSent ? "Sent to Bracket ✓" : "Send to Bracket"}
+          <button className="flex items-center gap-2 px-5 py-2 bg-[#16a34a] text-white rounded text-sm font-bold hover:bg-[#15803d] transition-colors shadow-lg">
+            Save Match (localStorage)
+          </button>
+          <button className="flex items-center gap-2 px-5 py-2 bg-transparent border border-white/20 text-white rounded text-sm font-semibold hover:bg-white/10 transition-colors">
+            Load Last Match
           </button>
         </div>
+        
+        <div className="text-center mt-2 pb-6 text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">
+          MAHAJUDO © BLACKTROUNCE STUDIO
+        </div>
+
       </div>
 
-      {/* ── Winner overlay ──────────────────────────────────────────────────── */}
+      {/* ── Winner overlay ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {winner && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-md">
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 backdrop-blur-md">
             <motion.div
-              initial={{ scale: 0.75, opacity: 0, y: 30 }}
+              initial={{ scale: 0.7, opacity: 0, y: 40 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              className={`text-center px-10 py-12 max-w-sm w-full mx-6 rounded-3xl shadow-2xl border ${
-                winner === "A"
-                  ? "bg-white border-gray-200"
-                  : "bg-[#0e2a6e] border-blue-700"
-              }`}
+              transition={{ type: "spring", stiffness: 280, damping: 22 }}
+              className="text-center px-10 py-12 max-w-md w-full mx-6 bg-gradient-to-b from-[#1a1a2e] to-[#0d0d14] border border-white/10 rounded-3xl shadow-2xl"
             >
               {/* Trophy */}
               <motion.div
                 initial={{ scale: 0 }} animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
-                className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-[#FF7400] rounded-full flex items-center justify-center mx-auto mb-5 shadow-xl shadow-orange-500/30">
-                <Trophy size={36} className="text-white" />
+                className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-orange-500/40">
+                <Trophy size={44} className="text-white" />
               </motion.div>
 
-              <div className={`text-[9px] font-black uppercase tracking-[0.35em] mb-2 ${winner === "A" ? "text-gray-400" : "text-blue-400"}`}>
+              <p className={`text-xs font-black uppercase tracking-[0.3em] mb-3 ${winner === "A" ? "text-gray-300" : "text-blue-400"}`}>
                 {winner === "A" ? "WHITE WINS" : "BLUE WINS"}
-              </div>
-              <div className={`text-3xl font-black leading-tight mb-1 ${winner === "A" ? "text-black" : "text-white"}`}>
+              </p>
+              <h2 className="text-3xl font-black text-white leading-tight mb-1">
                 {winner === "A" ? fighterAName : fighterBName}
-              </div>
-              <div className={`text-sm font-bold mb-3 ${winner === "A" ? "text-gray-400" : "text-blue-300"}`}>
+              </h2>
+              <p className="text-white/40 font-bold text-sm mb-4">
                 {winner === "A" ? fighterAClub : fighterBClub}
-              </div>
-              <div className={`inline-flex px-4 py-1.5 rounded-xl font-black text-sm mb-7 ${
-                winner === "A" ? "bg-black/5 text-black/60" : "bg-white/10 text-white/70"
-              }`}>
+              </p>
+              <div className="inline-flex px-5 py-2 bg-[#FF7400]/20 border border-[#FF7400]/30 rounded-2xl text-[#FF7400] font-black text-sm mb-8">
                 {winMethod}
               </div>
 
-              <button
-                onClick={() => winner && sendResultToBracket(winner, winMethod)}
-                disabled={resultSent}
-                className={`w-full py-4 rounded-2xl font-black text-sm transition-all mb-2 active:scale-95 ${
-                  resultSent
-                    ? "bg-emerald-500/20 text-emerald-400 cursor-default"
-                    : "bg-[#FF7400] hover:bg-[#E56900] text-white shadow-lg shadow-orange-500/20"
-                }`}
-              >
-                {resultSent ? "✓ Result Sent to Bracket" : "🏆 Send Result to Bracket"}
-              </button>
               <button onClick={resetAll}
-                className={`w-full py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
-                  winner === "A" ? "bg-black/5 hover:bg-black/10 text-black/50" : "bg-white/10 hover:bg-white/15 text-white/50"
-                }`}>
+                className="w-full py-4 bg-white/10 hover:bg-white/15 rounded-2xl font-black text-sm text-white/70 hover:text-white transition-all">
                 ↺ New Match / Reset
               </button>
             </motion.div>
@@ -527,11 +547,29 @@ function ScoreboardInner() {
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function ScoreBox({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[11px] font-bold tracking-wider text-gray-500">{label}</span>
+      <span className={`text-[40px] font-black tabular-nums leading-none ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+function ActionBtn({ label, onClick, className, disabled }: { label: string; onClick: () => void; className?: string; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} className={`py-2 rounded text-xs font-bold transition-all ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : ''} ${className}`}>
+      {label}
+    </button>
+  );
+}
+
 export default function ScoreboardPage() {
   return (
     <Suspense fallback={
-      <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-white/30 text-xs font-black uppercase tracking-[0.3em]">Loading scoreboard...</div>
+      <div className="fixed inset-0 z-[9999] bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-white/40 text-sm font-black uppercase tracking-widest">Loading scoreboard...</div>
       </div>
     }>
       <ScoreboardInner />

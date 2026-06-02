@@ -1,15 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Send, 
-  History, 
-  AlertCircle, 
-  CheckCircle2, 
+import {
+  Send,
+  History,
+  AlertCircle,
+  CheckCircle2,
   MessageSquare,
   Loader2,
   Clock,
-  Reply
+  Reply,
+  ImageIcon,
+  FileText,
+  X,
+  Paperclip
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -18,6 +22,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 export default function GrievancePage() {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
+  const [images, setImages] = useState<File[]>([]);
+  const [documents, setDocuments] = useState<File[]>([]);
   const [grievances, setGrievances] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -64,17 +70,21 @@ export default function GrievancePage() {
     setMessage({ type: "", text: "" });
 
     try {
+      const token = localStorage.getItem("token");
+      const form = new FormData();
+      form.append("userId", userData.user.id);
+      form.append("userName", userData.user.fullName);
+      form.append("userEmail", userData.user.email);
+      form.append("role", userData.role);
+      form.append("subject", subject);
+      form.append("description", description);
+      images.forEach(f => form.append("images", f));
+      documents.forEach(f => form.append("documents", f));
+
       const res = await fetch(`${API_BASE}/grievances`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: userData.user.id,
-          userName: userData.user.fullName,
-          userEmail: userData.user.email,
-          role: userData.role,
-          subject,
-          description
-        })
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
       });
 
       const data = await res.json();
@@ -82,6 +92,8 @@ export default function GrievancePage() {
         setMessage({ type: "success", text: "Your grievance has been submitted successfully." });
         setSubject("");
         setDescription("");
+        setImages([]);
+        setDocuments([]);
         fetchGrievances(userData.user.id);
         setTimeout(() => setActiveTab("history"), 2000);
       } else {
@@ -94,10 +106,27 @@ export default function GrievancePage() {
     }
   };
 
+  const ADMIN_ROLES = ["SUPER_ADMIN", "CEO", "STATE_PRESIDENT", "STATE_SECRETARY"];
+
   if (fetching) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-10 h-10 text-[#FF7400] animate-spin" />
+      </div>
+    );
+  }
+
+  if (ADMIN_ROLES.includes(userData?.role)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4 max-w-md mx-auto">
+        <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Access Restricted</h2>
+        <p className="text-slate-500 text-sm">
+          Admin roles cannot submit grievances. You can view and respond to grievances from the
+          <a href="/dashboard/admin/grievances" className="text-[#FF7400] font-bold ml-1 underline">Admin Grievances panel</a>.
+        </p>
       </div>
     );
   }
@@ -189,6 +218,66 @@ export default function GrievancePage() {
                   placeholder="Please describe your grievance in detail..."
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF7400]/20 focus:border-[#FF7400] transition-all outline-none resize-none"
                 />
+              </div>
+
+              {/* Image Upload */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <ImageIcon size={16} className="text-[#FF7400]" /> Attach Images (optional)
+                </label>
+                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-[#FF7400]/50 hover:bg-orange-50/30 transition-all">
+                  <Paperclip size={18} className="text-slate-400" />
+                  <span className="text-sm text-slate-500 font-medium">Click to upload images (JPG, PNG, etc.)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={e => setImages(Array.from(e.target.files || []))}
+                  />
+                </label>
+                {images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {images.map((f, i) => (
+                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs font-semibold text-orange-700">
+                        <ImageIcon size={12} /> {f.name}
+                        <button type="button" onClick={() => setImages(imgs => imgs.filter((_, j) => j !== i))}>
+                          <X size={12} className="hover:text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Document Upload */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <FileText size={16} className="text-[#FF7400]" /> Attach Documents (optional)
+                </label>
+                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-[#FF7400]/50 hover:bg-orange-50/30 transition-all">
+                  <Paperclip size={18} className="text-slate-400" />
+                  <span className="text-sm text-slate-500 font-medium">Click to upload documents (PDF, DOC, etc.)</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    multiple
+                    className="hidden"
+                    onChange={e => setDocuments(Array.from(e.target.files || []))}
+                  />
+                </label>
+                {documents.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {documents.map((f, i) => (
+                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700">
+                        <FileText size={12} /> {f.name}
+                        <button type="button" onClick={() => setDocuments(docs => docs.filter((_, j) => j !== i))}>
+                          <X size={12} className="hover:text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {message.text && (

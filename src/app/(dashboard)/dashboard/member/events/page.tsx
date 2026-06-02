@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Calendar, 
@@ -10,7 +10,10 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Video,
+  User
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -23,6 +26,10 @@ export default function MemberEventsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [districts, setDistricts] = useState<any[]>([]);
   const [userRole, setUserRole] = useState<string>("GUEST");
+  const [eventSections, setEventSections] = useState<string[]>([]);
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -35,6 +42,9 @@ export default function MemberEventsPage() {
     zoneId: "",
     isPaid: false,
     entryFee: "",
+    color: "#FF7400",
+    eventSection: "",
+    meetingLink: "",
   });
 
   const [toast, setToast] = useState<{msg: string, type: "success" | "error"} | null>(null);
@@ -76,6 +86,25 @@ export default function MemberEventsPage() {
     }
   };
 
+  const fetchEventSections = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/events/sections`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json: { name: string }[] = await res.json();
+        setEventSections(
+          json.map(s => s.name).filter(n => n.toLowerCase() !== "competition")
+        );
+      } else {
+        setEventSections([]);
+      }
+    } catch {
+      setEventSections([]);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -88,7 +117,17 @@ export default function MemberEventsPage() {
     }
     fetchEvents();
     fetchDistricts();
+    fetchEventSections();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sectionRef.current && !sectionRef.current.contains(e.target as Node))
+        setSectionOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -214,7 +253,7 @@ export default function MemberEventsPage() {
       showToast("Event created and submitted for approval! It will appear here once approved.", "success");
       setIsCreateModalOpen(false);
       setFormData({
-        title: "", date: "", location: "", description: "", level: "DISTRICT", participantType: "ALL", districtId: "", zoneId: "", isPaid: false, entryFee: ""
+        title: "", date: "", location: "", description: "", level: "DISTRICT", participantType: "ALL", districtId: "", zoneId: "", isPaid: false, entryFee: "", color: "#FF7400", eventSection: "", meetingLink: ""
       });
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -295,7 +334,8 @@ export default function MemberEventsPage() {
             <motion.div 
               key={event.id}
               whileHover={{ y: -5 }}
-              className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col group"
+              onClick={() => setSelectedEvent(event)}
+              className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col group cursor-pointer"
             >
               <div className="h-32 bg-slate-100 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#FF7400]/20 to-[#FFDA00]/20 group-hover:opacity-100 transition-opacity"></div>
@@ -324,6 +364,20 @@ export default function MemberEventsPage() {
                     <MapPin size={16} className="text-[#FF7400]" />
                     {event.location}
                   </div>
+                  {event.meetingLink && (
+                    <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                      <Video size={16} className="text-[#FF7400]" />
+                      <a
+                        href={event.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-orange-600 hover:text-orange-700 hover:underline font-bold transition-all"
+                      >
+                        Join Meeting
+                      </a>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-sm text-slate-500 font-medium pt-1">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${event.isPaid ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
                       {event.isPaid ? `Entry Fee: ₹${event.entryFee}` : 'Free Entry'}
@@ -364,7 +418,7 @@ export default function MemberEventsPage() {
                       }
                       return (
                         <button 
-                          onClick={() => handleApply(event)}
+                          onClick={(e) => { e.stopPropagation(); handleApply(event); }}
                           className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                         >
                           Apply Now
@@ -404,6 +458,66 @@ export default function MemberEventsPage() {
 
               <form className="space-y-6" onSubmit={handleCreate}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2" ref={sectionRef}>
+                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      Event Section
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSectionOpen(o => !o)}
+                        className="w-full flex items-center justify-between px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-[#FF7400]/60 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 transition-all"
+                      >
+                        <span className={`text-sm font-semibold ${formData.eventSection ? "text-slate-800" : "text-slate-400"}`}>
+                          {formData.eventSection || "Select event section"}
+                        </span>
+                        <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${sectionOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {sectionOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute top-full mt-1 left-0 right-0 z-[150] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+                          >
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {eventSections.map((section) => (
+                                <button
+                                  key={section}
+                                  type="button"
+                                  onClick={() => { setFormData(f => ({ ...f, eventSection: section })); setSectionOpen(false); }}
+                                  className={`w-full text-left px-6 py-3 text-sm font-semibold transition-colors ${formData.eventSection === section
+                                    ? "bg-[#FF7400] text-white"
+                                    : "text-slate-700 hover:bg-orange-50 hover:text-[#FF7400]"
+                                    }`}
+                                >
+                                  {section}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {formData.eventSection === "Seminar (Online)" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Meeting Link</label>
+                      <input 
+                        type="url" 
+                        required
+                        value={formData.meetingLink}
+                        onChange={e => setFormData({ ...formData, meetingLink: e.target.value })}
+                        placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                      />
+                    </div>
+                  )}
+
                   <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Event Title</label>
                     <input 
@@ -554,6 +668,139 @@ export default function MemberEventsPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Details Modal */}
+      <AnimatePresence>
+        {selectedEvent && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-2xl bg-white rounded-[2.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <span className="inline-block px-3 py-1.5 bg-[#FFEEDC] text-black text-[12px] font-bold rounded-md mb-2">
+                    {selectedEvent.eventSection || "Event"}
+                  </span>
+                  <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">{selectedEvent.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                >
+                  <XCircle size={28} />
+                </button>
+              </div>
+
+              {/* Event Cover / Banner Preview */}
+              <div
+                className="h-40 rounded-3xl mb-8 relative overflow-hidden flex items-end p-6 border-b-[4px] border-[#FFDA00]"
+                style={{ background: selectedEvent.color ? `linear-gradient(135deg, ${selectedEvent.color}dd, ${selectedEvent.color}88, ${selectedEvent.color}44)` : "linear-gradient(135deg, #1e1b4b, #7c3aed, #FF7400)" }}
+              >
+                <div className="absolute inset-0 bg-black/20"></div>
+                <div className="absolute inset-0 backdrop-blur-[1px]"></div>
+                <div className="relative z-10 text-white font-bold text-sm bg-black/30 backdrop-blur-md px-4 py-2 rounded-xl">
+                  {selectedEvent.level} Level Event
+                </div>
+              </div>
+
+              {/* Grid Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</p>
+                    <p className="text-sm font-bold text-slate-700">{new Date(selectedEvent.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location / Venue</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.location}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Audience</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.participantType === "ALL" ? "Everyone" : `${selectedEvent.participantType}s Only`}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                    <span className="font-bold text-md text-[#FF7400]">₹</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Entry Fee</p>
+                    <p className="text-sm font-bold text-slate-700">{selectedEvent.isPaid ? `₹ ${selectedEvent.entryFee}` : 'Free Entry'}</p>
+                  </div>
+                </div>
+
+                {selectedEvent.meetingLink && (
+                  <div className="flex items-center gap-3 md:col-span-2 border-t pt-4 mt-2">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-[#FF7400] flex items-center justify-center">
+                      <Video size={20} />
+                    </div>
+                    <div className="flex-grow">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Online Meeting Link</p>
+                      <a
+                        href={selectedEvent.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-bold text-orange-600 hover:text-orange-700 hover:underline break-all"
+                      >
+                        {selectedEvent.meetingLink}
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="mb-8">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Event Details & Description</h4>
+                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 text-sm text-slate-600 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+                  {selectedEvent.description || "No description provided."}
+                </div>
+              </div>
+
+              {/* Close / Action Button */}
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(null)}
+                  className="flex-grow py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all font-semibold"
+                >
+                  Close Details
+                </button>
+                {userRole !== "CLUB" && !selectedEvent.registrations?.[0] && (
+                  <button
+                    onClick={() => {
+                      handleApply(selectedEvent);
+                      setSelectedEvent(null);
+                    }}
+                    className="flex-grow py-4 bg-[#FF7400] text-white font-bold rounded-2xl shadow-xl shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all font-semibold"
+                  >
+                    Apply Now
+                  </button>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
