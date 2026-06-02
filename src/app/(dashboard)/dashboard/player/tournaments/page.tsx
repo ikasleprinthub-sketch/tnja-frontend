@@ -15,19 +15,55 @@ import {
   ArrowRight,
   AlertCircle,
   Users,
+  Building2,
+  Globe2,
+  Flag,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
+type Tab = "club" | "district" | "stateNational";
+
+const TABS: { key: Tab; label: string; icon: React.ReactNode; desc: string }[] = [
+  {
+    key: "club",
+    label: "Club Tournaments",
+    icon: <Building2 size={16} />,
+    desc: "Private tournaments organised by your club",
+  },
+  {
+    key: "district",
+    label: "District Matches",
+    icon: <Flag size={16} />,
+    desc: "Official matches in your district",
+  },
+  {
+    key: "stateNational",
+    label: "State & National",
+    icon: <Globe2 size={16} />,
+    desc: "State-level and national championship matches",
+  },
+];
+
+const levelColors: Record<string, string> = {
+  DISTRICT: "bg-blue-100 text-blue-700",
+  ZONE: "bg-purple-100 text-purple-700",
+  STATE: "bg-emerald-100 text-emerald-700",
+  NATIONAL: "bg-amber-100 text-amber-800",
+};
+
 export default function PlayerTournamentsPage() {
-  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("club");
+  const [clubTournaments, setClubTournaments] = useState<any[]>([]);
+  const [districtMatches, setDistrictMatches] = useState<any[]>([]);
+  const [stateNationalMatches, setStateNationalMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [paying, setPaying] = useState<string | null>(null);
   const [playerData, setPlayerData] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [registerModal, setRegisterModal] = useState<any | null>(null);
-  const [physicalDetails, setPhysicalDetails] = useState({ height: '', weight: '' });
+  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "" });
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -49,16 +85,24 @@ export default function PlayerTournamentsPage() {
     }
   }, []);
 
-  const fetchTournaments = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/tournaments/player`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setTournaments(json);
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [clubRes, matchesRes] = await Promise.all([
+        fetch(`${API_BASE}/tournaments/player`, { headers }),
+        fetch(`${API_BASE}/tournaments/player/matches`, { headers }),
+      ]);
+
+      if (clubRes.ok) {
+        setClubTournaments(await clubRes.json());
+      }
+      if (matchesRes.ok) {
+        const data = await matchesRes.json();
+        setDistrictMatches(data.district ?? []);
+        setStateNationalMatches(data.stateAndNational ?? []);
       }
     } catch (err) {
       console.error("Failed to load tournaments", err);
@@ -69,8 +113,8 @@ export default function PlayerTournamentsPage() {
 
   useEffect(() => {
     fetchProfile();
-    fetchTournaments();
-  }, [fetchProfile, fetchTournaments]);
+    fetchAll();
+  }, [fetchProfile, fetchAll]);
 
   const loadRazorpayScript = () =>
     new Promise((resolve) => {
@@ -93,14 +137,17 @@ export default function PlayerTournamentsPage() {
     setPaying(tournament.id);
     try {
       const token = localStorage.getItem("token");
-
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("Razorpay SDK failed to load.");
 
       const orderRes = await fetch(`${API_BASE}/tournaments/player/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ tournamentId: tournament.id, height: physicalDetails.height, weight: physicalDetails.weight }),
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          height: physicalDetails.height,
+          weight: physicalDetails.weight,
+        }),
       });
 
       const orderData = await orderRes.json();
@@ -108,7 +155,7 @@ export default function PlayerTournamentsPage() {
 
       if (orderData.isFree) {
         showToast(orderData.message, "success");
-        fetchTournaments();
+        fetchAll();
         return;
       }
 
@@ -116,7 +163,7 @@ export default function PlayerTournamentsPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: "TNJA Club Tournament",
+        name: "TNJA Tournament",
         description: `Entry Fee – ${tournament.title}`,
         order_id: orderData.id,
         handler: async function (response: any) {
@@ -135,8 +182,8 @@ export default function PlayerTournamentsPage() {
             });
             const verifyData = await verifyRes.json();
             if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
-            showToast("Payment successful! You are registered. Awaiting club approval.", "success");
-            fetchTournaments();
+            showToast("Payment successful! You are registered. Awaiting approval.", "success");
+            fetchAll();
           } catch (err: any) {
             showToast("Payment verification failed: " + err.message, "error");
           }
@@ -156,13 +203,9 @@ export default function PlayerTournamentsPage() {
     } finally {
       setPaying(null);
       setRegisterModal(null);
-      setPhysicalDetails({ height: '', weight: '' });
+      setPhysicalDetails({ height: "", weight: "" });
     }
   };
-
-  const filteredTournaments = tournaments.filter(
-    (t) => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const isMemberPaid = playerData?.isPaid || playerData?.isBPL;
 
@@ -172,8 +215,29 @@ export default function PlayerTournamentsPage() {
     REJECTED: { label: "Rejected", color: "bg-red-50 text-red-700 border-red-200" },
   };
 
+  const currentList = (() => {
+    let list =
+      activeTab === "club"
+        ? clubTournaments
+        : activeTab === "district"
+        ? districtMatches
+        : stateNationalMatches;
+    if (searchQuery) {
+      list = list.filter((t) =>
+        t.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return list;
+  })();
+
+  const emptyMessages: Record<Tab, string> = {
+    club: "Your club has not created any tournaments yet.",
+    district: "No district matches found in your area.",
+    stateNational: "No state or national matches are scheduled yet.",
+  };
+
   return (
-    <div className="space-y-8 relative">
+    <div className="space-y-6 relative">
       {/* Toast */}
       <AnimatePresence>
         {toast && (
@@ -193,23 +257,46 @@ export default function PlayerTournamentsPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-800">Club Tournaments</h1>
-        <p className="text-slate-500 mt-1">Private tournaments organized by your club</p>
+        <h1 className="text-3xl font-bold text-slate-800">Matches & Tournaments</h1>
+        <p className="text-slate-500 mt-1">View and register for tournaments at every level</p>
       </div>
 
-      {/* Membership Payment Gate */}
+      {/* Membership gate */}
       {!isMemberPaid && (
         <div className="flex items-start gap-4 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-700">
           <Lock size={20} className="shrink-0 mt-0.5" />
           <div>
             <p className="font-bold">Membership Payment Required</p>
             <p className="text-sm mt-1">
-              You must complete your TNJA membership payment before you can register for any tournament. Go to your{" "}
-              <a href="/dashboard/player" className="underline font-semibold">Dashboard</a> to pay.
+              You must complete your TNJA membership payment before registering for any tournament.{" "}
+              <a href="/dashboard/player" className="underline font-semibold">Go to Dashboard</a> to pay.
             </p>
           </div>
         </div>
       )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => { setActiveTab(tab.key); setSearchQuery(""); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              activeTab === tab.key
+                ? "bg-[#FF7400] text-white shadow-md shadow-[#FF7400]/30"
+                : "bg-white border border-slate-200 text-slate-600 hover:border-[#FF7400]/40 hover:text-[#FF7400]"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab description */}
+      <p className="text-sm text-slate-400 -mt-2">
+        {TABS.find((t) => t.key === activeTab)?.desc}
+      </p>
 
       {/* Search */}
       <div className="relative w-full max-w-md">
@@ -223,114 +310,171 @@ export default function PlayerTournamentsPage() {
         />
       </div>
 
-      {/* Tournaments */}
+      {/* Tournament Cards */}
       {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 size={40} className="animate-spin text-[#FF7400]" />
         </div>
-      ) : filteredTournaments.length === 0 ? (
+      ) : currentList.length === 0 ? (
         <div className="text-center py-20 bg-white border border-slate-200 rounded-3xl">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
             <Trophy size={32} />
           </div>
           <h3 className="text-lg font-bold text-slate-500">No Tournaments Available</h3>
-          <p className="text-slate-400 text-sm mt-2">Your club has not created any tournaments yet.</p>
+          <p className="text-slate-400 text-sm mt-2">{emptyMessages[activeTab]}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTournaments.map((tournament) => {
-            const myReg = tournament.myRegistration;
-            const isFull = tournament.registrationCount >= tournament.totalSlots;
-            const isPayingThis = paying === tournament.id;
-            const isFree = tournament.entryFee === 0 || (tournament.allowBPL && playerData?.isBPL);
+          <AnimatePresence mode="wait">
+            {currentList.map((tournament) => {
+              const myReg = tournament.myRegistration;
+              const isFull = tournament.registrationCount >= tournament.totalSlots;
+              const isPayingThis = paying === tournament.id;
+              const isFree = tournament.entryFee === 0 || (tournament.allowBPL && playerData?.isBPL);
+              const isClubTab = activeTab === "club";
 
-            return (
-              <motion.div
-                key={tournament.id}
-                whileHover={{ y: -4 }}
-                className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col group"
-              >
-                {/* Card Top Banner */}
-                <div className="h-28 bg-gradient-to-br from-[#FF7400]/15 to-amber-100 relative overflow-hidden flex items-center justify-center">
-                  <Trophy size={40} className="text-[#FF7400]/40" />
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-600 shadow-sm">
-                    <Lock size={10} /> Private
+              return (
+                <motion.div
+                  key={tournament.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  whileHover={{ y: -4 }}
+                  className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col group"
+                >
+                  {/* Card Top Banner */}
+                  <div
+                    className={`h-28 relative overflow-hidden flex items-center justify-center ${
+                      tournament.level === "NATIONAL"
+                        ? "bg-gradient-to-br from-amber-400/20 to-amber-100"
+                        : tournament.level === "STATE"
+                        ? "bg-gradient-to-br from-emerald-400/20 to-emerald-100"
+                        : tournament.level === "DISTRICT"
+                        ? "bg-gradient-to-br from-blue-400/20 to-blue-100"
+                        : "bg-gradient-to-br from-[#FF7400]/15 to-amber-100"
+                    }`}
+                  >
+                    <Trophy size={40} className="text-current opacity-20" />
+
+                    {/* Level Badge */}
+                    <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold ${levelColors[tournament.level] ?? "bg-slate-100 text-slate-600"}`}>
+                      {tournament.level}
+                    </div>
+
+                    {/* Private badge for club */}
+                    {isClubTab && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-600 shadow-sm">
+                        <Lock size={10} /> Private
+                      </div>
+                    )}
+
+                    {/* Club name for non-club tabs */}
+                    {!isClubTab && tournament.club && (
+                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-600 shadow-sm max-w-[140px] truncate">
+                        {tournament.club.name}
+                      </div>
+                    )}
+
+                    {isFull && (
+                      <div className="absolute bottom-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+                        FULL
+                      </div>
+                    )}
                   </div>
-                  {isFull && (
-                    <div className="absolute bottom-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
-                      FULL
-                    </div>
-                  )}
-                </div>
 
-                <div className="p-6 flex flex-col flex-grow">
-                  <h3 className="text-lg font-bold text-slate-800 mb-3 leading-tight">{tournament.title}</h3>
+                  <div className="p-6 flex flex-col flex-grow">
+                    <h3 className="text-lg font-bold text-slate-800 mb-3 leading-tight">{tournament.title}</h3>
 
-                  <div className="space-y-2 mb-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                      <Clock size={14} className="text-[#FF7400]" />
-                      {new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      {tournament.dateTo && ` - ${new Date(tournament.dateTo).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
+                    <div className="space-y-2 mb-4 text-sm text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <Clock size={14} className="text-[#FF7400]" />
+                        {new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        {tournament.dateTo &&
+                          ` – ${new Date(tournament.dateTo).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin size={14} className="text-[#FF7400]" />
+                        {tournament.location}
+                      </div>
+                      {!isClubTab && tournament.club?.district?.name && (
+                        <div className="flex items-center gap-2">
+                          <Flag size={14} className="text-[#FF7400]" />
+                          {tournament.club.district.name} District
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <IndianRupee size={14} className="text-[#FF7400]" />
+                        Entry Fee:{" "}
+                        <span className="font-bold text-slate-700">
+                          {tournament.entryFee === 0 ? "Free" : `₹${tournament.entryFee}`}
+                        </span>
+                        {tournament.allowBPL && (
+                          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold ml-1">BPL FREE</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users size={14} className="text-[#FF7400]" />
+                        {tournament.registrationCount ?? 0} / {tournament.totalSlots} Slots Filled
+                      </div>
+                      <div className="flex gap-2 flex-wrap mt-1">
+                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
+                          Age: {tournament.ageFrom}–{tournament.ageTo}
+                        </span>
+                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
+                          {tournament.gender}
+                        </span>
+                        {tournament.beltEligibility && (
+                          <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">
+                            Belt: {tournament.beltEligibility}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin size={14} className="text-[#FF7400]" />
-                      {tournament.location}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <IndianRupee size={14} className="text-[#FF7400]" />
-                      Entry Fee: <span className="font-bold text-slate-700">{tournament.entryFee === 0 ? "Free" : `₹${tournament.entryFee}`}</span>
-                      {tournament.allowBPL && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold ml-2">BPL FREE</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users size={14} className="text-[#FF7400]" />
-                      {tournament.registrationCount ?? 0} / {tournament.totalSlots} Slots Filled
-                    </div>
-                    <div className="flex gap-2 flex-wrap mt-1">
-                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">Age: {tournament.ageFrom}-{tournament.ageTo}</span>
-                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">{tournament.gender}</span>
-                      {tournament.beltEligibility && (
-                         <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">Belt: {tournament.beltEligibility}</span>
+
+                    {tournament.description && (
+                      <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">
+                        {tournament.description}
+                      </p>
+                    )}
+
+                    <div className="mt-auto pt-4 border-t border-slate-100">
+                      {myReg ? (
+                        <div
+                          className={`w-full py-3 text-center text-sm font-bold rounded-xl border ${
+                            regStatusConfig[myReg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {regStatusConfig[myReg.status]?.label || myReg.status}
+                        </div>
+                      ) : !isMemberPaid ? (
+                        <div className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
+                          <Lock size={14} /> Pay Membership to Join
+                        </div>
+                      ) : isFull ? (
+                        <div className="w-full py-3 text-center text-sm font-bold rounded-xl bg-red-50 text-red-500 border border-red-100">
+                          Tournament Full
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setRegisterModal(tournament)}
+                          disabled={isPayingThis}
+                          className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                        >
+                          {isPayingThis ? (
+                            <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                          ) : isFree ? (
+                            <>Register (Free) <ArrowRight size={16} /></>
+                          ) : (
+                            <>Pay ₹{tournament.entryFee} &amp; Register <ArrowRight size={16} /></>
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>
-
-                  {tournament.description && (
-                    <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">{tournament.description}</p>
-                  )}
-
-                  <div className="mt-auto pt-4 border-t border-slate-100">
-                    {myReg ? (
-                      <div className={`w-full py-3 text-center text-sm font-bold rounded-xl border ${regStatusConfig[myReg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"}`}>
-                        {regStatusConfig[myReg.status]?.label || myReg.status}
-                      </div>
-                    ) : !isMemberPaid ? (
-                      <div className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
-                        <Lock size={14} /> Pay Membership to Join
-                      </div>
-                    ) : isFull ? (
-                      <div className="w-full py-3 text-center text-sm font-bold rounded-xl bg-red-50 text-red-500 border border-red-100">
-                        Tournament Full
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setRegisterModal(tournament)}
-                        disabled={isPayingThis}
-                        className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                      >
-                        {isPayingThis ? (
-                          <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                        ) : isFree ? (
-                           <>Register (Free) <ArrowRight size={16} /></>
-                        ) : (
-                          <>Pay ₹{tournament.entryFee} & Register <ArrowRight size={16} /></>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
 
@@ -338,11 +482,12 @@ export default function PlayerTournamentsPage() {
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
         <AlertCircle size={18} className="shrink-0 mt-0.5" />
         <span>
-          After payment, your registration is sent to the club for approval. You will be notified once approved.
+          After payment, your registration is sent for approval. You will be notified once approved.{" "}
+          District matches are shown based on your registered district.
         </span>
       </div>
-    
-      {/* Registration Details Modal */}
+
+      {/* Registration Modal */}
       <AnimatePresence>
         {registerModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
@@ -352,12 +497,17 @@ export default function PlayerTournamentsPage() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl"
             >
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Physical Details</h2>
-              <p className="text-slate-500 text-sm mb-6">Please provide your current height and weight for tournament registration.</p>
+              <h2 className="text-2xl font-bold text-slate-800 mb-1">Physical Details</h2>
+              <p className="text-slate-400 text-sm mb-1 font-semibold">{registerModal.title}</p>
+              <p className="text-slate-500 text-sm mb-6">
+                Please provide your current height and weight for tournament registration.
+              </p>
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Height (cm)</label>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Height (cm)
+                  </label>
                   <input
                     type="number"
                     required
@@ -368,7 +518,9 @@ export default function PlayerTournamentsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Weight (kg)</label>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Weight (kg)
+                  </label>
                   <input
                     type="number"
                     required
@@ -384,7 +536,7 @@ export default function PlayerTournamentsPage() {
                 <button
                   onClick={() => {
                     setRegisterModal(null);
-                    setPhysicalDetails({ height: '', weight: '' });
+                    setPhysicalDetails({ height: "", weight: "" });
                   }}
                   className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
                 >
