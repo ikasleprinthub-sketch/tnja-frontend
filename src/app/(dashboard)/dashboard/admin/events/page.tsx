@@ -30,6 +30,8 @@ export default function EventsPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [districts, setDistricts] = useState<any[]>([]);
+  const [userRole, setUserRole] = useState<string>("GUEST");
+  const [userProfile, setUserProfile] = useState<any | null>(null);
   const [eventSections, setEventSections] = useState<string[]>([]);
   const [sectionOpen, setSectionOpen] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -43,8 +45,6 @@ export default function EventsPage() {
     { label: "Red", value: "#DC2626", gradient: "from-red-900 via-red-700 to-rose-400" },
     { label: "Blue", value: "#2563EB", gradient: "from-blue-900 via-blue-700 to-sky-400" },
   ];
-
-
 
   const [formData, setFormData] = useState({
     title: "",
@@ -61,6 +61,32 @@ export default function EventsPage() {
     eventSection: "",
     meetingLink: "",
   });
+
+  const getFilteredDistrictsForCreation = useCallback(() => {
+    if (!userProfile) return districts;
+    const isAdmin = ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole);
+    if (isAdmin) return districts;
+
+    const userZone = userProfile.district?.zoneName;
+    const isZoneAdmin = ["ZONE_PRESIDENT", "ZONE_SECRETARY"].includes(userRole);
+
+    if (isZoneAdmin && userZone) {
+      return districts.filter(d => d.zoneName === userZone);
+    }
+
+    return districts.filter(d => d.id === userProfile.districtId);
+  }, [districts, userProfile, userRole]);
+
+  const getFilteredZonesForCreation = useCallback(() => {
+    const allZones = ["Chennai Zone", "Salem Zone", "Coimbatore Zone", "Trichy Zone", "Madurai Zone"];
+    if (!userProfile) return allZones;
+    const isAdmin = ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole);
+    if (isAdmin) return allZones;
+
+    const userZone = userProfile.district?.zoneName;
+    if (userZone) return [userZone];
+    return [];
+  }, [userProfile, userRole]);
 
   const [toast, setToast] = useState<{ msg: string, type: "success" | "error" } | null>(null);
 
@@ -115,11 +141,40 @@ export default function EventsPage() {
     }
   };
 
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setUserProfile(json.user);
+        setUserRole(json.role);
+      }
+    } catch (err) {
+      console.error("Failed to load user profile", err);
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
     fetchDistricts();
+    fetchProfile();
     fetchEventSections();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    const fd = getFilteredDistrictsForCreation();
+    if (formData.level === "DISTRICT" && fd.length === 1) {
+      setFormData(prev => ({ ...prev, districtId: fd[0].id }));
+    }
+    const fz = getFilteredZonesForCreation();
+    if (formData.level === "ZONE" && fz.length === 1) {
+      setFormData(prev => ({ ...prev, zoneId: fz[0] }));
+    }
+  }, [formData.level, districts, userProfile, getFilteredDistrictsForCreation, getFilteredZonesForCreation]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -375,14 +430,14 @@ export default function EventsPage() {
 
                   {/* ── Event Section Dropdown ── */}
                   <div className="md:col-span-2" ref={sectionRef}>
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">
                       Event Section
                     </label>
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => setSectionOpen(o => !o)}
-                        className="w-full flex items-center justify-between px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl hover:border-[#FF7400]/60 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 transition-all"
+                        className="w-full flex items-center justify-between px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl hover:border-[#FF7400] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 focus:border-[#FF7400] transition-all"
                       >
                         <span className={`text-sm font-semibold ${formData.eventSection ? "text-slate-800" : "text-slate-400"}`}>
                           {formData.eventSection || "Select event section"}
@@ -422,59 +477,59 @@ export default function EventsPage() {
 
                   {formData.eventSection === "Seminar (Online)" && (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Meeting Link</label>
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Meeting Link</label>
                       <input 
                         type="url" 
                         required
                         value={formData.meetingLink}
                         onChange={e => setFormData({ ...formData, meetingLink: e.target.value })}
                         placeholder="e.g. https://meet.google.com/abc-defg-hij"
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
                       />
                     </div>
                   )}
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Event Title</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Event Title</label>
                     <input
                       type="text"
                       required
                       value={formData.title}
                       onChange={e => setFormData({ ...formData, title: e.target.value })}
                       placeholder="Enter a descriptive title"
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Date</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Date</label>
                     <input
                       type="date"
                       required
                       value={formData.date}
                       onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Location</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Location</label>
                     <input
                       type="text"
                       required
                       value={formData.location}
                       onChange={e => setFormData({ ...formData, location: e.target.value })}
                       placeholder="e.g. Nehru Stadium"
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
                     />
                   </div>
 
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Event Level</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Event Level</label>
                     <select
                       value={formData.level}
                       onChange={e => setFormData({ ...formData, level: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
                     >
                       <option value="DISTRICT">District Level</option>
                       <option value="ZONE">Zone Level</option>
@@ -483,11 +538,11 @@ export default function EventsPage() {
                   </div>
 
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Target Audience</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Target Audience</label>
                     <select
                       value={formData.participantType}
                       onChange={e => setFormData({ ...formData, participantType: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
                     >
                       <option value="ALL">Everyone</option>
                       <option value="STUDENT">Players Only</option>
@@ -498,11 +553,11 @@ export default function EventsPage() {
                   </div>
 
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Type</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Entry Type</label>
                     <select
                       value={formData.isPaid ? "paid" : "free"}
                       onChange={e => setFormData({ ...formData, isPaid: e.target.value === "paid", entryFee: e.target.value === "free" ? "" : formData.entryFee })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
                     >
                       <option value="free">Free</option>
                       <option value="paid">Paid</option>
@@ -511,7 +566,7 @@ export default function EventsPage() {
 
                   {formData.isPaid && (
                     <div className="md:col-span-1">
-                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
                       <input
                         type="number"
                         required
@@ -519,22 +574,22 @@ export default function EventsPage() {
                         value={formData.entryFee}
                         onChange={e => setFormData({ ...formData, entryFee: e.target.value })}
                         placeholder="Enter amount in ₹"
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
                       />
                     </div>
                   )}
 
                   {formData.level === "DISTRICT" && (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Select District</label>
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Select District</label>
                       <select
                         required
                         value={formData.districtId}
                         onChange={e => setFormData({ ...formData, districtId: e.target.value })}
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
                       >
                         <option value="">Select District</option>
-                        {districts.map(d => (
+                        {getFilteredDistrictsForCreation().map(d => (
                           <option key={d.id} value={d.id}>{d.name}</option>
                         ))}
                       </select>
@@ -543,15 +598,18 @@ export default function EventsPage() {
 
                   {formData.level === "ZONE" && (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Zone Identifier</label>
-                      <input
-                        type="text"
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Select Zone</label>
+                      <select 
                         required
                         value={formData.zoneId}
                         onChange={e => setFormData({ ...formData, zoneId: e.target.value })}
-                        placeholder="e.g. North Zone"
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
-                      />
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 font-semibold"
+                      >
+                        <option value="">Select Zone</option>
+                        {getFilteredZonesForCreation().map(z => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
 
@@ -584,13 +642,13 @@ export default function EventsPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Description</label>
                     <textarea
                       required
                       value={formData.description}
                       onChange={e => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Detailed description of the event..."
-                      className="w-full h-32 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none"
+                      className="w-full h-32 px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800 resize-none"
                     ></textarea>
                   </div>
                 </div>

@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  GraduationCap, 
-  CreditCard, 
-  CheckCircle2, 
-  Loader2, 
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  GraduationCap,
+  CreditCard,
+  CheckCircle2,
+  Loader2,
   AlertCircle,
   BadgeCheck,
   ShieldCheck,
@@ -20,7 +20,9 @@ import {
   Contact,
   Award,
   Calendar,
-  Swords
+  Swords,
+  Hash,
+  UserCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -67,6 +69,8 @@ export default function PlayerDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [editRequest, setEditRequest] = useState<{ id: string; status: string } | null>(null);
+  const [requestingEdit, setRequestingEdit] = useState(false);
 
   const buildForm = (u: any) => {
     return {
@@ -104,6 +108,7 @@ export default function PlayerDashboard() {
         setPlayerData(data.user);
         setFormData(buildForm(data.user));
         setIsEditing(false);
+        setEditRequest(null);
         alert("Profile updated successfully!");
       } else {
         const err = await res.json();
@@ -114,6 +119,32 @@ export default function PlayerDashboard() {
       alert("Error updating profile");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRequestEdit = async () => {
+    setRequestingEdit(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/profile-edit-requests`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditRequest({ id: data.id, status: "PENDING" });
+        alert("Edit request sent to your coach. You will be notified when it is approved.");
+      } else {
+        alert(data.error || "Failed to send request");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error sending request");
+    } finally {
+      setRequestingEdit(false);
     }
   };
 
@@ -152,11 +183,14 @@ export default function PlayerDashboard() {
       }
 
       // Fetch profile and settings in parallel
-      const [profileRes, settingsRes] = await Promise.all([
+      const [profileRes, settingsRes, editReqRes] = await Promise.all([
         fetch(`${API_BASE}/auth/profile`, {
           headers: { "Authorization": `Bearer ${token}` }
         }),
-        fetch(`${API_BASE}/settings/global`)
+        fetch(`${API_BASE}/settings/global`),
+        fetch(`${API_BASE}/profile-edit-requests/my`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        }),
       ]);
 
       const profileData = await profileRes.json();
@@ -168,6 +202,13 @@ export default function PlayerDashboard() {
       setPlayerData(profileData.user);
       setFormData(buildForm(profileData.user));
       setSettings(settingsData);
+
+      if (editReqRes.ok) {
+        const editReqData = await editReqRes.json();
+        if (editReqData && editReqData.id) {
+          setEditRequest({ id: editReqData.id, status: editReqData.status });
+        }
+      }
 
       // Fetch tournaments & draws for upcoming matches
       try {
@@ -205,7 +246,9 @@ export default function PlayerDashboard() {
                               opponent,
                               roundNum: rIdx + 1,
                               matNumber: match.matNumber,
-                              matchNumber: match.matchNumber
+                              matchNumber: match.matchNumber,
+                              refereeName: match.referee?.fullName || match.refereeName || null,
+                              refereeId: match.refereeId || match.referee?.id || null,
                             };
                             if (existingMatchForTrn) {
                               const index = matches.indexOf(existingMatchForTrn);
@@ -465,20 +508,46 @@ export default function PlayerDashboard() {
           )}
         </div>
         
-        <div className="md:ml-auto">
-          <button 
-            onClick={() => {
-              if (isEditing) {
+        <div className="md:ml-auto flex flex-col items-end gap-2">
+          {isEditing ? (
+            <button
+              onClick={() => {
                 setIsEditing(false);
                 setFormData(buildForm(playerData));
-              } else {
-                setIsEditing(true);
-              }
-            }}
-            className="px-6 py-2.5 bg-white border border-[#FF7400] text-[#FF7400] rounded-xl font-bold hover:bg-orange-50 transition-all flex items-center gap-2"
-          >
-            {isEditing ? "Cancel Editing" : "Edit Profile"}
-          </button>
+              }}
+              className="px-6 py-2.5 bg-white border border-slate-300 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+            >
+              Cancel Editing
+            </button>
+          ) : editRequest?.status === "APPROVED" ? (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-6 py-2.5 bg-white border border-[#FF7400] text-[#FF7400] rounded-xl font-bold hover:bg-orange-50 transition-all flex items-center gap-2"
+            >
+              Edit Profile
+            </button>
+          ) : editRequest?.status === "PENDING" ? (
+            <div className="px-6 py-2.5 bg-amber-50 border border-amber-300 text-amber-700 rounded-xl font-bold text-sm flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              Edit Request Pending Coach Approval
+            </div>
+          ) : !playerData.coach ? (
+            <div className="px-6 py-2.5 bg-slate-50 border border-slate-200 text-slate-400 rounded-xl font-bold text-sm">
+              No Coach Assigned — Cannot Request Edit
+            </div>
+          ) : (
+            <button
+              onClick={handleRequestEdit}
+              disabled={requestingEdit}
+              className="px-6 py-2.5 bg-white border border-[#FF7400] text-[#FF7400] rounded-xl font-bold hover:bg-orange-50 transition-all flex items-center gap-2 disabled:opacity-60"
+            >
+              {requestingEdit ? <Loader2 size={16} className="animate-spin" /> : null}
+              {requestingEdit ? "Sending Request..." : "Request Profile Edit"}
+            </button>
+          )}
+          {editRequest?.status === "REJECTED" && (
+            <p className="text-xs text-red-500 font-semibold">Your last request was rejected. You may send a new request.</p>
+          )}
         </div>
       </motion.div>
 
@@ -730,15 +799,35 @@ export default function PlayerDashboard() {
                             <h4 className="font-bold text-slate-800 text-lg leading-tight">{match.tournamentName}</h4>
                           </div>
                           
-                          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500">
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
                             <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm">
                               <Calendar size={14} className="text-[#FF7400]" />
                               {new Date(match.tournamentDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                             </div>
                             <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm">
                               <MapPin size={14} className="text-[#FF7400]" />
-                              {match.tournamentLocation} • Mat {match.matNumber}
+                              {match.tournamentLocation}
                             </div>
+                            <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 shadow-sm text-orange-700 font-black">
+                              Mat {match.matNumber}
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                              <Hash size={13} className="text-[#FF7400]" />
+                              Match {match.matchNumber}
+                            </div>
+                          </div>
+
+                          {/* Referee */}
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold w-fit ${
+                            match.refereeName
+                              ? "bg-blue-50 border border-blue-100 text-blue-700"
+                              : "bg-slate-50 border border-slate-100 text-slate-400"
+                          }`}>
+                            <UserCheck size={14} className={match.refereeName ? "text-blue-500" : "text-slate-300"} />
+                            <span>
+                              <span className="font-black uppercase tracking-wider text-[10px] mr-1">Referee:</span>
+                              {match.refereeName || "Not yet assigned"}
+                            </span>
                           </div>
                         </div>
 

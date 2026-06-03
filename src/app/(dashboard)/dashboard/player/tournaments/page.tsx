@@ -22,7 +22,7 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-type Tab = "club" | "district" | "stateNational";
+type Tab = "club" | "district" | "zonal" | "stateNational";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode; desc: string }[] = [
   {
@@ -36,6 +36,12 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode; desc: string }[] =
     label: "District Matches",
     icon: <Flag size={16} />,
     desc: "Official matches in your district",
+  },
+  {
+    key: "zonal",
+    label: "Zonal Matches",
+    icon: <Trophy size={16} />,
+    desc: "Official matches in your zone",
   },
   {
     key: "stateNational",
@@ -56,6 +62,7 @@ export default function PlayerTournamentsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("club");
   const [clubTournaments, setClubTournaments] = useState<any[]>([]);
   const [districtMatches, setDistrictMatches] = useState<any[]>([]);
+  const [zonalMatches, setZonalMatches] = useState<any[]>([]);
   const [stateNationalMatches, setStateNationalMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,6 +109,7 @@ export default function PlayerTournamentsPage() {
       if (matchesRes.ok) {
         const data = await matchesRes.json();
         setDistrictMatches(data.district ?? []);
+        setZonalMatches(data.zonal ?? []);
         setStateNationalMatches(data.stateAndNational ?? []);
       }
     } catch (err) {
@@ -221,6 +229,8 @@ export default function PlayerTournamentsPage() {
         ? clubTournaments
         : activeTab === "district"
         ? districtMatches
+        : activeTab === "zonal"
+        ? zonalMatches
         : stateNationalMatches;
     if (searchQuery) {
       list = list.filter((t) =>
@@ -233,6 +243,7 @@ export default function PlayerTournamentsPage() {
   const emptyMessages: Record<Tab, string> = {
     club: "Your club has not created any tournaments yet.",
     district: "No district matches found in your area.",
+    zonal: "No zonal matches are scheduled yet.",
     stateNational: "No state or national matches are scheduled yet.",
   };
 

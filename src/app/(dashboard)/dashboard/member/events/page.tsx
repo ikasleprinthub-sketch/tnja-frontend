@@ -26,6 +26,7 @@ export default function MemberEventsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [districts, setDistricts] = useState<any[]>([]);
   const [userRole, setUserRole] = useState<string>("GUEST");
+  const [userProfile, setUserProfile] = useState<any | null>(null);
   const [eventSections, setEventSections] = useState<string[]>([]);
   const [sectionOpen, setSectionOpen] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -46,6 +47,32 @@ export default function MemberEventsPage() {
     eventSection: "",
     meetingLink: "",
   });
+
+  const getFilteredDistrictsForCreation = useCallback(() => {
+    if (!userProfile) return districts;
+    const isAdmin = ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole);
+    if (isAdmin) return districts;
+
+    const userZone = userProfile.district?.zoneName;
+    const isZoneAdmin = ["ZONE_PRESIDENT", "ZONE_SECRETARY"].includes(userRole);
+
+    if (isZoneAdmin && userZone) {
+      return districts.filter(d => d.zoneName === userZone);
+    }
+
+    return districts.filter(d => d.id === userProfile.districtId);
+  }, [districts, userProfile, userRole]);
+
+  const getFilteredZonesForCreation = useCallback(() => {
+    const allZones = ["Chennai Zone", "Salem Zone", "Coimbatore Zone", "Trichy Zone", "Madurai Zone"];
+    if (!userProfile) return allZones;
+    const isAdmin = ["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole);
+    if (isAdmin) return allZones;
+
+    const userZone = userProfile.district?.zoneName;
+    if (userZone) return [userZone];
+    return [];
+  }, [userProfile, userRole]);
 
   const [toast, setToast] = useState<{msg: string, type: "success" | "error"} | null>(null);
 
@@ -105,6 +132,22 @@ export default function MemberEventsPage() {
     }
   };
 
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setUserProfile(json.user);
+      }
+    } catch (err) {
+      console.error("Failed to load user profile", err);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -117,8 +160,20 @@ export default function MemberEventsPage() {
     }
     fetchEvents();
     fetchDistricts();
+    fetchProfile();
     fetchEventSections();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    const fd = getFilteredDistrictsForCreation();
+    if (formData.level === "DISTRICT" && fd.length === 1) {
+      setFormData(prev => ({ ...prev, districtId: fd[0].id }));
+    }
+    const fz = getFilteredZonesForCreation();
+    if (formData.level === "ZONE" && fz.length === 1) {
+      setFormData(prev => ({ ...prev, zoneId: fz[0] }));
+    }
+  }, [formData.level, districts, userProfile, getFilteredDistrictsForCreation, getFilteredZonesForCreation]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -618,7 +673,7 @@ export default function MemberEventsPage() {
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
                       >
                         <option value="">Select District</option>
-                        {districts.map(d => (
+                        {getFilteredDistrictsForCreation().map(d => (
                           <option key={d.id} value={d.id}>{d.name}</option>
                         ))}
                       </select>
@@ -627,15 +682,18 @@ export default function MemberEventsPage() {
 
                   {formData.level === "ZONE" && (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Zone Identifier</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Select Zone</label>
+                      <select 
                         required
                         value={formData.zoneId}
                         onChange={e => setFormData({...formData, zoneId: e.target.value})}
-                        placeholder="e.g. North Zone"
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
-                      />
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold"
+                      >
+                        <option value="">Select Zone</option>
+                        {getFilteredZonesForCreation().map(z => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
 

@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, Suspense } from "react";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Briefcase, 
-  Calendar, 
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Briefcase,
+  Calendar,
   IdCard,
   Building2,
   BadgeCheck,
@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
-  Users
+  Users,
+  ClipboardEdit,
+  Check,
+  X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -30,6 +33,8 @@ function MemberDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
+  const [editRequests, setEditRequests] = useState<any[]>([]);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   const idLabel = userRole.toLowerCase() === "coach" 
     ? "Coach ID" 
@@ -67,10 +72,47 @@ function MemberDashboardContent() {
       setMemberData(profileData.user);
       setUserRole(profileData.role);
       setSettings(settingsData);
+
+      if (profileData.role === "COACH") {
+        try {
+          const reqRes = await fetch(`${API_BASE}/profile-edit-requests/coach`, {
+            headers: { "Authorization": `Bearer ${token}` },
+          });
+          if (reqRes.ok) {
+            const reqData = await reqRes.json();
+            setEditRequests(Array.isArray(reqData) ? reqData : []);
+          }
+        } catch {
+          // non-critical, ignore
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditRequestAction = async (requestId: string, action: "approve" | "reject") => {
+    setProcessingRequestId(requestId);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/profile-edit-requests/${requestId}/${action}`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setEditRequests(prev =>
+          prev.map(r => r.id === requestId ? { ...r, status: action === "approve" ? "APPROVED" : "REJECTED" } : r)
+        );
+      } else {
+        const data = await res.json();
+        alert(data.error || `Failed to ${action} request`);
+      }
+    } catch {
+      alert("Error processing request");
+    } finally {
+      setProcessingRequestId(null);
     }
   };
 
@@ -364,6 +406,75 @@ function MemberDashboardContent() {
                 </p>
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* Profile Edit Requests — Coach Only */}
+        {userRole === "COACH" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200"
+          >
+            <div className="flex items-center gap-3 mb-6 border-b pb-4">
+              <div className="p-2 bg-orange-50 text-[#FF7400] rounded-lg">
+                <ClipboardEdit size={20} />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800">Player Profile Edit Requests</h2>
+            </div>
+
+            {editRequests.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-sm font-semibold">
+                No profile edit requests from your players.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {editRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-800">{req.player?.fullName || "Player"}</p>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">
+                        {req.player?.tempId || req.player?.permanentId || ""} &bull;{" "}
+                        {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {req.status === "PENDING" ? (
+                        <>
+                          <button
+                            onClick={() => handleEditRequestAction(req.id, "approve")}
+                            disabled={processingRequestId === req.id}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-all disabled:opacity-60"
+                          >
+                            {processingRequestId === req.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleEditRequestAction(req.id, "reject")}
+                            disabled={processingRequestId === req.id}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-60"
+                          >
+                            <X size={14} />
+                            Reject
+                          </button>
+                        </>
+                      ) : req.status === "APPROVED" ? (
+                        <span className="flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 border border-green-100 rounded-xl text-sm font-bold">
+                          <Check size={14} /> Approved
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-500 border border-red-100 rounded-xl text-sm font-bold">
+                          <X size={14} /> Rejected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 

@@ -12,26 +12,6 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-// ─── Demo Players (for testing draw generation) ───────────────────────────────
-const DEMO_PLAYERS: RegisteredPlayer[] = [
-  { id: "d1",  name: "ARJUN KUMAR",        club: "Chennai Judo",    district: "Chennai",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
-  { id: "d2",  name: "VIKRAM SELVAM",       club: "Coimbatore JC",  district: "Coimbatore", weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Black" },
-  { id: "d3",  name: "KARTHIK RAJAN",       club: "Madurai Judo",   district: "Madurai",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
-  { id: "d4",  name: "SURESH MURUGAN",      club: "Salem Judo",     district: "Salem",      weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Blue"  },
-  { id: "d5",  name: "PRAVEEN ANAND",       club: "Trichy Judo",    district: "Trichy",     weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
-  { id: "d6",  name: "DINESH BABU",         club: "Vellore JC",     district: "Vellore",    weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Black" },
-  { id: "d7",  name: "RAJESH PANDIAN",      club: "Tirunelveli JC", district: "Tirunelveli",weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Brown" },
-  { id: "d8",  name: "SENTHIL KUMAR",       club: "Erode Judo",     district: "Erode",      weight: 60, ageGroup: "SENIOR",    gender: "MALE",   belt: "Blue"  },
-  { id: "d9",  name: "PRIYA LAKSHMI",       club: "Chennai Judo",   district: "Chennai",    weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Black" },
-  { id: "d10", name: "ANITHA DEVI",         club: "Coimbatore JC",  district: "Coimbatore", weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Brown" },
-  { id: "d11", name: "KAVITHA SELVI",       club: "Madurai Judo",   district: "Madurai",    weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Brown" },
-  { id: "d12", name: "MEENAKSHI RAJ",       club: "Salem Judo",     district: "Salem",      weight: 52, ageGroup: "SENIOR",    gender: "FEMALE", belt: "Blue"  },
-  { id: "d13", name: "LOGESH KUMAR",        club: "Trichy Judo",    district: "Trichy",     weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Blue"  },
-  { id: "d14", name: "ARUN PRAKASH",        club: "Vellore JC",     district: "Vellore",    weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Brown" },
-  { id: "d15", name: "KUMARAN SIVA",        club: "Salem Judo",     district: "Salem",      weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Blue"  },
-  { id: "d16", name: "MUTHUKUMAR R",        club: "Erode Judo",     district: "Erode",      weight: 73, ageGroup: "JUNIOR",    gender: "MALE",   belt: "Brown" },
-];
-
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Tab = "overview" | "players" | "draws" | "matches";
 type ViewMode = "list" | "bracket";
@@ -202,7 +182,6 @@ export default function TournamentDetailPage() {
   const [champion, setChampion] = useState<{ name: string; club: string; categoryKey: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [usingDemo, setUsingDemo] = useState(false);
   const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
   const [shuffleKey, setShuffleKey] = useState(0);
   const [autoGenerating, setAutoGenerating] = useState(false);
@@ -215,20 +194,6 @@ export default function TournamentDetailPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const loadDemoPlayers = () => {
-    setPlayers(DEMO_PLAYERS);
-    setUsingDemo(true);
-    showToast(`${DEMO_PLAYERS.length} demo players loaded for testing`);
-    setActiveTab("draws");
-  };
-
-  const clearDemoPlayers = () => {
-    setPlayers([]);
-    setUsingDemo(false);
-    setDraws({});
-    setSeeds({ 1: null, 2: null, 3: null, 4: null });
-    showToast("Demo players cleared", true);
-  };
 
   const categoryKey = (age: string, gender: string, weight: string) =>
     `${age}_${gender}_${weight}`;
@@ -675,19 +640,6 @@ export default function TournamentDetailPage() {
         </div>
       )}
 
-      {/* Demo banner */}
-      {usingDemo && (
-        <div className="flex items-center justify-between px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-600 font-black text-sm">⚠️ Demo Mode</span>
-            <span className="text-amber-700 text-xs font-semibold">— Using {DEMO_PLAYERS.length} sample players for testing. Real API data not loaded.</span>
-          </div>
-          <button onClick={clearDemoPlayers}
-            className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors px-3 py-1.5 bg-red-50 rounded-xl hover:bg-red-100">
-            Clear Demo Data
-          </button>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
@@ -785,14 +737,8 @@ export default function TournamentDetailPage() {
                 <Users size={40} className="mx-auto text-slate-200" />
                 <div>
                   <p className="text-slate-500 font-bold text-base">No players registered yet</p>
-                  <p className="text-slate-400 text-sm mt-1">Players register via the Player dashboard. Or load demo players to test the draw system.</p>
+                  <p className="text-slate-400 text-sm mt-1">Players register via the Player dashboard.</p>
                 </div>
-                {!usingDemo && (
-                  <button onClick={loadDemoPlayers}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
-                    <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players
-                  </button>
-                )}
               </div>
             ) : (
               <table className="w-full">
@@ -982,14 +928,8 @@ export default function TournamentDetailPage() {
                     <Target size={48} className="mx-auto text-slate-200" />
                     <div>
                       <p className="text-slate-500 font-bold text-lg">No Players in This Category</p>
-                      <p className="text-slate-400 text-sm mt-1">Select a category above or load demo players</p>
+                      <p className="text-slate-400 text-sm mt-1">Select a different category filter above.</p>
                     </div>
-                    {!usingDemo && (
-                      <button onClick={loadDemoPlayers}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all">
-                        <Users size={16} /> Load {DEMO_PLAYERS.length} Demo Players
-                      </button>
-                    )}
                   </div>
                 ) : (
                   <div className="p-5">

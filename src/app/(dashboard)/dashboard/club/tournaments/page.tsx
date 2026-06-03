@@ -578,27 +578,6 @@ export default function ClubTournamentsPage() {
                   <p className="text-xs font-semibold text-slate-400">No communication history yet.</p>
                 )}
 
-                {/* Send Reply to Admin */}
-                <div className="w-full rounded-[10px] p-[1.5px] mt-4" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
-                  <div className="flex items-center gap-2 bg-white rounded-[8.5px] px-3 py-2">
-                    <input
-                      type="text"
-                      placeholder="Send message/reply to admin..."
-                      value={tReplyTexts[tournament.id] || ""}
-                      onChange={(e) => setTReplyTexts((prev) => ({ ...prev, [tournament.id]: e.target.value }))}
-                      onKeyDown={(e) => e.key === "Enter" && handleSendTournamentReply(tournament.id)}
-                      className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none"
-                    />
-                    <button
-                      onClick={() => handleSendTournamentReply(tournament.id)}
-                      disabled={!tReplyTexts[tournament.id]?.trim() || tReplyLoading[tournament.id]}
-                      className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0"
-                    >
-                      {tReplyLoading[tournament.id] ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                    </button>
-                  </div>
-                </div>
-
               </div>
 
               {/* Registrations Panel */}
