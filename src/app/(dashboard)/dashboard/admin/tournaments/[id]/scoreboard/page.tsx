@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Monitor } from "lucide-react";
+import { Trophy, Monitor, Download, CheckCircle, RotateCcw } from "lucide-react";
 
 interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
 type Fighter = "A" | "B";
@@ -96,6 +96,8 @@ function ScoreboardInner() {
   const [scoreB, setScoreB] = useState<Score>(emptyScore());
   const [winner, setWinner] = useState<Fighter | null>(null);
   const [winMethod, setWinMethod] = useState("");
+  const [matchSaved, setMatchSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [durationInput, setDurationInput] = useState(4);
   const [timeLeft, setTimeLeft]   = useState(4 * 60);
@@ -144,8 +146,9 @@ function ScoreboardInner() {
 
       let targetDraw: any = null;
       for (const draw of draws) {
+        if (!Array.isArray(draw.rounds)) continue;
         let matchFound = false;
-        const newRounds = draw.rounds.map((r: any[]) => r.map(m => {
+        const newRounds = draw.rounds.map((r: any[]) => r.map((m: any) => {
           if (m.matchId === matchId) {
             matchFound = true;
             const winnerIdVal = currentWinner ? (currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId")) : null;
@@ -226,7 +229,8 @@ function ScoreboardInner() {
       .then((draws: any[]) => {
         if (!draws || !Array.isArray(draws)) return;
         for (const draw of draws) {
-          for (const round of (draw.rounds || [])) {
+          if (!Array.isArray(draw.rounds)) continue;
+          for (const round of draw.rounds) {
             for (const m of round) {
               if (m.matchId === matchId) {
                 if (m.scoreA) setScoreA(m.scoreA);
@@ -597,7 +601,392 @@ function ScoreboardInner() {
     setTimeLeft(durationInput * 60); setRunning(false); setTimerStarted(false);
     setLogs([]);
     toketa();
+    setMatchSaved(false);
+    setSaveMessage("");
     saveMatchToDB(emptyScore(), emptyScore(), null, "", []);
+  };
+
+  const handleSaveMatch = async () => {
+    if (!winner) return;
+    setSaveMessage("💾 Saving match result...");
+    try {
+      await saveMatchToDB(scoreA, scoreB, winner, winMethod, logs);
+      setMatchSaved(true);
+      setSaveMessage("✅ Match result saved to database!");
+      setTimeout(() => setSaveMessage(""), 2000);
+    } catch (err) {
+      setSaveMessage("❌ Failed to save match result");
+      setTimeout(() => setSaveMessage(""), 2000);
+    }
+  };
+
+  const downloadMatchReport = () => {
+    if (!winner) return;
+
+    const winnerName = winner === "A" ? fighterAName : fighterBName;
+    const winnerClub = winner === "A" ? fighterAClub : fighterBClub;
+    const loserName = winner === "A" ? fighterBName : fighterAName;
+    const loserClub = winner === "A" ? fighterBClub : fighterAClub;
+
+    const winnerScore = winner === "A" ? scoreA : scoreB;
+    const loserScore = winner === "A" ? scoreB : scoreA;
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Match Report - ${matchNumber}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body {
+            width: 100%;
+            height: 100%;
+          }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: white;
+            padding: 20px;
+          }
+          .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 4px solid #FF7400;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 5px;
+            font-weight: black;
+          }
+          .header p {
+            color: #666;
+            font-size: 14px;
+            margin: 2px 0;
+          }
+          .tournament-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+          }
+          .info-item {
+            font-size: 12px;
+          }
+          .info-label {
+            color: #FF7400;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+          }
+          .info-value {
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+          }
+          .match-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 25px;
+          }
+          .meta-card {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #FF7400;
+            text-align: center;
+          }
+          .meta-card .label {
+            font-size: 10px;
+            color: #666;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+          }
+          .meta-card .value {
+            font-size: 18px;
+            color: #333;
+            font-weight: black;
+          }
+          .fighters-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+          }
+          .fighter-card {
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+          }
+          .fighter-card.winner {
+            border-color: #22c55e;
+            background: #f0fdf4;
+          }
+          .fighter-card.loser {
+            border-color: #999;
+            background: #f9f9f9;
+          }
+          .fighter-card h3 {
+            font-size: 13px;
+            color: #FF7400;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: bold;
+          }
+          .fighter-card .name {
+            font-size: 24px;
+            font-weight: black;
+            color: #333;
+            margin-bottom: 5px;
+          }
+          .fighter-card .club {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            font-weight: 600;
+          }
+          .score-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+          }
+          .score-item {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+          }
+          .score-item .label {
+            font-size: 10px;
+            color: #666;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+          }
+          .score-item .value {
+            font-size: 20px;
+            color: #333;
+            font-weight: black;
+          }
+          .result-section {
+            background: #fef3c7;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #fbbf24;
+            margin-bottom: 25px;
+            text-align: center;
+          }
+          .result-section .label {
+            font-size: 11px;
+            color: #b45309;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+          }
+          .result-section .method {
+            font-size: 20px;
+            color: #333;
+            font-weight: black;
+          }
+          .logs-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 25px;
+          }
+          .logs-section h4 {
+            font-size: 12px;
+            color: #FF7400;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+          }
+          .log-item {
+            font-size: 12px;
+            color: #555;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+          }
+          .log-item:last-child {
+            border-bottom: none;
+          }
+          .footer {
+            text-align: center;
+            color: #999;
+            font-size: 11px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+          }
+          @media print {
+            body {
+              background: white;
+              padding: 0;
+            }
+            .container {
+              box-shadow: none;
+              border: none;
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⚔️ JUDO MATCH REPORT</h1>
+            <p>Official Match Record</p>
+          </div>
+
+          <div class="tournament-info">
+            <div class="info-item">
+              <span class="info-label">Tournament</span>
+              <span class="info-value">${tournamentTitle || "TNJA Championship"}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Weight Category</span>
+              <span class="info-value">${weightCategory}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Date</span>
+              <span class="info-value">${new Date().toLocaleDateString("en-IN")}</span>
+            </div>
+          </div>
+
+          <div class="match-meta">
+            <div class="meta-card">
+              <div class="label">Mat</div>
+              <div class="value">${matNumber}</div>
+            </div>
+            <div class="meta-card">
+              <div class="label">Match</div>
+              <div class="value">#${matchNumber}</div>
+            </div>
+            <div class="meta-card">
+              <div class="label">Duration</div>
+              <div class="value">${Math.floor((durationInput * 60 - timeLeft) / 60)}:${String((durationInput * 60 - timeLeft) % 60).padStart(2, "0")}</div>
+            </div>
+            <div class="meta-card">
+              <div class="label">Time Left</div>
+              <div class="value">${fmt(timeLeft)}</div>
+            </div>
+          </div>
+
+          <div class="fighters-section">
+            <div class="fighter-card winner">
+              <h3>🏆 WINNER</h3>
+              <div class="name">${winnerName}</div>
+              <div class="club">${winnerClub}</div>
+              <div class="score-grid">
+                <div class="score-item">
+                  <div class="label">Ippon</div>
+                  <div class="value">${winnerScore.ippon}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Waza-ari</div>
+                  <div class="value">${winnerScore.wazaAri}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Yuko</div>
+                  <div class="value">${winnerScore.yuko}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Shido</div>
+                  <div class="value">${winnerScore.shido}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="fighter-card loser">
+              <h3>⚪ OPPONENT</h3>
+              <div class="name">${loserName}</div>
+              <div class="club">${loserClub}</div>
+              <div class="score-grid">
+                <div class="score-item">
+                  <div class="label">Ippon</div>
+                  <div class="value">${loserScore.ippon}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Waza-ari</div>
+                  <div class="value">${loserScore.wazaAri}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Yuko</div>
+                  <div class="value">${loserScore.yuko}</div>
+                </div>
+                <div class="score-item">
+                  <div class="label">Shido</div>
+                  <div class="value">${loserScore.shido}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="label">Decision</div>
+            <div class="method">${winMethod}</div>
+          </div>
+
+          ${logs && logs.length > 0 ? `
+            <div class="logs-section">
+              <h4>Match Events Log</h4>
+              ${logs.map((log: any) => `<div class="log-item">• ${log.text}</div>`).join("")}
+            </div>
+          ` : ""}
+
+          <div class="footer">
+            <p>Generated: ${new Date().toLocaleString("en-IN")}</p>
+            <p>TNJA © Tamil Nadu Judo Association</p>
+            <p>Match Record - Official Document</p>
+          </div>
+        </div>
+        <script>
+          window.addEventListener('load', function() {
+            setTimeout(function() {
+              window.print();
+            }, 250);
+          });
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      const newWindow = window.open("", "PRINT", "width=900,height=600");
+      if (newWindow) {
+        newWindow.document.write(html);
+        newWindow.document.close();
+      }
+    } catch (err) {
+      console.error("Error opening print dialog:", err);
+      // Fallback: use blob URL
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, "PRINT", "width=900,height=600");
+      if (printWindow) {
+        printWindow.addEventListener("load", () => {
+          setTimeout(() => printWindow.print(), 250);
+        });
+      }
+    }
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -977,10 +1366,41 @@ function ScoreboardInner() {
               <div className="inline-flex px-5 py-2 bg-[#FF7400]/20 border border-[#FF7400]/30 rounded-2xl text-[#FF7400] font-black text-sm mb-8">
                 {winMethod}
               </div>
-              <button onClick={resetAll}
-                className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-sm text-white/70 hover:text-white transition-all">
-                ↺ New Match / Reset
-              </button>
+
+              {/* Save Status Message */}
+              {saveMessage && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4 px-4 py-2 bg-blue-500/20 border border-blue-400/50 rounded-xl text-blue-300 text-xs font-black text-center"
+                >
+                  {saveMessage}
+                </motion.div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={handleSaveMatch}
+                  className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-2xl font-black text-sm text-white transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle size={16} /> Save Match Result
+                </button>
+
+                <button
+                  onClick={downloadMatchReport}
+                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 rounded-2xl font-black text-sm text-white transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                >
+                  <Download size={16} /> Download Report (PDF)
+                </button>
+
+                <button
+                  onClick={resetAll}
+                  className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-sm text-white/70 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  <RotateCcw size={16} /> New Match / Reset
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

@@ -7,13 +7,13 @@ import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award,
-  AlertCircle, Clock,
+  AlertCircle, Clock, Download, BarChart3,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Tab = "overview" | "players" | "draws" | "matches";
+type Tab = "overview" | "players" | "draws" | "matches" | "results";
 type ViewMode = "list" | "bracket";
 
 interface Tournament {
@@ -158,6 +158,287 @@ function roundName(ri: number, total: number): string {
   return `Round ${ri + 1}`;
 }
 
+function findNextMatch(rounds: BracketMatch[][], currentRoundIndex: number, matchIndex: number, winner: BracketSlot) {
+  if (currentRoundIndex >= rounds.length - 1) return null;
+
+  const nextRound = rounds[currentRoundIndex + 1];
+  const nextMatchIndex = Math.floor(matchIndex / 2);
+  const nextMatch = nextRound[nextMatchIndex];
+
+  if (!nextMatch) return null;
+
+  const isSlotA = matchIndex % 2 === 0;
+  const opponent = isSlotA ? nextMatch.slotB.playerName : nextMatch.slotA.playerName;
+
+  return {
+    roundIndex: currentRoundIndex + 1,
+    matchNumber: nextMatch.matchNumber,
+    matNumber: nextMatch.matNumber,
+    opponent: opponent === "TBD" ? null : opponent,
+  };
+}
+
+function exportMatchToPDF(
+  match: BracketMatch,
+  winner: BracketSlot,
+  loser: BracketSlot,
+  tournament: Tournament | null,
+  roundIndex: number,
+  nextMatchInfo: any
+) {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Match Report</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: #f5f5f5;
+          padding: 20px;
+        }
+        .container {
+          max-width: 800px;
+          margin: 0 auto;
+          background: white;
+          padding: 40px;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+          border-bottom: 3px solid #FF7400;
+          padding-bottom: 20px;
+        }
+        .header h1 {
+          font-size: 28px;
+          color: #333;
+          margin-bottom: 5px;
+        }
+        .header p {
+          color: #666;
+          font-size: 14px;
+        }
+        .tournament-info {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 30px;
+          padding: 15px;
+          background: #f9f9f9;
+          border-radius: 8px;
+        }
+        .tournament-info div {
+          font-size: 13px;
+        }
+        .tournament-info label {
+          color: #FF7400;
+          font-weight: bold;
+          display: block;
+          margin-bottom: 3px;
+        }
+        .tournament-info span {
+          color: #333;
+          font-weight: 500;
+        }
+        .match-details {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        .player-card {
+          padding: 20px;
+          border-radius: 8px;
+          border: 2px solid #ddd;
+        }
+        .player-card.winner {
+          border-color: #22c55e;
+          background: #f0fdf4;
+        }
+        .player-card.loser {
+          border-color: #ef4444;
+          background: #fef2f2;
+        }
+        .player-card h3 {
+          font-size: 14px;
+          color: #666;
+          text-transform: uppercase;
+          margin-bottom: 8px;
+          font-weight: bold;
+        }
+        .player-card .name {
+          font-size: 22px;
+          font-weight: bold;
+          color: #333;
+          margin-bottom: 5px;
+        }
+        .player-card .club {
+          font-size: 13px;
+          color: #666;
+          margin-bottom: 8px;
+        }
+        .player-card .seed {
+          display: inline-block;
+          background: #fef3c7;
+          color: #b45309;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: bold;
+          margin-top: 8px;
+        }
+        .next-match {
+          background: #eff6ff;
+          border: 2px solid #3b82f6;
+          padding: 20px;
+          border-radius: 8px;
+          margin-bottom: 30px;
+        }
+        .next-match h3 {
+          color: #1e40af;
+          font-size: 14px;
+          margin-bottom: 10px;
+          font-weight: bold;
+        }
+        .next-match .details {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          font-size: 13px;
+        }
+        .next-match .details div {
+          color: #333;
+        }
+        .next-match .details label {
+          color: #1e40af;
+          font-weight: bold;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .footer {
+          text-align: center;
+          color: #999;
+          font-size: 12px;
+          margin-top: 30px;
+          padding-top: 20px;
+          border-top: 1px solid #ddd;
+        }
+        .match-meta {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 15px;
+          margin-bottom: 20px;
+          padding: 15px;
+          background: #f9f9f9;
+          border-radius: 8px;
+          font-size: 13px;
+        }
+        .match-meta label {
+          color: #666;
+          font-weight: bold;
+        }
+        .match-meta span {
+          color: #333;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>⚔️ MATCH REPORT</h1>
+          <p>Match Result & Progression Record</p>
+        </div>
+
+        <div class="tournament-info">
+          <div>
+            <label>Tournament</label>
+            <span>${tournament?.title || "N/A"}</span>
+          </div>
+          <div>
+            <label>Date</label>
+            <span>${tournament?.date || "N/A"}</span>
+          </div>
+          <div>
+            <label>Level</label>
+            <span>${tournament?.level || "N/A"}</span>
+          </div>
+          <div>
+            <label>Location</label>
+            <span>${tournament?.location || "N/A"}</span>
+          </div>
+        </div>
+
+        <div class="match-meta">
+          <div>
+            <label>Mat Number:</label>
+            <span>${match.matNumber}</span>
+          </div>
+          <div>
+            <label>Match Number:</label>
+            <span>#${match.matchNumber}</span>
+          </div>
+        </div>
+
+        <div class="match-details">
+          <div class="player-card winner">
+            <h3>🏆 Winner</h3>
+            <div class="name">${winner.playerName}</div>
+            <div class="club">${winner.club}</div>
+            ${winner.seedNumber ? `<span class="seed">Seed #${winner.seedNumber}</span>` : ""}
+          </div>
+          <div class="player-card loser">
+            <h3>Opponent</h3>
+            <div class="name">${loser.playerName}</div>
+            <div class="club">${loser.club}</div>
+            ${loser.seedNumber ? `<span class="seed">Seed #${loser.seedNumber}</span>` : ""}
+          </div>
+        </div>
+
+        ${nextMatchInfo ? `
+          <div class="next-match">
+            <h3>📍 NEXT MATCH</h3>
+            <div class="details">
+              <div>
+                <label>Round:</label>
+                <span>${roundName(nextMatchInfo.roundIndex, 5)}</span>
+              </div>
+              <div>
+                <label>Match:</label>
+                <span>#${nextMatchInfo.matchNumber}</span>
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <label>Opponent Status:</label>
+                <span>${nextMatchInfo.opponent ? `vs ${nextMatchInfo.opponent}` : "⏳ Waiting for opponent to advance"}</span>
+              </div>
+            </div>
+          </div>
+        ` : ""}
+
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
+          <p>TNJA Tournament Management System</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  document.body.appendChild(iframe);
+
+  iframe.contentWindow?.document.write(html);
+  iframe.onload = () => {
+    iframe.contentWindow?.print();
+    setTimeout(() => document.body.removeChild(iframe), 100);
+  };
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function TournamentDetailPage() {
   const params = useParams();
@@ -171,7 +452,7 @@ export default function TournamentDetailPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("bracket"); // default bracket
 
   const [ageFilter, setAgeFilter] = useState("ALL");
-  const [genderFilter, setGenderFilter] = useState("ALL");
+  const [genderFilter, setGenderFilter] = useState("MALE");
   const [weightFilter, setWeightFilter] = useState("ALL");
 
   const [draws, setDraws] = useState<Record<string, DrawCategory>>({});
@@ -339,8 +620,19 @@ export default function TournamentDetailPage() {
         }),
       });
       if (res.ok) {
-        setDraws((prev) => ({ ...prev, [currentKey]: { ...draw, saved: true } }));
-        showToast("Draw saved successfully!");
+        const updatedDraw = await res.json();
+        // Update with auto-advanced rounds from backend
+        setDraws((prev) => ({
+          ...prev,
+          [currentKey]: {
+            ...draw,
+            rounds: updatedDraw.draw?.rounds || draw.rounds,
+            saved: true
+          }
+        }));
+        showToast("Draw saved & winners auto-advanced! 🏆");
+        // Refresh draws to show real-time updates
+        await fetchDraws();
       } else {
         showToast("Failed to save draw", false);
       }
@@ -540,7 +832,6 @@ export default function TournamentDetailPage() {
         </select>
         <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
-          <option value="ALL">All Genders</option>
           <option value="MALE">Male</option>
           <option value="FEMALE">Female</option>
         </select>
@@ -643,8 +934,8 @@ export default function TournamentDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
-        {(["overview", "players", "draws", "matches"] as Tab[]).map((tab) => {
-          const lockedByExpiry = expired && (tab === "draws" || tab === "matches");
+        {(["overview", "players", "draws", "matches", "results"] as Tab[]).map((tab) => {
+          const lockedByExpiry = expired && (tab === "draws" || tab === "matches" || tab === "results");
           return (
             <button
               key={tab}
@@ -659,7 +950,7 @@ export default function TournamentDetailPage() {
               }`}
             >
               {lockedByExpiry && <span className="text-[10px]">🔒</span>}
-              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           );
         })}
@@ -1118,22 +1409,32 @@ export default function TournamentDetailPage() {
                           <div className="w-px h-10 bg-slate-100" />
                           <div className="flex items-center gap-3">
                             <div className="text-right">
-                              <p className={`text-sm font-black ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                              <motion.p
+                                key={`${match.matchId}-slotA-${match.slotA.playerName}`}
+                                initial={match.slotA.playerName !== "TBD" ? { opacity: 0, scale: 0.8, y: -10 } : { opacity: 1, scale: 1, y: 0 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className={`text-sm font-black ${match.slotA.isBye ? "text-slate-300" : match.slotA.playerName === "TBD" ? "text-slate-400" : "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg"}`}>
                                 {match.slotA.playerName}
                                 {match.slotA.seedNumber && (
                                   <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotA.seedNumber}</span>
                                 )}
-                              </p>
+                              </motion.p>
                               <p className="text-xs text-slate-400 font-semibold">{match.slotA.club}</p>
                             </div>
                             <span className="text-xs font-black text-slate-300 bg-slate-100 px-2.5 py-1 rounded-lg">VS</span>
                             <div>
-                              <p className={`text-sm font-black ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                              <motion.p
+                                key={`${match.matchId}-slotB-${match.slotB.playerName}`}
+                                initial={match.slotB.playerName !== "TBD" ? { opacity: 0, scale: 0.8, y: -10 } : { opacity: 1, scale: 1, y: 0 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className={`text-sm font-black ${match.slotB.isBye ? "text-slate-300" : match.slotB.playerName === "TBD" ? "text-slate-400" : "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg"}`}>
                                 {match.slotB.playerName}
                                 {match.slotB.seedNumber && (
                                   <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotB.seedNumber}</span>
                                 )}
-                              </p>
+                              </motion.p>
                               <p className="text-xs text-slate-400 font-semibold">{match.slotB.club}</p>
                             </div>
                           </div>
@@ -1171,6 +1472,180 @@ export default function TournamentDetailPage() {
               <Swords size={48} className="mx-auto text-slate-200 mb-4" />
               <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
               <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first</p>
+              <button onClick={() => setActiveTab("draws")}
+                className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                Go to Draw Generation →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ RESULTS & REPORTS ══════════════════════════════════════════════════ */}
+      {activeTab === "results" && expired && (
+        <ExpiredBlock label="Results & Reports" />
+      )}
+      {activeTab === "results" && !expired && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                <BarChart3 size={24} /> Match Results & Reports
+              </h2>
+              <p className="text-slate-500 text-sm mt-1">View completed matches, winners, and generate PDF reports</p>
+            </div>
+          </div>
+
+          <CategoryFilters />
+
+          {currentDraw?.generated ? (
+            <div className="space-y-6">
+              {/* Completed Matches */}
+              {currentDraw.rounds.map((round, ri) => {
+                const completedMatches = round.filter(m => m.status === "COMPLETED");
+                if (completedMatches.length === 0) return null;
+
+                return (
+                  <motion.div
+                    key={ri}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
+                  >
+                    <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white flex items-center justify-between">
+                      <h3 className="font-black">{roundName(ri, currentDraw.rounds.length)} Results</h3>
+                      <span className="text-xs font-bold text-emerald-100">{completedMatches.length} completed</span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100">
+                      {completedMatches.map((match) => {
+                        const winner = match.winnerId === match.slotA.playerId ? match.slotA : match.slotB;
+                        const loser = match.winnerId === match.slotA.playerId ? match.slotB : match.slotA;
+                        const nextMatchInfo = findNextMatch(currentDraw.rounds, ri, round.indexOf(match), winner);
+
+                        return (
+                          <div key={match.matchId} className="p-6 hover:bg-emerald-50/30 transition-colors">
+                            <div className="flex items-start justify-between gap-6">
+                              <div className="flex-1 space-y-4">
+                                {/* Match Header */}
+                                <div className="flex items-center gap-4">
+                                  <div className="text-center w-14">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase">Mat</p>
+                                    <p className="text-2xl font-black text-slate-800">{match.matNumber}</p>
+                                  </div>
+                                  <div className="h-10 w-px bg-slate-200" />
+                                  <div className="text-center w-14">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase">Match</p>
+                                    <p className="text-2xl font-black text-slate-800">#{match.matchNumber}</p>
+                                  </div>
+                                </div>
+
+                                {/* Winner & Loser */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Winner */}
+                                  <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: 0.1 }}
+                                    className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-4 border-2 border-emerald-300"
+                                  >
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Trophy size={16} className="text-emerald-600" />
+                                      <p className="text-xs font-black text-emerald-600 uppercase">Winner</p>
+                                    </div>
+                                    <p className="text-lg font-black text-emerald-700">{winner.playerName}</p>
+                                    <p className="text-xs text-emerald-600 font-semibold mt-1">{winner.club}</p>
+                                    {winner.seedNumber && (
+                                      <span className="mt-2 inline-block text-[9px] font-black text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
+                                        Seed #{winner.seedNumber}
+                                      </span>
+                                    )}
+                                  </motion.div>
+
+                                  {/* Loser */}
+                                  <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: 0.15 }}
+                                    className="bg-slate-50 rounded-2xl p-4 border border-slate-200"
+                                  >
+                                    <p className="text-xs font-black text-slate-400 uppercase mb-2">Loser</p>
+                                    <p className="text-lg font-bold text-slate-700">{loser.playerName}</p>
+                                    <p className="text-xs text-slate-500 font-semibold mt-1">{loser.club}</p>
+                                    {loser.seedNumber && (
+                                      <span className="mt-2 inline-block text-[9px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                        Seed #{loser.seedNumber}
+                                      </span>
+                                    )}
+                                  </motion.div>
+                                </div>
+
+                                {/* Next Match Info */}
+                                {nextMatchInfo && (
+                                  <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-200 mt-4"
+                                  >
+                                    <p className="text-xs font-black text-blue-600 uppercase mb-2">📍 Next Match</p>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div>
+                                        <p className="text-[10px] text-blue-600 font-bold uppercase">Round</p>
+                                        <p className="font-black text-blue-700">{roundName(nextMatchInfo.roundIndex, currentDraw.rounds.length)}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] text-blue-600 font-bold uppercase">Match #{nextMatchInfo.matchNumber}</p>
+                                        <p className="font-black text-blue-700">Mat {nextMatchInfo.matNumber}</p>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <p className="text-[10px] text-blue-600 font-bold uppercase">Opponent Status</p>
+                                        <p className="font-semibold text-blue-700">
+                                          {nextMatchInfo.opponent
+                                            ? `vs ${nextMatchInfo.opponent}`
+                                            : "⏳ Waiting for opponent to advance"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </div>
+
+                              {/* Export PDF Button */}
+                              <button
+                                onClick={() => exportMatchToPDF(match, winner, loser, tournament, ri, nextMatchInfo)}
+                                className="flex-shrink-0 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-2xl font-black text-sm flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-blue-500/30 whitespace-nowrap"
+                              >
+                                <Download size={16} />
+                                Export PDF
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              {/* No Completed Matches */}
+              {currentDraw.rounds.every(r => !r.some(m => m.status === "COMPLETED")) && (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-20 text-center">
+                  <Clock size={48} className="mx-auto text-slate-200 mb-4" />
+                  <p className="text-slate-500 font-bold text-lg">No Completed Matches Yet</p>
+                  <p className="text-slate-400 font-semibold text-sm mt-1">Complete some matches to see results here</p>
+                  <button onClick={() => setActiveTab("matches")}
+                    className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                    Go to Matches →
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-20 text-center">
+              <BarChart3 size={48} className="mx-auto text-slate-200 mb-4" />
+              <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
+              <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first to start matches</p>
               <button onClick={() => setActiveTab("draws")}
                 className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
                 Go to Draw Generation →

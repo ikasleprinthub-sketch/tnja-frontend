@@ -232,6 +232,19 @@ export default function PlayerTournamentsPage() {
         : activeTab === "zonal"
         ? zonalMatches
         : stateNationalMatches;
+
+    // Filter by gender - only if player has gender set
+    if (playerData?.gender && list.length > 0) {
+      const filtered = list.filter((t) =>
+        !t.gender || t.gender === "BOTH" || t.gender === playerData.gender
+      );
+      // Only use filtered list if it has results, otherwise show all
+      if (filtered.length > 0) {
+        list = filtered;
+      }
+    }
+
+    // Filter by search query
     if (searchQuery) {
       list = list.filter((t) =>
         t.title.toLowerCase().includes(searchQuery.toLowerCase())

@@ -1,0 +1,216 @@
+═══════════════════════════════════════════════════════════════════════════════
+        MATCH RESULTS & PDF REPORT SYSTEM - COMPLETE FLOW DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 1: TOURNAMENT SETUP                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────┐
+    │  Admin creates  │
+    │  tournament     │
+    └────────┬────────┘
+             │
+    ┌────────v────────┐
+    │  Set category:  │
+    │  age, gender,   │
+    │  weight, level  │
+    └────────┬────────┘
+             │
+    ┌────────v────────┐
+    │  Players        │
+    │  register       │
+    └────────┬────────┘
+             │
+    ┌────────v────────┐
+    │  Generate draw  │
+    │  (IJF seeding)  │
+    └────────┬────────┘
+             │
+             └─────────────────────────────────────────┐
+                                                       │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 2: MATCH EXECUTION                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+             ┌────────────────────────────────────────────┐
+             │                                            │
+    ┌────────v────────┐                                  │
+    │  Open Matches   │                                  │
+    │  Tab            │                                  │
+    └────────┬────────┘                                  │
+             │                                            │
+    ┌────────v────────────────────────────────────────┐  │
+    │  Match#1: SIDDHI vs PRIYA [PENDING]             │  │
+    │           Click "Open Scoreboard"               │  │
+    └────────┬────────────────────────────────────────┘  │
+             │                                            │
+    ┌────────v───────────────────────────────────────┐   │
+    │  SCOREBOARD (Mat 1)                             │   │
+    │  ┌────────────────────────────────────────┐   │   │
+    │  │ SIDDHI SHARMA (48kg, FEMALE, Seed #1) │   │   │
+    │  │ vs                                      │   │   │
+    │  │ PRIYA DESAI (48kg, FEMALE, Seed #3)   │   │   │
+    │  │                                        │   │   │
+    │  │ Points: SIDDHI [10] PRIYA [5]         │   │   │
+    │  │                                        │   │   │
+    │  │ [Submit Winner: SIDDHI] ✓             │   │   │
+    │  └────────────────────────────────────────┘   │   │
+    └────────┬───────────────────────────────────────┘   │
+             │                                            │
+    ┌────────v────────────────────────────────────────┐  │
+    │  BACKEND AUTO-ADVANCEMENT:                      │  │
+    │  1. Find SIDDHI's next match (Quarterfinal #7)  │  │
+    │  2. Replace "TBD" with "SIDDHI SHARMA"         │  │
+    │  3. Update bracket with animation ✨            │  │
+    └────────┬────────────────────────────────────────┘  │
+             │                                            │
+    ┌────────v────────────────────────────────────────┐  │
+    │  BRACKET AUTO-UPDATES:                          │  │
+    │  - Match#1: SIDDHI ✅ COMPLETED                 │  │
+    │  - Quarterfinal#7: SIDDHI (winner) vs TBD      │  │
+    │    (waiting for match#2 winner)                 │  │
+    └────────┬────────────────────────────────────────┘  │
+             │                                            │
+             │  ← Complete Match#2 (SANSKRUTI wins)     │
+             │  ← Complete Match#3...                    │
+             │  ← Complete Match#4...                    │
+             │                                            │
+             └─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   PHASE 3: VIEW RESULTS & EXPORT                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────┐
+    │  RESULTS TAB                                    │
+    │                                                 │
+    │  Category Filters: [Age] [Gender] [Weight]     │
+    │                                                 │
+    │  ✅ QUARTERFINAL RESULTS (4 matches)           │
+    │                                                 │
+    │  Match#1 - Mat 1                                │
+    │  ┌──────────────────────────────────────────┐  │
+    │  │ 🏆 WINNER              LOSER             │  │
+    │  │ SIDDHI SHARMA    |  PRIYA DESAI        │  │
+    │  │ Mumbai Club      |  Delhi Club          │  │
+    │  │ Seed #1          |  Seed #3             │  │
+    │  │                  |                       │  │
+    │  │ 📍 NEXT MATCH:               Quarterfinal#7 │  │
+    │  │    Match #7, Mat 1                      │  │
+    │  │    Opponent: vs SANSKRUTI (advanced)   │  │
+    │  │                                          │  │
+    │  │             [Export PDF] ↓              │  │
+    │  └──────────────────────────────────────────┘  │
+    │                                                 │
+    │  Match#2 - Mat 2                                │
+    │  ┌──────────────────────────────────────────┐  │
+    │  │ 🏆 SANSKRUTI SHARMA  |  FATIMA KHAN    │  │
+    │  │ Bangalore Club       |  Hyderabad Club  │  │
+    │  │ Seed #2              |  Seed #4         │  │
+    │  │                      |                   │  │
+    │  │ 📍 NEXT MATCH:                Quarterfinal#7 │  │
+    │  │    Match #7, Mat 1                      │  │
+    │  │    Opponent: vs SIDDHI (advanced) ✓   │  │
+    │  │                                          │  │
+    │  │             [Export PDF] ↓              │  │
+    │  └──────────────────────────────────────────┘  │
+    │                                                 │
+    │  ... (more completed matches)                  │
+    └─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   PHASE 4: PDF REPORT GENERATION                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Click [Export PDF] Button
+             │
+    ┌────────v──────────────────────────────┐
+    │  PDF Document Generated:              │
+    │  ┌──────────────────────────────────┐ │
+    │  │    ⚔️ MATCH REPORT               │ │
+    │  │                                  │ │
+    │  │  TOURNAMENT: 52nd Senior State   │ │
+    │  │  DATE: 6/10/2026                │ │
+    │  │  LEVEL: STATE                   │ │
+    │  │  LOCATION: Mumbai               │ │
+    │  │                                  │ │
+    │  │  ─────────────────────────────  │ │
+    │  │  Mat #1 | Match #5              │ │
+    │  │  ─────────────────────────────  │ │
+    │  │                                  │ │
+    │  │  🏆 WINNER                       │ │
+    │  │  SIDDHI SHARMA                   │ │
+    │  │  Mumbai Club                     │ │
+    │  │  Seed #1                         │ │
+    │  │                                  │ │
+    │  │  OPPONENT                        │ │
+    │  │  PRIYA DESAI                     │ │
+    │  │  Delhi Club                      │ │
+    │  │  Seed #3                         │ │
+    │  │                                  │ │
+    │  │  📍 NEXT MATCH                   │ │
+    │  │  Round: Quarterfinal             │ │
+    │  │  Match: #7                       │ │
+    │  │  Opponent: vs SANSKRUTI          │ │
+    │  │                                  │ │
+    │  │  Generated: June 10, 2026        │ │
+    │  │  TNJA Tournament System          │ │
+    │  └──────────────────────────────────┘ │
+    └────────┬──────────────────────────────┘
+             │
+             ├─→ [Print to Paper] 📄
+             │
+             └─→ [Save as PDF] 💾
+
+═══════════════════════════════════════════════════════════════════════════════
+                           KEY FEATURES
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ AUTO-ADVANCEMENT
+   When match completes → Winner auto-advances to next round
+   Next-round "TBD" becomes winner's name with animation ✨
+
+✅ NEXT MATCH VISIBILITY
+   For each winner, see:
+   - Which round they advance to
+   - Match number and mat number
+   - Who their opponent is (or waiting status)
+
+✅ RESULTS TRACKING
+   View all completed matches in one place
+   Filter by age group, gender, weight category
+
+✅ PDF REPORTS
+   Professional match records for:
+   - Tournament information
+   - Winner & loser details
+   - Seeding information
+   - Next match destination
+   - Print or save as PDF
+
+✅ ANIMATIONS & UI
+   Smooth transitions when viewing results
+   Color-coded: Green (winner), Gray (loser), Blue (next match)
+   Responsive design on all devices
+
+═══════════════════════════════════════════════════════════════════════════════
+                         USAGE EXAMPLE
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO: Admin running 48kg Women's Tournament with 8 players
+
+1. Create tournament → 48kg, FEMALE, 8 players register
+2. Generate draw → IJF seeding positions assigned
+3. Run matches:
+   - Match#1: SIDDHI beats PRIYA → advances to QF#7
+   - Match#2: SANSKRUTI beats FATIMA → advances to QF#7
+   - Match#3: ANJALI beats NEHA → advances to QF#8
+   - Match#4: PREETI beats MAHIMA → advances to QF#8
+4. Click Results Tab → See all 4 completed matches
+5. Click Export PDF for each match → Save match records
+6. Continue with QF#7 between SIDDHI vs SANSKRUTI
+7. Continue with QF#8 between ANJALI vs PREETI
+8. Winners advance to semifinals automatically
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -241,7 +241,8 @@ export default function DashboardLayout({
       ]
     : userRole === "COACH"
     ? [
-        { name: "My Profile", href: "/dashboard/member", icon: User },
+        { name: "Dashboard", href: "/dashboard/member", icon: LayoutDashboard },
+        { name: "My Students", href: "/dashboard/coach/students", icon: Users },
         { name: "Events", href: "/dashboard/member/events", icon: Calendar },
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ]

@@ -61,6 +61,7 @@ export default function ClubTournamentsPage() {
     allowBPL: false,
     beltEligibility: "",
     level: "DISTRICT",
+    zoneId: "",
   });
 
   const [editData, setEditData] = useState({
@@ -77,6 +78,7 @@ export default function ClubTournamentsPage() {
     allowBPL: false,
     beltEligibility: "",
     level: "DISTRICT",
+    zoneId: "",
   });
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -266,6 +268,9 @@ export default function ClubTournamentsPage() {
   };
 
   const handleOpenEdit = (tournament: any) => {
+    // If tournament has a zoneId, ensure level is set to "ZONE"
+    const level = tournament.zoneId ? "ZONE" : (tournament.level || "DISTRICT");
+
     setEditData({
       title: tournament.title,
       dateFrom: new Date(tournament.date).toISOString().split("T")[0],
@@ -279,7 +284,8 @@ export default function ClubTournamentsPage() {
       gender: tournament.gender || "BOTH",
       allowBPL: tournament.allowBPL || false,
       beltEligibility: tournament.beltEligibility || "",
-      level: tournament.level || "DISTRICT",
+      level: level,
+      zoneId: tournament.zoneId || "",
     });
     setEditingTournament(tournament);
   };
@@ -287,6 +293,13 @@ export default function ClubTournamentsPage() {
   const handleUpdate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!editingTournament) return;
+
+    // Validate zone for zonal tournaments
+    if (editData.level === "ZONE" && !editData.zoneId) {
+      showToast("Please select a zone for zonal tournaments.", "error");
+      return;
+    }
+
     setSubmitLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -334,6 +347,13 @@ export default function ClubTournamentsPage() {
 
   const handleCreate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
+
+    // Validate zone for zonal tournaments
+    if (formData.level === "ZONE" && !formData.zoneId) {
+      showToast("Please select a zone for zonal tournaments.", "error");
+      return;
+    }
+
     setSubmitLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -350,7 +370,7 @@ export default function ClubTournamentsPage() {
       if (!res.ok) throw new Error(json.error || "Failed to create tournament");
       showToast("Tournament created! Your club players will be notified.", "success");
       setIsCreateModalOpen(false);
-      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT" });
+      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "" });
       fetchTournaments();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -636,6 +656,10 @@ export default function ClubTournamentsPage() {
                                   <img src="/homepage/whatjudo/judo1.png" alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-grow p-5">
+                                  {/* Player Name - Heading */}
+                                  <h3 className="text-lg font-bold text-slate-800 mb-4">
+                                    {reg.player?.fullName || reg.playerName || "—"}
+                                  </h3>
                                   <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                                     {[
                                       { label: "Tournament Name", value: tournament.title },
@@ -853,61 +877,75 @@ export default function ClubTournamentsPage() {
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Tournament Title</label>
                     <input type="text" required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      placeholder="e.g. Club Championship 2026" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      placeholder="e.g. Club Championship 2026" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
-                    <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                    <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value, zoneId: "" })}
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
+                  {formData.level === "ZONE" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Zone *</label>
+                      <select required value={formData.zoneId} onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                        <option value="">Select Zone</option>
+                        <option value="Chennai Zone">Chennai Zone</option>
+                        <option value="Salem Zone">Salem Zone</option>
+                        <option value="Coimbatore Zone">Coimbatore Zone</option>
+                        <option value="Trichy Zone">Trichy Zone</option>
+                        <option value="Madurai Zone">Madurai Zone</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
                     <select value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="BOTH">Both</option><option value="MALE">Male Only</option><option value="FEMALE">Female Only</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
                     <input type="date" required value={formData.dateFrom} onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
                     <input type="date" value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
                     <input type="number" required min="0" value={formData.ageFrom} onChange={(e) => setFormData({ ...formData, ageFrom: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
                     <input type="number" required min="0" value={formData.ageTo} onChange={(e) => setFormData({ ...formData, ageTo: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location</label>
                     <input type="text" required value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Belt Eligibility</label>
                     <input type="text" value={formData.beltEligibility} onChange={(e) => setFormData({ ...formData, beltEligibility: e.target.value })}
-                      placeholder="e.g. Yellow belt and above" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      placeholder="e.g. Yellow belt and above" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
                     <input type="number" required min="0" value={formData.entryFee} onChange={(e) => setFormData({ ...formData, entryFee: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
                     <input type="number" required min="2" value={formData.totalSlots} onChange={(e) => setFormData({ ...formData, totalSlots: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">
                     <input type="checkbox" id="allowBpl_create" checked={formData.allowBPL} onChange={(e) => setFormData({ ...formData, allowBPL: e.target.checked })}
@@ -917,7 +955,7 @@ export default function ClubTournamentsPage() {
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
                     <textarea required value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full h-28 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none" />
+                      className="w-full h-28 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none" />
                   </div>
                 </div>
                 <div className="flex gap-4 pt-2">
@@ -970,61 +1008,75 @@ export default function ClubTournamentsPage() {
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Tournament Title</label>
                     <input type="text" required value={editData.title} onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                      placeholder="e.g. Club Championship 2026" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      placeholder="e.g. Club Championship 2026" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
-                    <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                    <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value, zoneId: "" })}
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
+                  {editData.level === "ZONE" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Zone *</label>
+                      <select required value={editData.zoneId} onChange={(e) => setEditData({ ...editData, zoneId: e.target.value })}
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                        <option value="">Select Zone</option>
+                        <option value="Chennai Zone">Chennai Zone</option>
+                        <option value="Salem Zone">Salem Zone</option>
+                        <option value="Coimbatore Zone">Coimbatore Zone</option>
+                        <option value="Trichy Zone">Trichy Zone</option>
+                        <option value="Madurai Zone">Madurai Zone</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
                     <select value={editData.gender} onChange={(e) => setEditData({ ...editData, gender: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="BOTH">Both</option><option value="MALE">Male Only</option><option value="FEMALE">Female Only</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
                     <input type="date" required value={editData.dateFrom} onChange={(e) => setEditData({ ...editData, dateFrom: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
                     <input type="date" value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
                     <input type="number" required min="0" value={editData.ageFrom} onChange={(e) => setEditData({ ...editData, ageFrom: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
                     <input type="number" required min="0" value={editData.ageTo} onChange={(e) => setEditData({ ...editData, ageTo: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location</label>
                     <input type="text" required value={editData.location} onChange={(e) => setEditData({ ...editData, location: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Belt Eligibility</label>
                     <input type="text" value={editData.beltEligibility} onChange={(e) => setEditData({ ...editData, beltEligibility: e.target.value })}
-                      placeholder="e.g. Yellow belt and above" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      placeholder="e.g. Yellow belt and above" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
                     <input type="number" required min="0" value={editData.entryFee} onChange={(e) => setEditData({ ...editData, entryFee: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
                     <input type="number" required min="2" value={editData.totalSlots} onChange={(e) => setEditData({ ...editData, totalSlots: e.target.value })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">
                     <input type="checkbox" id="allowBpl_edit" checked={editData.allowBPL} onChange={(e) => setEditData({ ...editData, allowBPL: e.target.checked })}
@@ -1034,7 +1086,7 @@ export default function ClubTournamentsPage() {
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
                     <textarea required value={editData.description} onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                      className="w-full h-28 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none" />
+                      className="w-full h-28 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all resize-none" />
                   </div>
                 </div>
                 <div className="flex gap-4 pt-2">

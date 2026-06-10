@@ -1,0 +1,376 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    SCOREBOARD UI - BEFORE & AFTER
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE (OLD VERSION):
+═══════════════════════════════════════════════════════════════════════════════
+
+When a match ended, you saw:
+
+        ┌─────────────────────────────────────────────────────┐
+        │                                                     │
+        │                     🏆                              │
+        │                                                     │
+        │              WHITE WINS                             │
+        │                                                     │
+        │          MANIKANDAN M                               │
+        │          Yeotmal Club                               │
+        │                                                     │
+        │             [Decision]                              │
+        │                                                     │
+        │  ┌────────────────────────────────────────────────┐ │
+        │  │  ↺ New Match / Reset                          │ │
+        │  └────────────────────────────────────────────────┘ │
+        │                                                     │
+        │     ❌ No save confirmation                        │
+        │     ❌ No PDF export                               │
+        │     ❌ Unclear if data was saved                   │
+        │                                                     │
+        └─────────────────────────────────────────────────────┘
+
+PROBLEM:
+  - Admin not sure if match was saved to database
+  - No way to immediately export match report
+  - Only option: Reset and move to next match
+  - Had to go to Results & Reports tab later to see data
+
+═══════════════════════════════════════════════════════════════════════════════
+
+AFTER (NEW VERSION):
+═══════════════════════════════════════════════════════════════════════════════
+
+When a match ends, you now see:
+
+        ┌─────────────────────────────────────────────────────┐
+        │                                                     │
+        │                     🏆                              │
+        │                                                     │
+        │              WHITE WINS                             │
+        │                                                     │
+        │          MANIKANDAN M                               │
+        │          Yeotmal Club                               │
+        │                                                     │
+        │             [Decision]                              │
+        │                                                     │
+        │  ┌────────────────────────────────────────────────┐ │
+        │  │ ✅ Save Match Result     (GREEN BUTTON)       │ │  ← NEW!
+        │  │                                                │ │
+        │  │ 📥 Download Report (PDF) (BLUE BUTTON)        │ │  ← NEW!
+        │  │                                                │ │
+        │  │ ↺ New Match / Reset      (GRAY BUTTON)        │ │
+        │  └────────────────────────────────────────────────┘ │
+        │                                                     │
+        │     ✅ Explicit save button                        │
+        │     ✅ PDF export immediately                      │
+        │     ✅ Professional match report                   │
+        │                                                     │
+        └─────────────────────────────────────────────────────┘
+
+BENEFITS:
+  ✅ Admin can confirm match was saved
+  ✅ PDF report available instantly
+  ✅ No need to search for results later
+  ✅ Professional documentation
+  ✅ Print or save for records
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                         BUTTON DETAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+BUTTON 1: ✅ Save Match Result (GREEN)
+──────────────────────────────────────────────────────────────────────────────
+
+  Color: Green gradient (from-green-500 to-emerald-500)
+  Icon: ✅ (CheckCircle)
+
+  When clicked:
+    1. Button shows loading state: "💾 Saving match result..."
+    2. Data sent to backend API
+    3. Backend saves to database with:
+       - Winner ID
+       - Scores (Ippon, Waza-ari, Yuko, Shido)
+       - Win method
+       - Match logs/events
+    4. Next-round match auto-updated with winner
+    5. Shows: "✅ Match result saved to database!"
+    6. Message disappears after 2 seconds
+
+  Database Entry Created:
+    ┌─────────────────────────────────────────┐
+    │ matchId: "M1_Q_48kg_FEMALE"             │
+    │ status: "COMPLETED"                     │
+    │ winnerId: "player_123"                  │
+    │ scoreA: { ippon: 1, wazaAri: 0, ... }   │
+    │ scoreB: { ippon: 0, wazaAri: 0, ... }   │
+    │ winMethod: "Decision"                   │
+    │ logs: [...match events...]              │
+    │ Timestamp: 2026-06-10T15:45:00          │
+    └─────────────────────────────────────────┘
+
+  Auto-Saved Even Without Click?
+    YES! The data auto-saves in the background.
+    This button is just for USER CONFIRMATION.
+
+
+BUTTON 2: 📥 Download Report (PDF) (BLUE)
+──────────────────────────────────────────────────────────────────────────────
+
+  Color: Blue gradient (from-blue-500 to-cyan-500)
+  Icon: 📥 (Download)
+
+  When clicked:
+    1. Browser generates professional PDF
+    2. Print dialog opens
+    3. User can:
+       a) Select printer → Print to paper
+       b) "Save as PDF" → Save to computer
+       c) "Cancel" → Close dialog
+
+  PDF Contains:
+    ├─ Tournament Title & Info
+    ├─ Match Details (Mat #, Match #)
+    ├─ Winner Card
+    │  ├─ Name: MANIKANDAN M
+    │  ├─ Club: Yeotmal Club
+    │  └─ Scores: Ippon, Waza-ari, Yuko, Shido
+    │
+    ├─ Opponent Card
+    │  ├─ Name: SIDDHI SHARMA
+    │  ├─ Club: Mumbai Club
+    │  └─ Scores: Ippon, Waza-ari, Yuko, Shido
+    │
+    ├─ Decision: "Victory by Decision"
+    ├─ Match Events Log
+    └─ Timestamp & TNJA Footer
+
+  File Information:
+    - Format: PDF (printable)
+    - Size: ~100-150 KB
+    - Compatible with: All browsers, Adobe, etc.
+    - Can be: Printed, Saved, Emailed, Archived
+
+
+BUTTON 3: ↺ New Match / Reset (GRAY)
+──────────────────────────────────────────────────────────────────────────────
+
+  Color: White/gray (white/10 hover white/20)
+  Icon: ↺ (RotateCcw)
+
+  When clicked:
+    1. Clears all scores
+    2. Resets match timer
+    3. Clears logs and events
+    4. Removes winner declaration
+    5. Saves empty state to DB
+    6. Ready for next match
+
+  What Gets Reset:
+    - Winner: null
+    - ScoreA: { ippon: 0, wazaAri: 0, yuko: 0, shido: 0 }
+    - ScoreB: { ippon: 0, wazaAri: 0, yuko: 0, shido: 0 }
+    - Win Method: ""
+    - Logs: []
+    - Timer: Resets to match duration
+    - Golden Score: false
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                    STEP-BY-STEP USER WORKFLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Start Match
+┌──────────────────────────────────┐
+│ [Scoreboard Running]              │
+│                                  │
+│ MANIKANDAN M (White)              │
+│   Ippon: [+]    Waza-ari: [+]    │
+│   Yuko: [+]     Shido: [+]       │
+│                                  │
+│   [Timer: 4:32] ⏱️               │
+│                                  │
+│ SIDDHI SHARMA (Blue)              │
+│   Ippon: [+]    Waza-ari: [+]    │
+│   Yuko: [+]     Shido: [+]       │
+│                                  │
+│ Status: IN_PROGRESS               │
+└──────────────────────────────────┘
+
+       ↓ (Admin scores points)
+
+STEP 2: Match Ends - Winner Declared
+┌──────────────────────────────────────────────┐
+│                    🏆                        │
+│                                              │
+│               WHITE WINS                     │
+│                                              │
+│            MANIKANDAN M                      │
+│            Yeotmal Club                      │
+│                                              │
+│              [Decision]                      │
+│                                              │
+│  Status: NOT YET SAVED (waiting for action)  │
+└──────────────────────────────────────────────┘
+
+       ↓ (Admin chooses action)
+
+STEP 3A: Admin Clicks "Save Match Result"
+┌──────────────────────────────────────────────┐
+│                    🏆                        │
+│                                              │
+│               WHITE WINS                     │
+│                                              │
+│            MANIKANDAN M                      │
+│            Yeotmal Club                      │
+│                                              │
+│              [Decision]                      │
+│                                              │
+│  💙 Saving match result...                  │
+│                                              │
+│  [✅ Save Match Result] (Processing...)     │
+│  [📥 Download Report]                       │
+│  [↺ New Match / Reset]                      │
+└──────────────────────────────────────────────┘
+
+       ↓ (Backend saves data)
+
+STEP 3B: Confirmation Shown
+┌──────────────────────────────────────────────┐
+│                    🏆                        │
+│                                              │
+│               WHITE WINS                     │
+│                                              │
+│            MANIKANDAN M                      │
+│            Yeotmal Club                      │
+│                                              │
+│              [Decision]                      │
+│                                              │
+│  ✅ Match result saved to database!          │
+│                                              │
+│  [✅ Save Match Result]                     │
+│  [📥 Download Report]                       │
+│  [↺ New Match / Reset]                      │
+└──────────────────────────────────────────────┘
+
+       ↓ (Message disappears after 2 seconds)
+
+STEP 4: Download PDF (Optional)
+┌──────────────────────────────────────────────┐
+│ Print Dialog Opens                           │
+├──────────────────────────────────────────────┤
+│ Printer: [Dropdown ▼]                       │
+│ Format: PDF                                  │
+│ Pages: All                                   │
+│                                              │
+│ [Print] [Save as PDF] [Cancel]              │
+└──────────────────────────────────────────────┘
+
+       ↓ (User prints or saves)
+
+STEP 5: Move to Next Match
+┌──────────────────────────────────────────────┐
+│                    🏆                        │
+│                                              │
+│               WHITE WINS                     │
+│                                              │
+│            MANIKANDAN M                      │
+│            Yeotmal Club                      │
+│                                              │
+│              [Decision]                      │
+│                                              │
+│  ✅ Match result saved to database!          │
+│                                              │
+│  [✅ Save Match Result]                     │
+│  [📥 Download Report]                       │
+│  [↺ New Match / Reset] ← CLICK THIS        │
+└──────────────────────────────────────────────┘
+
+       ↓ (All data cleared)
+
+STEP 6: Fresh Start for Next Match
+┌──────────────────────────────────────────────┐
+│ [Scoreboard Reset - Ready for Match #6]      │
+│                                              │
+│ Next Fighter A: ANJALI KUMAR                 │
+│   Ippon: [+]    Waza-ari: [+]               │
+│   Yuko: [+]     Shido: [+]                  │
+│                                              │
+│   [Timer: 4:00] ⏱️ (READY)                   │
+│                                              │
+│ Next Fighter B: NEHA PATEL                   │
+│   Ippon: [+]    Waza-ari: [+]               │
+│   Yuko: [+]     Shido: [+]                  │
+│                                              │
+│ Status: READY FOR NEXT MATCH                 │
+└──────────────────────────────────────────────┘
+
+       ↓ (Continue tournament)
+
+═══════════════════════════════════════════════════════════════════════════════
+                      DATABASE CONFIRMATION
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA STORED IN DATABASE:
+
+  Tournament Table
+    ├─ tournament_id: "tourn_123"
+    ├─ title: "52nd Senior State Championship"
+    └─ ...
+
+  Draw Table
+    ├─ draw_id: "draw_456"
+    ├─ tournament_id: "tourn_123"
+    └─ rounds: [
+        {
+          round: "ROUND_1",
+          matches: [
+            {
+              matchId: "M1_R1_1",
+              status: "COMPLETED"    ← ✅ SAVED!
+              winnerId: "player_123",
+              scoreA: { ippon: 1, wazaAri: 0, yuko: 1, shido: 0 },
+              scoreB: { ippon: 0, wazaAri: 0, yuko: 0, shido: 2 },
+              winMethod: "Decision",
+              logs: [...],
+              timestamp: "2026-06-10T15:45:00Z"
+            },
+            ...
+          ]
+        },
+        ...
+      ]
+
+VERIFICATION:
+  ✅ Data written to database
+  ✅ Can query matches later
+  ✅ Persists across page refreshes
+  ✅ Available in Results & Reports tab
+  ✅ Auto-advancement completed
+  ✅ Next-round match updated with winner
+
+═══════════════════════════════════════════════════════════════════════════════
+                         QUICK COMPARISON
+═══════════════════════════════════════════════════════════════════════════════
+
+Feature                  | BEFORE | AFTER
+───────────────────────────────────────────
+Save confirmation        | ❌     | ✅ (Green button + message)
+PDF export              | ❌     | ✅ (Blue button)
+Print support           | ❌     | ✅ (Via PDF)
+Match documentation     | ❌     | ✅ (Professional report)
+User feedback           | ❌     | ✅ (Status messages)
+Next match clarity      | ✅     | ✅ (Same + better flow)
+Data verification       | ❌     | ✅ (Clear save message)
+Records archiving       | ❌     | ✅ (PDF files)
+
+═══════════════════════════════════════════════════════════════════════════════
+                            SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+OLD: Click "Reset" → Move to next match → Hope data was saved
+
+NEW: Click "Save" → See confirmation ✅
+     Click "Download" → Get PDF 📥
+     Click "Reset" → Move to next match ↺
+
+Everything is clear, confirmed, and documented! 🎉
