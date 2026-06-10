@@ -34,7 +34,7 @@ const Header = () => {
   const userName = isMounted ? localStorage.getItem("userName") : null;
   const isAuthPage = pathname === "/login";
 
-  if (isDashboard || isLoggedIn || isAuthPage) return null;
+  if (isDashboard || isAuthPage) return null;
 
 
   const topNavLinks = [
