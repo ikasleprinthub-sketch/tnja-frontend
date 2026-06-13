@@ -133,8 +133,14 @@ export default function PlayerTournamentsPage() {
       document.body.appendChild(script);
     });
 
-  const handleRegister = async (tournament: any) => {
-    if (!physicalDetails.height || !physicalDetails.weight) {
+
+
+
+    const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
+    const height = directHeight || physicalDetails.height;
+    const weight = directWeight || physicalDetails.weight;
+
+    if (!height || !weight) {
       showToast("Height and weight are required.", "error");
       return;
     }
@@ -145,6 +151,22 @@ export default function PlayerTournamentsPage() {
     setPaying(tournament.id);
     try {
       const token = localStorage.getItem("token");
+
+      if (!directHeight || !directWeight) {
+        try {
+          await fetch(`${API_BASE}/auth/profile`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ height, weight }),
+          });
+        } catch (err) {
+          console.error("Failed to update profile physical details", err);
+        }
+      }
+
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) throw new Error("Razorpay SDK failed to load.");
 
@@ -153,8 +175,8 @@ export default function PlayerTournamentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           tournamentId: tournament.id,
-          height: physicalDetails.height,
-          weight: physicalDetails.weight,
+          height,
+          weight,
         }),
       });
 
@@ -164,6 +186,7 @@ export default function PlayerTournamentsPage() {
       if (orderData.isFree) {
         showToast(orderData.message, "success");
         fetchAll();
+        fetchProfile();
         return;
       }
 
@@ -181,8 +204,8 @@ export default function PlayerTournamentsPage() {
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
                 tournamentId: tournament.id,
-                height: physicalDetails.height,
-                weight: physicalDetails.weight,
+                height,
+                weight,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
@@ -192,6 +215,7 @@ export default function PlayerTournamentsPage() {
             if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
             showToast("Payment successful! You are registered. Awaiting approval.", "success");
             fetchAll();
+            fetchProfile();
           } catch (err: any) {
             showToast("Payment verification failed: " + err.message, "error");
           }
@@ -480,7 +504,13 @@ export default function PlayerTournamentsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => setRegisterModal(tournament)}
+                          onClick={() => {
+                            if (playerData?.height && playerData?.weight) {
+                              handleRegister(tournament, playerData.height, playerData.weight);
+                            } else {
+                              setRegisterModal(tournament);
+                            }
+                          }}
                           disabled={isPayingThis}
                           className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                         >
