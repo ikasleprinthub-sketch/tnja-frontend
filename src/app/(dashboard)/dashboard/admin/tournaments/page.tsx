@@ -947,6 +947,7 @@ export default function AdminTournamentsPage() {
                       onChange={e => setFormData({ ...formData, level: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
                     >
+                      <option value="CLUB">Club</option>
                       <option value="DISTRICT">District</option>
                       <option value="ZONE">Zonal</option>
                       <option value="STATE">State</option>

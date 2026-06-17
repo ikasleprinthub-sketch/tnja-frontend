@@ -665,7 +665,7 @@ export default function ClubTournamentsPage() {
                                       { label: "Tournament Name", value: tournament.title },
                                       { label: "Role",            value: "Player" },
                                       { label: "Gender",          value: (() => { const g = tournament.gender; return g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : g || "—"; })() },
-                                      { label: "Age",             value: (() => { const from = tournament.ageFrom, to = tournament.ageTo; if (to <= 16) return `Sub-Junior (${from}-${to})`; if (to <= 18) return `Cadet (${from}-${to})`; if (to <= 21) return `Junior (${from}-${to})`; return `Senior (${from}+)`; })() },
+                                      { label: "Age",             value: (() => { const from = tournament.ageFrom, to = tournament.ageTo; if (to <= 15) return `Subjunior (${from}-${to})`; if (to <= 18) return `Cadets (${from}-${to})`; if (to <= 21) return `Juniors (${from}-${to})`; if (from > 21) return `Seniors (${from}+)`; return `Veterans (${from}+)`; })() },
                                       { label: "Date",            value: new Date(tournament.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
                                       { label: "Time",            value: new Date(tournament.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
                                       { label: "Location",        value: tournament.location },
@@ -883,7 +883,7 @@ export default function ClubTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value, zoneId: "" })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                      <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
+                      <option value="CLUB">Club</option><option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
                   {formData.level === "ZONE" && (
@@ -1014,7 +1014,7 @@ export default function ClubTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value, zoneId: "" })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                      <option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
+                      <option value="CLUB">Club</option><option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
                   {editData.level === "ZONE" && (

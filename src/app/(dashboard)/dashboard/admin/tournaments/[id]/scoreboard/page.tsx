@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams, useParams } from "next/navigation";
+import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Monitor, Download, CheckCircle, RotateCcw } from "lucide-react";
+import { Trophy, Monitor, Download, CheckCircle, RotateCcw, ArrowLeft } from "lucide-react";
 
 interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
 type Fighter = "A" | "B";
@@ -45,6 +45,7 @@ const FALLBACK_penalties = [
 function ScoreboardInner() {
   const sp = useSearchParams();
   const params = useParams();
+  const router = useRouter();
   const tournamentId = params?.id as string;
   const matchId = sp.get("matchId") || "";
 
@@ -1399,6 +1400,13 @@ function ScoreboardInner() {
                   className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-sm text-white/70 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
                   <RotateCcw size={16} /> New Match / Reset
+                </button>
+
+                <button
+                  onClick={() => window.close()}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-sm text-gray-400 hover:text-gray-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <ArrowLeft size={16} /> Close Scoreboard
                 </button>
               </div>
             </motion.div>

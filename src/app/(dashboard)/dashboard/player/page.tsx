@@ -23,8 +23,10 @@ import {
   Swords,
   Hash,
   UserCheck,
+  Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { exportMatchToPDF } from "@/utils/pdfExport";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -65,6 +67,7 @@ export default function PlayerDashboard() {
   const [paying, setPaying] = useState(false);
   const [playerNotifications, setPlayerNotifications] = useState<any[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
+  const [completedMatches, setCompletedMatches] = useState<any[]>([]);
   const [tournamentWins, setTournamentWins] = useState<{ tournamentId: string; tournamentName: string; category: string }[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>({});
@@ -218,6 +221,7 @@ export default function PlayerDashboard() {
         if (trnRes.ok) {
           const tournaments = await trnRes.json();
           const matches: any[] = [];
+          const completed: any[] = [];
 
           for (const trn of tournaments) {
             if (trn.myRegistration && (trn.myRegistration.status === "APPROVED" || trn.myRegistration.status === "PENDING")) {
@@ -231,32 +235,40 @@ export default function PlayerDashboard() {
                     for (let rIdx = 0; rIdx < draw.rounds.length; rIdx++) {
                       const round = draw.rounds[rIdx];
                       for (const match of round) {
-                        if (
-                          match.status !== "COMPLETED" &&
-                          (match.slotA?.playerId === profileData.user.id || match.slotB?.playerId === profileData.user.id)
-                        ) {
-                          const opponent = match.slotA.playerId === profileData.user.id ? match.slotB : match.slotA;
+                        const isPlayerInvolved = match.slotA?.playerId === profileData.user.id || match.slotB?.playerId === profileData.user.id;
+                        if (!isPlayerInvolved) continue;
+
+                        const opponent = match.slotA.playerId === profileData.user.id ? match.slotB : match.slotA;
+                        const matchInfo = {
+                          tournamentId: trn.id,
+                          tournamentName: trn.title,
+                          tournamentDate: trn.date,
+                          tournamentLocation: trn.location,
+                          tournamentLevel: trn.level || "CLUB",
+                          opponent,
+                          roundNum: rIdx + 1,
+                          matNumber: match.matNumber,
+                          matchNumber: match.matchNumber,
+                          refereeName: match.referee?.fullName || match.refereeName || null,
+                          refereeId: match.refereeId || match.referee?.id || null,
+                          rawMatch: match,
+                          winnerSlot: match.winnerId === match.slotA.playerId ? match.slotA : match.slotB,
+                          loserSlot: match.winnerId === match.slotA.playerId ? match.slotB : match.slotA,
+                          nextMatchInfo: null // simple stub
+                        };
+
+                        if (match.status !== "COMPLETED") {
                           const existingMatchForTrn = matches.find(m => m.tournamentId === trn.id);
                           if (!existingMatchForTrn || existingMatchForTrn.roundNum > (rIdx + 1)) {
-                            const newMatchInfo = {
-                              tournamentId: trn.id,
-                              tournamentName: trn.title,
-                              tournamentDate: trn.date,
-                              tournamentLocation: trn.location,
-                              opponent,
-                              roundNum: rIdx + 1,
-                              matNumber: match.matNumber,
-                              matchNumber: match.matchNumber,
-                              refereeName: match.referee?.fullName || match.refereeName || null,
-                              refereeId: match.refereeId || match.referee?.id || null,
-                            };
                             if (existingMatchForTrn) {
                               const index = matches.indexOf(existingMatchForTrn);
-                              matches[index] = newMatchInfo;
+                              matches[index] = matchInfo;
                             } else {
-                              matches.push(newMatchInfo);
+                              matches.push(matchInfo);
                             }
                           }
+                        } else {
+                          completed.push(matchInfo);
                         }
                       }
                     }
@@ -266,6 +278,7 @@ export default function PlayerDashboard() {
             }
           }
           setUpcomingMatches(matches);
+          setCompletedMatches(completed.sort((a, b) => new Date(b.tournamentDate).getTime() - new Date(a.tournamentDate).getTime()));
 
           // Detect tournament wins (player won the final round)
           const wins: { tournamentId: string; tournamentName: string; category: string }[] = [];
@@ -849,6 +862,72 @@ export default function PlayerDashboard() {
 
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Matches Card */}
+              {completedMatches.length > 0 && (
+                <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6 relative overflow-hidden">
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-4 relative z-10">
+                    <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl">
+                      <CheckCircle2 size={20} />
+                    </div>
+                    <h3 className="text-xl font-black text-[#1A1A1A]">Completed Matches & Reports</h3>
+                  </div>
+
+                  <div className="space-y-4 relative z-10">
+                    {completedMatches.map((match, idx) => {
+                      const isWin = match.rawMatch.winnerId === playerData.id;
+                      return (
+                        <div key={idx} className="p-5 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                          
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-center gap-3 mb-1">
+                              {isWin ? (
+                                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">WIN</span>
+                              ) : (
+                                <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">LOSS</span>
+                              )}
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Tournament</span>
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-lg leading-tight">{match.tournamentName}</h4>
+                            
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                              <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><Calendar size={14} className="text-[#FF7400]"/> {new Date(match.tournamentDate).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
+                              <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><MapPin size={14} className="text-[#FF7400]" /> {match.tournamentLocation}</span>
+                              <span className="flex items-center gap-1.5 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md"><Hash size={14} /> Round {match.roundNum}</span>
+                            </div>
+                          </div>
+
+                          <div className="hidden md:block w-px h-16 bg-slate-200" />
+
+                          <div className="flex-1 md:text-right space-y-3 flex flex-col items-start md:items-end">
+                            <div>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Opponent</span>
+                              <span className="font-bold text-slate-800 text-lg">{match.opponent?.playerName || "Unknown"}</span>
+                            </div>
+                            
+                            <button
+                              onClick={() => {
+                                exportMatchToPDF(
+                                  match.rawMatch,
+                                  match.winnerSlot,
+                                  match.loserSlot,
+                                  { title: match.tournamentName, date: match.tournamentDate, level: match.tournamentLevel, location: match.tournamentLocation },
+                                  match.roundNum - 1,
+                                  match.nextMatchInfo
+                                );
+                              }}
+                              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-[#FF7400] text-slate-600 hover:text-white rounded-xl text-xs font-bold transition-all md:ml-auto w-full md:w-fit"
+                            >
+                              <Download size={15} /> Download Match Report
+                            </button>
+                          </div>
+
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

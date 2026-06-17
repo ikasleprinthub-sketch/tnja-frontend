@@ -825,10 +825,11 @@ export default function TournamentDetailPage() {
         <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
           <option value="ALL">All Age Groups</option>
-          <option value="SENIOR">Senior (15+)</option>
-          <option value="JUNIOR">Junior (U21)</option>
-          <option value="CADET">Cadet (U18)</option>
-          <option value="SUB_JUNIOR">Sub Junior (12–15)</option>
+          <option value="SUB_JUNIOR">Subjunior (10–15 yrs)</option>
+          <option value="CADET">Cadets (Under 18)</option>
+          <option value="JUNIOR">Juniors (Under 21)</option>
+          <option value="SENIOR">Seniors (Above 21)</option>
+          <option value="VETERAN">Veterans (Masters/Coach)</option>
         </select>
         <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
@@ -1339,16 +1340,18 @@ export default function TournamentDetailPage() {
                                   Mat {match.matNumber} · #{match.matchNumber}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-bold ${match.slotA.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                  <span className={`text-sm font-bold flex items-center gap-1 ${match.slotA.isBye ? "text-slate-300" : match.winnerId === match.slotA.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
                                     {match.slotA.playerName}
+                                    {match.winnerId && match.winnerId === match.slotA.playerId && <Trophy size={12} />}
                                   </span>
                                   <span className="text-[10px] font-black text-slate-300">vs</span>
-                                  <span className={`text-sm font-bold ${match.slotB.isBye ? "text-slate-300" : "text-slate-800"}`}>
+                                  <span className={`text-sm font-bold flex items-center gap-1 ${match.slotB.isBye ? "text-slate-300" : match.winnerId === match.slotB.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                    {match.winnerId && match.winnerId === match.slotB.playerId && <Trophy size={12} />}
                                     {match.slotB.playerName}
                                   </span>
                                 </div>
                               </div>
-                              {ri === 0 && !match.slotA.isBye && !match.slotB.isBye && (
+                              {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && !match.slotA.isBye && !match.slotB.isBye && (
                                 <button onClick={() => openScoreboard(match)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
                                   <Monitor size={11} /> Scoreboard
@@ -1414,8 +1417,9 @@ export default function TournamentDetailPage() {
                                 initial={match.slotA.playerName !== "TBD" ? { opacity: 0, scale: 0.8, y: -10 } : { opacity: 1, scale: 1, y: 0 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                className={`text-sm font-black ${match.slotA.isBye ? "text-slate-300" : match.slotA.playerName === "TBD" ? "text-slate-400" : "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg"}`}>
+                                className={`text-sm font-black flex items-center justify-end gap-1 ${match.slotA.isBye ? "text-slate-300" : match.slotA.playerName === "TBD" ? "text-slate-400" : match.winnerId === match.slotA.playerId ? "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
                                 {match.slotA.playerName}
+                                {match.winnerId === match.slotA.playerId && <Trophy size={14} className="text-emerald-500" />}
                                 {match.slotA.seedNumber && (
                                   <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotA.seedNumber}</span>
                                 )}
@@ -1429,7 +1433,8 @@ export default function TournamentDetailPage() {
                                 initial={match.slotB.playerName !== "TBD" ? { opacity: 0, scale: 0.8, y: -10 } : { opacity: 1, scale: 1, y: 0 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                className={`text-sm font-black ${match.slotB.isBye ? "text-slate-300" : match.slotB.playerName === "TBD" ? "text-slate-400" : "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg"}`}>
+                                className={`text-sm font-black flex items-center gap-1 ${match.slotB.isBye ? "text-slate-300" : match.slotB.playerName === "TBD" ? "text-slate-400" : match.winnerId === match.slotB.playerId ? "text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                {match.winnerId === match.slotB.playerId && <Trophy size={14} className="text-emerald-500" />}
                                 {match.slotB.playerName}
                                 {match.slotB.seedNumber && (
                                   <span className="ml-1.5 text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">S{match.slotB.seedNumber}</span>
@@ -1448,7 +1453,7 @@ export default function TournamentDetailPage() {
                           }`}>
                             {match.status}
                           </span>
-                          {match.slotA.playerId && match.slotB.playerId && match.status !== "COMPLETED" && (
+                          {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && match.status !== "COMPLETED" && (
                             <button onClick={() => openScoreboard(match)}
                               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-xl text-xs font-black shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all">
                               <Monitor size={13} /> Open Scoreboard ↗
@@ -1951,7 +1956,7 @@ function BracketView({
                         {match.status === "COMPLETED" ? "✓ Done" : `Mat ${match.matNumber} · #${match.matchNumber}`}
                       </span>
                       {!match.slotA.isBye && !match.slotB.isBye &&
-                       match.slotA.playerId && match.slotB.playerId &&
+                       match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" &&
                        match.status !== "COMPLETED" && (
                         <button
                           onClick={() => onOpenScoreboard(match)}

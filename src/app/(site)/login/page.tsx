@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { User, ShieldCheck, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import Image from "next/image";
+import HeroSection from "@/components/features/HeroSection";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
