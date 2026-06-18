@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Monitor, Download, CheckCircle, RotateCcw, ArrowLeft } from "lucide-react";
+import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, Settings, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle } from "lucide-react";
 
 interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
 type Fighter = "A" | "B";
@@ -11,8 +11,7 @@ type Fighter = "A" | "B";
 const OSAEKOMI_IPPON_S   = 20;
 const OSAEKOMI_WAZAARI_S = 10;
 const emptyScore = (): Score => ({ ippon: 0, wazaAri: 0, yuko: 0, shido: 0 });
-const fmt = (s: number) =>
-  `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")} : ${String(s % 60).padStart(2, "0")}`;
 
 const FALLBACK_techniques = [
   "Ippon Seoi Nage", "Morote Seoi Nage", "Seoi Otoshi",
@@ -27,19 +26,11 @@ const FALLBACK_techniques = [
 ];
 
 const FALLBACK_penalties = [
-  "Shido – Passivity",
-  "Shido – False attack",
-  "Shido – Defensive posture",
-  "Shido – Out of bounds (Jogai)",
-  "Shido – Leg grab",
-  "Shido – Stalling",
-  "Shido – Grip break",
-  "Shido – Blocking",
-  "Shido – Dangerous hold",
-  "Hansoku-make – Head dive",
-  "Hansoku-make – Dangerous throw",
-  "Hansoku-make – Intentional fall",
-  "Hansoku-make – Direct disqualification",
+  "Shido – Passivity", "Shido – False attack", "Shido – Defensive posture",
+  "Shido – Out of bounds (Jogai)", "Shido – Leg grab", "Shido – Stalling",
+  "Shido – Grip break", "Shido – Blocking", "Shido – Dangerous hold",
+  "Hansoku-make – Head dive", "Hansoku-make – Dangerous throw",
+  "Hansoku-make – Intentional fall", "Hansoku-make – Direct disqualification",
 ];
 
 function ScoreboardInner() {
@@ -56,33 +47,23 @@ function ScoreboardInner() {
   const weightCategory  = sp.get("weightCategory")  || "48 kg";
   const matchNumber     = sp.get("matchNumber")     || "1";
   const matNumber       = sp.get("matNumber")       || "1";
-  const tournamentTitle = sp.get("tournamentTitle") || "TNJA CHAMPIONSHIP";
 
   const [techniques, setTechniques] = useState<string[]>(FALLBACK_techniques);
   const [penalties, setPenalties]   = useState<string[]>(FALLBACK_penalties);
 
-  // Selector states
   const [selectedTechA, setSelectedTechA] = useState("");
   const [selectedTechB, setSelectedTechB] = useState("");
   const [selectedPenA, setSelectedPenA] = useState("");
   const [selectedPenB, setSelectedPenB] = useState("");
+  const [descA, setDescA] = useState("");
+  const [descB, setDescB] = useState("");
 
-  // Overlay/modal state for assigning scores to applied techniques
-  const [techModal, setTechModal] = useState<{ fighter: Fighter; technique: string } | null>(null);
-
-  // Match logs state
-  interface MatchLog {
-    id: string;
-    timestamp: number;
-    text: string;
-    type: "score" | "penalty" | "system";
-  }
+  interface MatchLog { id: string; timestamp: number; text: string; type: "score" | "penalty" | "system"; fighter?: Fighter; }
   const [logs, setLogs] = useState<MatchLog[]>([]);
 
-  // Fetch techniques and penalties options from backend
   useEffect(() => {
     const token = localStorage.getItem("token");
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/scoreboard/options`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/scoreboard/options`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : null)
@@ -90,7 +71,7 @@ function ScoreboardInner() {
         if (data?.techniques?.length) setTechniques(data.techniques);
         if (data?.penalties?.length)  setPenalties(data.penalties);
       })
-      .catch(() => {}); // keep fallback on error
+      .catch(() => {});
   }, []);
 
   const [scoreA, setScoreA] = useState<Score>(emptyScore());
@@ -102,10 +83,14 @@ function ScoreboardInner() {
 
   const [durationInput, setDurationInput] = useState(4);
   const [timeLeft, setTimeLeft]   = useState(4 * 60);
+  const [maxTime, setMaxTime]     = useState(4 * 60);
   const [running, setRunning]     = useState(false);
-  const [timerStarted, setTimerStarted] = useState(false);
-  const [goldenScore, setGoldenScore]   = useState(false);
+  const [goldenScore, setGoldenScore] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (timeLeft > maxTime) setMaxTime(timeLeft);
+  }, [timeLeft, maxTime]);
 
   const [osaActive, setOsaActive] = useState(false);
   const [osaFor, setOsaFor]       = useState<Fighter | null>(null);
@@ -113,26 +98,8 @@ function ScoreboardInner() {
   const osaRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const osaMilestones = useRef({ wazaAri: false });
 
-  // Log helper
-  const addLog = useCallback((text: string, type: "score" | "penalty" | "system") => {
-    setLogs(prev => [
-      ...prev,
-      {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        timestamp: Date.now(),
-        text,
-        type
-      }
-    ]);
-  }, []);
-
-  // Direct save match state to database
   const saveMatchToDB = useCallback(async (
-    currentScoreA = scoreA,
-    currentScoreB = scoreB,
-    currentWinner = winner,
-    currentWinMethod = winMethod,
-    currentLogs = logs
+    currentScoreA = scoreA, currentScoreB = scoreB, currentWinner = winner, currentWinMethod = winMethod, currentLogs = logs
   ) => {
     if (!tournamentId || !matchId) return;
     const token = localStorage.getItem("token");
@@ -153,23 +120,12 @@ function ScoreboardInner() {
           if (m.matchId === matchId) {
             matchFound = true;
             const winnerIdVal = currentWinner ? (currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId")) : null;
-
-            return {
-              ...m,
-              winnerId: winnerIdVal,
-              status: currentWinner ? "COMPLETED" : running ? "IN_PROGRESS" : m.status,
-              scoreA: currentScoreA,
-              scoreB: currentScoreB,
-              winMethod: currentWinMethod,
-              logs: currentLogs,
-              timeLeft,
-            };
+            return { ...m, winnerId: winnerIdVal, status: currentWinner ? "COMPLETED" : running ? "IN_PROGRESS" : m.status, scoreA: currentScoreA, scoreB: currentScoreB, winMethod: currentWinMethod, logs: currentLogs, timeLeft };
           }
           return m;
         }));
 
         if (matchFound) {
-          // If match completed, advance the winner
           for (let ri = 0; ri < newRounds.length; ri++) {
             for (let mi = 0; mi < newRounds[ri].length; mi++) {
               if (newRounds[ri][mi].matchId === matchId && currentWinner) {
@@ -177,19 +133,13 @@ function ScoreboardInner() {
                 if (nextRi < newRounds.length) {
                   const nextMi = Math.floor(mi / 2);
                   const winnerIdVal = currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId");
-                  const winnerSlot = {
-                    playerId: winnerIdVal,
-                    playerName: currentWinner === "A" ? fighterAName : fighterBName,
-                    club: currentWinner === "A" ? fighterAClub : fighterBClub,
-                    isBye: false,
-                  };
+                  const winnerSlot = { playerId: winnerIdVal, playerName: currentWinner === "A" ? fighterAName : fighterBName, club: currentWinner === "A" ? fighterAClub : fighterBClub, isBye: false };
                   if (mi % 2 === 0) newRounds[nextRi][nextMi].slotA = winnerSlot;
                   else              newRounds[nextRi][nextMi].slotB = winnerSlot;
                 }
               }
             }
           }
-
           targetDraw = { ...draw, rounds: newRounds };
           break;
         }
@@ -199,35 +149,19 @@ function ScoreboardInner() {
 
       const postRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/tournaments/${tournamentId}/draws`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ageGroup: targetDraw.ageGroup,
-          gender: targetDraw.gender,
-          weightCategory: targetDraw.weightCategory,
-          rounds: targetDraw.rounds,
-        })
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ageGroup: targetDraw.ageGroup, gender: targetDraw.gender, weightCategory: targetDraw.weightCategory, rounds: targetDraw.rounds })
       });
-
-      if (!postRes.ok) {
-        console.error("Failed to save match to database:", await postRes.text());
-      }
-    } catch (err) {
-      console.error("Error saving match to DB:", err);
-    }
+      if (!postRes.ok) console.error("Failed to save match to database:", await postRes.text());
+    } catch (err) { console.error("Error saving match to DB:", err); }
   }, [tournamentId, matchId, scoreA, scoreB, winner, winMethod, logs, timeLeft, running, sp, fighterAName, fighterBName, fighterAClub, fighterBClub]);
 
-  // Restore match state from DB on mount
   useEffect(() => {
     if (!tournamentId || !matchId) return;
     const token = localStorage.getItem("token");
     fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/tournaments/${tournamentId}/draws`, {
       headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then((draws: any[]) => {
+    }).then(r => r.ok ? r.json() : null).then((draws: any[]) => {
         if (!draws || !Array.isArray(draws)) return;
         for (const draw of draws) {
           if (!Array.isArray(draw.rounds)) continue;
@@ -236,10 +170,7 @@ function ScoreboardInner() {
               if (m.matchId === matchId) {
                 if (m.scoreA) setScoreA(m.scoreA);
                 if (m.scoreB) setScoreB(m.scoreB);
-                if (m.winnerId) {
-                  const f: Fighter = m.winnerId === sp.get("fighterAId") ? "A" : "B";
-                  setWinner(f);
-                }
+                if (m.winnerId) { const f: Fighter = m.winnerId === sp.get("fighterAId") ? "A" : "B"; setWinner(f); }
                 if (m.winMethod) setWinMethod(m.winMethod);
                 if (m.logs) setLogs(m.logs);
                 if (typeof m.timeLeft === "number") setTimeLeft(m.timeLeft);
@@ -248,8 +179,7 @@ function ScoreboardInner() {
             }
           }
         }
-      })
-      .catch(err => console.error("Error restoring match state from DB:", err));
+      }).catch(err => console.error("Error restoring match state from DB:", err));
   }, [tournamentId, matchId, sp]);
 
   const checkWin = useCallback((sA: Score, sB: Score): { w: Fighter | null; m: string } => {
@@ -269,38 +199,21 @@ function ScoreboardInner() {
 
     const winnerName = f === "A" ? fighterAName : fighterBName;
     const newLogText = `Winner declared: ${winnerName} via ${method}`;
-    const nextLogs = [
-      ...logs,
-      {
-        id: `${Date.now()}_win`,
-        timestamp: Date.now(),
-        text: newLogText,
-        type: "system" as const
-      }
-    ];
+    const nextLogs = [...logs, { id: `${Date.now()}_win`, timestamp: Date.now(), text: newLogText, type: "system" as const }];
     setLogs(nextLogs);
 
-    // Broadcast result to tournament page
     const sp2 = new URLSearchParams(window.location.search);
-    const matchId    = sp2.get("matchId") || "";
-    const fighterAId = sp2.get("fighterAId") || "";
-    const fighterBId = sp2.get("fighterBId") || "";
-    const winnerId   = f === "A" ? fighterAId : fighterBId;
-    const winnerClub = f === "A" ? fighterAClub : fighterBClub;
     try {
       const ch = new BroadcastChannel("tnja_match_results");
-      ch.postMessage({ matchId, winnerId, winnerName, winnerClub });
+      ch.postMessage({ matchId: sp2.get("matchId")||"", winnerId: f === "A" ? sp2.get("fighterAId")||"" : sp2.get("fighterBId")||"", winnerName, winnerClub: f === "A" ? fighterAClub : fighterBClub });
       ch.close();
     } catch {}
 
-    // Direct Save to DB
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
   }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB]);
 
-  const canScore = running && !winner;
-
   const addScore = useCallback((fighter: Fighter, field: keyof Score) => {
-    if (!canScore) return;
+    if (winner) return;
     setRunning(false);
 
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
@@ -309,232 +222,84 @@ function ScoreboardInner() {
     if (fighter === "A") {
       setScoreA(prev => {
         const next = { ...prev, [field]: prev[field] + 1 };
-        const logText = `${fighterName} scored ${label}`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: `${Date.now()}_score_a_${field}`,
-            timestamp: Date.now(),
-            text: logText,
-            type: "score" as const
-          }
-        ];
+        const nextLogs = [...logs, { id: `${Date.now()}_score_a_${field}`, timestamp: Date.now(), text: `${fighterName} scored ${label}`, type: "score" as const, fighter }];
         setLogs(nextLogs);
-
-        const { w, m } = checkWin(next, scoreB);
-        if (w) setTimeout(() => declareWinner(w, m), 50);
-        else saveMatchToDB(next, scoreB, null, "", nextLogs);
-
+        saveMatchToDB(next, scoreB, null, "", nextLogs);
         return next;
       });
     } else {
       setScoreB(prev => {
         const next = { ...prev, [field]: prev[field] + 1 };
-        const logText = `${fighterName} scored ${label}`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: `${Date.now()}_score_b_${field}`,
-            timestamp: Date.now(),
-            text: logText,
-            type: "score" as const
-          }
-        ];
+        const nextLogs = [...logs, { id: `${Date.now()}_score_b_${field}`, timestamp: Date.now(), text: `${fighterName} scored ${label}`, type: "score" as const, fighter }];
         setLogs(nextLogs);
-
-        const { w, m } = checkWin(scoreA, next);
-        if (w) setTimeout(() => declareWinner(w, m), 50);
-        else saveMatchToDB(scoreA, next, null, "", nextLogs);
-
+        saveMatchToDB(scoreA, next, null, "", nextLogs);
         return next;
       });
     }
-  }, [canScore, scoreA, scoreB, checkWin, declareWinner, fighterAName, fighterBName, logs, saveMatchToDB]);
+  }, [winner, fighterAName, fighterBName, logs, saveMatchToDB, scoreA, scoreB]);
 
   const undoScore = (fighter: Fighter, field: keyof Score) => {
     if (winner) return;
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
     const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
-    
-    const logText = `Undo: ${fighterName} score decreased (${label})`;
-    const nextLogs = [
-      ...logs,
-      {
-        id: `${Date.now()}_undo_${fighter}_${field}`,
-        timestamp: Date.now(),
-        text: logText,
-        type: "system" as const
-      }
-    ];
+    const nextLogs = [...logs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
     setLogs(nextLogs);
 
     if (fighter === "A") {
-      setScoreA(p => {
-        const next = { ...p, [field]: Math.max(0, p[field] - 1) };
-        saveMatchToDB(next, scoreB, null, "", nextLogs);
-        return next;
-      });
+      setScoreA(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(next, scoreB, null, "", nextLogs); return next; });
     } else {
-      setScoreB(p => {
-        const next = { ...p, [field]: Math.max(0, p[field] - 1) };
-        saveMatchToDB(scoreA, next, null, "", nextLogs);
-        return next;
-      });
+      setScoreB(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(scoreA, next, null, "", nextLogs); return next; });
     }
   };
 
-  const applyTechnique = (fighter: Fighter) => {
-    const selectedTech = fighter === "A" ? selectedTechA : selectedTechB;
-    if (!selectedTech) return;
-    if (!canScore) return;
-    setTechModal({ fighter, technique: selectedTech });
+  const applyTechnique = (fighter: Fighter, tech: string, desc: string) => {
+    const fighterName = fighter === "A" ? fighterAName : fighterBName;
+    const logText = `${fighterName} executed ${tech}${desc ? ` - ${desc}` : ""}`;
+    const nextLogs = [...logs, { id: `${Date.now()}_tech_${fighter}`, timestamp: Date.now(), text: logText, type: "system" as const, fighter }];
+    setLogs(nextLogs);
+    saveMatchToDB(fighter === "A" ? scoreA : scoreA, fighter === "B" ? scoreB : scoreB, null, "", nextLogs);
   };
 
-  const confirmTechnique = (scoreField: "ippon" | "wazaAri" | "yuko") => {
-    if (!techModal) return;
-    const { fighter, technique } = techModal;
-    setTechModal(null);
-
+  const applyPenalty = (fighter: Fighter, pen: string, desc: string) => {
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
-    const label = scoreField === "wazaAri" ? "Waza-ari" : scoreField.toUpperCase();
-    
     setRunning(false);
 
-    if (fighter === "A") setSelectedTechA("");
-    else setSelectedTechB("");
-
-    if (fighter === "A") {
-      setScoreA(prev => {
-        const next = { ...prev, [scoreField]: prev[scoreField] + 1 };
-        const logText = `${fighterName} scored ${label} via ${technique}`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: `${Date.now()}_tech_a`,
-            timestamp: Date.now(),
-            text: logText,
-            type: "score" as const
-          }
-        ];
-        setLogs(nextLogs);
-
-        const { w, m } = checkWin(next, scoreB);
-        if (w) setTimeout(() => declareWinner(w, `${m} (${technique})`), 50);
-        else saveMatchToDB(next, scoreB, null, "", nextLogs);
-
-        return next;
-      });
-    } else {
-      setScoreB(prev => {
-        const next = { ...prev, [scoreField]: prev[scoreField] + 1 };
-        const logText = `${fighterName} scored ${label} via ${technique}`;
-        const nextLogs = [
-          ...logs,
-          {
-            id: `${Date.now()}_tech_b`,
-            timestamp: Date.now(),
-            text: logText,
-            type: "score" as const
-          }
-        ];
-        setLogs(nextLogs);
-
-        const { w, m } = checkWin(scoreA, next);
-        if (w) setTimeout(() => declareWinner(w, `${m} (${technique})`), 50);
-        else saveMatchToDB(scoreA, next, null, "", nextLogs);
-
-        return next;
-      });
-    }
-  };
-
-  const applyPenalty = (fighter: Fighter) => {
-    const selectedPen = fighter === "A" ? selectedPenA : selectedPenB;
-    if (!selectedPen) return;
-    if (!canScore) return;
-
-    const fighterName = fighter === "A" ? fighterAName : fighterBName;
-
-    if (fighter === "A") setSelectedPenA("");
-    else setSelectedPenB("");
-
-    setRunning(false);
-
-    const isDirectHansoku = selectedPen.toLowerCase().includes("hansoku-make");
-
+    const isDirectHansoku = pen.toLowerCase().includes("hansoku-make");
     if (isDirectHansoku) {
-      const opponent = fighter === "A" ? "B" : "A";
-      const winReason = `Hansoku-make (${selectedPen})`;
-      const logText = `${fighterName} disqualified via Hansoku-make (${selectedPen})`;
-      const nextLogs = [
-        ...logs,
-        {
-          id: `${Date.now()}_pen_disq`,
-          timestamp: Date.now(),
-          text: logText,
-          type: "penalty" as const
-        }
-      ];
+      const logText = `${fighterName} disqualified via Hansoku-make (${pen})${desc ? ` - ${desc}` : ""}`;
+      const nextLogs = [...logs, { id: `${Date.now()}_pen_disq`, timestamp: Date.now(), text: logText, type: "penalty" as const, fighter }];
       setLogs(nextLogs);
 
-      if (fighter === "A") {
-        setScoreA(prev => {
-          const next = { ...prev, shido: 3 };
-          setTimeout(() => declareWinner(opponent, winReason), 50);
-          return next;
-        });
-      } else {
-        setScoreB(prev => {
-          const next = { ...prev, shido: 3 };
-          setTimeout(() => declareWinner(opponent, winReason), 50);
-          return next;
-        });
-      }
+      if (fighter === "A") setScoreA(p => { const nx = { ...p, shido: 3 }; saveMatchToDB(nx, scoreB, null, "", nextLogs); return nx; });
+      else setScoreB(p => { const nx = { ...p, shido: 3 }; saveMatchToDB(scoreA, nx, null, "", nextLogs); return nx; });
     } else {
-      if (fighter === "A") {
-        setScoreA(prev => {
-          const next = { ...prev, shido: prev.shido + 1 };
-          const logText = `${fighterName} received Shido for ${selectedPen}`;
-          const nextLogs = [
-            ...logs,
-            {
-              id: `${Date.now()}_pen_a`,
-              timestamp: Date.now(),
-              text: logText,
-              type: "penalty" as const
-            }
-          ];
-          setLogs(nextLogs);
+      const logText = `${fighterName} received Shido for ${pen}${desc ? ` - ${desc}` : ""}`;
+      const nextLogs = [...logs, { id: `${Date.now()}_pen`, timestamp: Date.now(), text: logText, type: "penalty" as const, fighter }];
+      setLogs(nextLogs);
 
-          const { w, m } = checkWin(next, scoreB);
-          if (w) setTimeout(() => declareWinner(w, m), 50);
-          else saveMatchToDB(next, scoreB, null, "", nextLogs);
-
-          return next;
-        });
-      } else {
-        setScoreB(prev => {
-          const next = { ...prev, shido: prev.shido + 1 };
-          const logText = `${fighterName} received Shido for ${selectedPen}`;
-          const nextLogs = [
-            ...logs,
-            {
-              id: `${Date.now()}_pen_b`,
-              timestamp: Date.now(),
-              text: logText,
-              type: "penalty" as const
-            }
-          ];
-          setLogs(nextLogs);
-
-          const { w, m } = checkWin(scoreA, next);
-          if (w) setTimeout(() => declareWinner(w, m), 50);
-          else saveMatchToDB(scoreA, next, null, "", nextLogs);
-
-          return next;
-        });
-      }
+      if (fighter === "A") setScoreA(p => { const nx = { ...p, shido: p.shido + 1 }; saveMatchToDB(nx, scoreB, null, "", nextLogs); return nx; });
+      else setScoreB(p => { const nx = { ...p, shido: p.shido + 1 }; saveMatchToDB(scoreA, nx, null, "", nextLogs); return nx; });
     }
+  };
+
+  const handleApply = (fighter: Fighter) => {
+    if (winner) return;
+    const selectedTech = fighter === "A" ? selectedTechA : selectedTechB;
+    const selectedPen = fighter === "A" ? selectedPenA : selectedPenB;
+    const desc = fighter === "A" ? descA : descB;
+    
+    if (selectedPen) applyPenalty(fighter, selectedPen, desc);
+    if (selectedTech) applyTechnique(fighter, selectedTech, desc);
+    
+    if (!selectedPen && !selectedTech && desc) {
+      const fighterName = fighter === "A" ? fighterAName : fighterBName;
+      const nextLogs = [...logs, { id: `${Date.now()}_custom`, timestamp: Date.now(), text: `${fighterName}: ${desc}`, type: "system" as const, fighter }];
+      setLogs(nextLogs);
+      saveMatchToDB(scoreA, scoreB, null, "", nextLogs);
+    }
+
+    if (fighter === "A") { setSelectedTechA(""); setSelectedPenA(""); setDescA(""); }
+    else { setSelectedTechB(""); setSelectedPenB(""); setDescB(""); }
   };
 
   useEffect(() => {
@@ -542,13 +307,10 @@ function ScoreboardInner() {
       timerRef.current = setInterval(() => {
         setTimeLeft(t => {
           if (t <= 1) {
-            clearInterval(timerRef.current!);
-            setRunning(false);
+            clearInterval(timerRef.current!); setRunning(false);
             const aS = scoreA.wazaAri * 10 + scoreA.yuko + scoreA.ippon * 100;
             const bS = scoreB.wazaAri * 10 + scoreB.yuko + scoreB.ippon * 100;
-            if (aS > bS)      setTimeout(() => declareWinner("A", "Decision"), 50);
-            else if (bS > aS) setTimeout(() => declareWinner("B", "Decision"), 50);
-            else { setGoldenScore(true); return durationInput * 60; }
+            if (aS === bS) { setGoldenScore(true); return durationInput * 60; }
             return 0;
           }
           return t - 1;
@@ -558,7 +320,7 @@ function ScoreboardInner() {
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [running, scoreA, scoreB, durationInput, declareWinner]);
+  }, [running, scoreA, scoreB, durationInput]);
 
   useEffect(() => {
     if (osaActive && osaFor) {
@@ -567,13 +329,13 @@ function ScoreboardInner() {
           const next = t + 1;
           if (next === OSAEKOMI_WAZAARI_S && !osaMilestones.current.wazaAri) {
             osaMilestones.current.wazaAri = true;
-            if (osaFor === "A") setScoreA(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; const { w, m } = checkWin(nx, scoreB); if (w) setTimeout(() => declareWinner(w, m), 50); return nx; });
-            else                setScoreB(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; const { w, m } = checkWin(scoreA, nx); if (w) setTimeout(() => declareWinner(w, m), 50); return nx; });
+            if (osaFor === "A") setScoreA(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; saveMatchToDB(nx, scoreB, null, "", logs); return nx; });
+            else                setScoreB(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; saveMatchToDB(scoreA, nx, null, "", logs); return nx; });
           }
           if (next >= OSAEKOMI_IPPON_S) {
             clearInterval(osaRef.current!); setOsaActive(false); setRunning(false);
-            if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => declareWinner("A", "Ippon (Osaekomi 20s)"), 50); return nx; }); }
-            else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => declareWinner("B", "Ippon (Osaekomi 20s)"), 50); return nx; }); }
+            if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDB(nx, scoreB, null, "", logs); return nx; }); }
+            else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDB(scoreA, nx, null, "", logs); return nx; }); }
           }
           return next;
         });
@@ -582,7 +344,7 @@ function ScoreboardInner() {
       if (osaRef.current) clearInterval(osaRef.current);
     }
     return () => { if (osaRef.current) clearInterval(osaRef.current); };
-  }, [osaActive, osaFor, scoreA, scoreB, checkWin, declareWinner]);
+  }, [osaActive, osaFor, scoreA, scoreB, saveMatchToDB, logs]);
 
   const startOsaekomi = (fighter: Fighter) => {
     if (winner) return;
@@ -596,817 +358,379 @@ function ScoreboardInner() {
     if (osaRef.current) clearInterval(osaRef.current);
   };
 
-  const resetAll = () => {
-    setScoreA(emptyScore()); setScoreB(emptyScore());
-    setWinner(null); setWinMethod(""); setGoldenScore(false);
-    setTimeLeft(durationInput * 60); setRunning(false); setTimerStarted(false);
-    setLogs([]);
-    toketa();
-    setMatchSaved(false);
-    setSaveMessage("");
-    saveMatchToDB(emptyScore(), emptyScore(), null, "", []);
-  };
+  const totalScore = (score: Score) => score.ippon * 100 + score.wazaAri * 10 + score.yuko;
 
-  const handleSaveMatch = async () => {
-    if (!winner) return;
-    setSaveMessage("💾 Saving match result...");
-    try {
-      await saveMatchToDB(scoreA, scoreB, winner, winMethod, logs);
-      setMatchSaved(true);
-      setSaveMessage("✅ Match result saved to database!");
-      setTimeout(() => setSaveMessage(""), 2000);
-    } catch (err) {
-      setSaveMessage("❌ Failed to save match result");
-      setTimeout(() => setSaveMessage(""), 2000);
-    }
-  };
-
-  const downloadMatchReport = () => {
-    if (!winner) return;
-
-    const winnerName = winner === "A" ? fighterAName : fighterBName;
-    const winnerClub = winner === "A" ? fighterAClub : fighterBClub;
-    const loserName = winner === "A" ? fighterBName : fighterAName;
-    const loserClub = winner === "A" ? fighterBClub : fighterAClub;
-
-    const winnerScore = winner === "A" ? scoreA : scoreB;
-    const loserScore = winner === "A" ? scoreB : scoreA;
-
-    const html = `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Match Report - ${matchNumber}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body {
-            width: 100%;
-            height: 100%;
-          }
-          body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: white;
-            padding: 20px;
-          }
-          .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 4px solid #FF7400;
-            padding-bottom: 20px;
-          }
-          .header h1 {
-            font-size: 32px;
-            color: #333;
-            margin-bottom: 5px;
-            font-weight: black;
-          }
-          .header p {
-            color: #666;
-            font-size: 14px;
-            margin: 2px 0;
-          }
-          .tournament-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 30px;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-          }
-          .info-item {
-            font-size: 12px;
-          }
-          .info-label {
-            color: #FF7400;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 3px;
-            text-transform: uppercase;
-          }
-          .info-value {
-            color: #333;
-            font-weight: 600;
-            font-size: 14px;
-          }
-          .match-meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 25px;
-          }
-          .meta-card {
-            background: #f0f0f0;
-            padding: 12px;
-            border-radius: 6px;
-            border-left: 4px solid #FF7400;
-            text-align: center;
-          }
-          .meta-card .label {
-            font-size: 10px;
-            color: #666;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 3px;
-          }
-          .meta-card .value {
-            font-size: 18px;
-            color: #333;
-            font-weight: black;
-          }
-          .fighters-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-          }
-          .fighter-card {
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #ddd;
-          }
-          .fighter-card.winner {
-            border-color: #22c55e;
-            background: #f0fdf4;
-          }
-          .fighter-card.loser {
-            border-color: #999;
-            background: #f9f9f9;
-          }
-          .fighter-card h3 {
-            font-size: 13px;
-            color: #FF7400;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-            font-weight: bold;
-          }
-          .fighter-card .name {
-            font-size: 24px;
-            font-weight: black;
-            color: #333;
-            margin-bottom: 5px;
-          }
-          .fighter-card .club {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 12px;
-            font-weight: 600;
-          }
-          .score-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
-          }
-          .score-item {
-            text-align: center;
-            padding: 8px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-          }
-          .score-item .label {
-            font-size: 10px;
-            color: #666;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-          }
-          .score-item .value {
-            font-size: 20px;
-            color: #333;
-            font-weight: black;
-          }
-          .result-section {
-            background: #fef3c7;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #fbbf24;
-            margin-bottom: 25px;
-            text-align: center;
-          }
-          .result-section .label {
-            font-size: 11px;
-            color: #b45309;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-          }
-          .result-section .method {
-            font-size: 20px;
-            color: #333;
-            font-weight: black;
-          }
-          .logs-section {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-            margin-bottom: 25px;
-          }
-          .logs-section h4 {
-            font-size: 12px;
-            color: #FF7400;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-          }
-          .log-item {
-            font-size: 12px;
-            color: #555;
-            padding: 5px 0;
-            border-bottom: 1px solid #e0e0e0;
-          }
-          .log-item:last-child {
-            border-bottom: none;
-          }
-          .footer {
-            text-align: center;
-            color: #999;
-            font-size: 11px;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-          }
-          @media print {
-            body {
-              background: white;
-              padding: 0;
-            }
-            .container {
-              box-shadow: none;
-              border: none;
-              padding: 0;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>⚔️ JUDO MATCH REPORT</h1>
-            <p>Official Match Record</p>
-          </div>
-
-          <div class="tournament-info">
-            <div class="info-item">
-              <span class="info-label">Tournament</span>
-              <span class="info-value">${tournamentTitle || "TNJA Championship"}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Weight Category</span>
-              <span class="info-value">${weightCategory}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Date</span>
-              <span class="info-value">${new Date().toLocaleDateString("en-IN")}</span>
-            </div>
-          </div>
-
-          <div class="match-meta">
-            <div class="meta-card">
-              <div class="label">Mat</div>
-              <div class="value">${matNumber}</div>
-            </div>
-            <div class="meta-card">
-              <div class="label">Match</div>
-              <div class="value">#${matchNumber}</div>
-            </div>
-            <div class="meta-card">
-              <div class="label">Duration</div>
-              <div class="value">${Math.floor((durationInput * 60 - timeLeft) / 60)}:${String((durationInput * 60 - timeLeft) % 60).padStart(2, "0")}</div>
-            </div>
-            <div class="meta-card">
-              <div class="label">Time Left</div>
-              <div class="value">${fmt(timeLeft)}</div>
-            </div>
-          </div>
-
-          <div class="fighters-section">
-            <div class="fighter-card winner">
-              <h3>🏆 WINNER</h3>
-              <div class="name">${winnerName}</div>
-              <div class="club">${winnerClub}</div>
-              <div class="score-grid">
-                <div class="score-item">
-                  <div class="label">Ippon</div>
-                  <div class="value">${winnerScore.ippon}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Waza-ari</div>
-                  <div class="value">${winnerScore.wazaAri}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Yuko</div>
-                  <div class="value">${winnerScore.yuko}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Shido</div>
-                  <div class="value">${winnerScore.shido}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="fighter-card loser">
-              <h3>⚪ OPPONENT</h3>
-              <div class="name">${loserName}</div>
-              <div class="club">${loserClub}</div>
-              <div class="score-grid">
-                <div class="score-item">
-                  <div class="label">Ippon</div>
-                  <div class="value">${loserScore.ippon}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Waza-ari</div>
-                  <div class="value">${loserScore.wazaAri}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Yuko</div>
-                  <div class="value">${loserScore.yuko}</div>
-                </div>
-                <div class="score-item">
-                  <div class="label">Shido</div>
-                  <div class="value">${loserScore.shido}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="result-section">
-            <div class="label">Decision</div>
-            <div class="method">${winMethod}</div>
-          </div>
-
-          ${logs && logs.length > 0 ? `
-            <div class="logs-section">
-              <h4>Match Events Log</h4>
-              ${logs.map((log: any) => `<div class="log-item">• ${log.text}</div>`).join("")}
-            </div>
-          ` : ""}
-
-          <div class="footer">
-            <p>Generated: ${new Date().toLocaleString("en-IN")}</p>
-            <p>TNJA © Tamil Nadu Judo Association</p>
-            <p>Match Record - Official Document</p>
-          </div>
-        </div>
-        <script>
-          window.addEventListener('load', function() {
-            setTimeout(function() {
-              window.print();
-            }, 250);
-          });
-        </script>
-      </body>
-      </html>
-    `;
-
-    try {
-      const newWindow = window.open("", "PRINT", "width=900,height=600");
-      if (newWindow) {
-        newWindow.document.write(html);
-        newWindow.document.close();
-      }
-    } catch (err) {
-      console.error("Error opening print dialog:", err);
-      // Fallback: use blob URL
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const printWindow = window.open(url, "PRINT", "width=900,height=600");
-      if (printWindow) {
-        printWindow.addEventListener("load", () => {
-          setTimeout(() => printWindow.print(), 250);
-        });
-      }
-    }
-  };
-
-  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value) || 0;
-    setDurationInput(val);
-    if (!timerStarted) setTimeLeft(val * 60);
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-    else document.exitFullscreen();
-  };
-
-  const saveToLocal = () => {
-    localStorage.setItem("tnja_last_match", JSON.stringify({ scoreA, scoreB, winner, winMethod, fighterAName, fighterBName }));
-  };
-
-  const loadLast = () => {
-    const saved = localStorage.getItem("tnja_last_match");
-    if (saved) { const d = JSON.parse(saved); setScoreA(d.scoreA); setScoreB(d.scoreB); }
-  };
+  const timerProgress = Math.max(0, Math.min(1, timeLeft / maxTime));
+  const arcLength = 546.637;
+  const arcOffset = arcLength - (timerProgress * arcLength);
+  const thumbAngle = 135 + (270 * timerProgress);
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#0a0a0f] flex flex-col font-sans select-none overflow-y-auto">
-      <div className="max-w-[1440px] w-full mx-auto px-4 py-3 flex flex-col gap-3">
-
-        {/* ── Top Header ──────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-md py-3 px-8 flex items-center justify-center relative shadow border border-gray-200 min-h-[64px]">
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-blue-100 border-2 border-blue-300 flex items-center justify-center overflow-hidden">
-              <span className="text-[9px] font-black text-blue-700 text-center leading-tight">TNJA</span>
-            </div>
-            <div className="w-11 h-11 rounded-full bg-orange-100 border-2 border-orange-300 flex items-center justify-center overflow-hidden">
-              <span className="text-[9px] font-black text-orange-700 text-center leading-tight">JFA</span>
-            </div>
-            <div className="w-11 h-11 rounded-full bg-green-100 border-2 border-green-300 flex items-center justify-center overflow-hidden">
-              <span className="text-[9px] font-black text-green-700 text-center leading-tight">IJF</span>
-            </div>
+    <>
+      <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex justify-center items-center font-sans select-none overflow-hidden text-white print:hidden">
+        <div className="w-full max-w-[1400px] h-full max-h-[900px] flex flex-col bg-[#111111] relative border border-white/10 rounded-lg shadow-2xl overflow-hidden my-auto mx-4">
+        
+        {/* ══ HEADER ════════════════════════════════════════════════════════ */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-[0_0_10px_#f97316]">
+            <span className="text-black font-black text-xs">TNJA</span>
           </div>
-          <h1 className="text-base md:text-lg font-black text-center tracking-wide text-black uppercase px-40">
-            {tournamentTitle}
-          </h1>
+          <span className="text-[#f97316] font-bold text-sm tracking-widest">TAMIL NADU JUDO ASSOCIATION 329/2017</span>
         </div>
-
-        {/* ── Info Bar ────────────────────────────────────────────────────── */}
-        <div className="bg-[#111827] rounded-md px-5 py-2.5 flex items-center justify-between border border-white/10">
-          {/* Duration */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-400">Duration</span>
-            <input
-              type="number" value={durationInput} onChange={handleDurationChange}
-              className="w-14 bg-white text-black text-center font-bold py-1 px-1 rounded text-sm border-0 focus:outline-none"
-            />
-            <span className="text-xs font-semibold text-gray-400">min</span>
-          </div>
-
-          {/* Match Info */}
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Match Information</span>
-            <div className="flex gap-2">
-              <div className="bg-white text-black font-bold px-5 py-1.5 rounded text-sm min-w-[80px] text-center shadow-sm">
-                {weightCategory}
-              </div>
-              <div className="bg-white text-black font-bold px-5 py-1.5 rounded text-sm min-w-[100px] text-center shadow-sm">
-                Match # {matchNumber}
-              </div>
-              <div className="bg-white text-black font-bold px-5 py-1.5 rounded text-sm min-w-[90px] text-center shadow-sm">
-                Mat # {matNumber}
-              </div>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-400">Controls</span>
-            <button className="flex items-center gap-1.5 bg-transparent border border-blue-500/60 hover:bg-blue-900/30 px-4 py-1.5 rounded text-sm font-bold text-blue-400 transition-colors">
-              <Monitor size={13} className="text-blue-400" /> Scorecard
-            </button>
-          </div>
+        <div className="flex flex-col items-center">
+          <h1 className="text-[#f97316] text-xl font-black tracking-wide">Scoreboard</h1>
+          <p className="text-gray-400 text-sm font-medium tracking-wide">
+            {weightCategory} <span className="text-[#f97316]">●</span> Match {matchNumber} <span className="text-[#f97316]">●</span> Mat {matNumber}
+          </p>
         </div>
-
-        {/* ── Main Area ───────────────────────────────────────────────────── */}
-        <div className="flex gap-3 items-stretch">
-
-          {/* ── FIGHTER A — WHITE ──────────────────────────────────────────── */}
-          <div className="flex-[1.15] bg-[#f0f2f5] rounded-xl flex flex-col border-2 border-gray-300 shadow-xl overflow-hidden">
-            {/* Info */}
-            <div className="flex items-start gap-3 p-4 border-b border-gray-200 bg-white">
-              <div className="w-[72px] h-[84px] bg-gray-200 border border-gray-300 rounded flex-shrink-0 flex items-center justify-center overflow-hidden">
-                <span className="text-[10px] text-gray-400 font-semibold">Photo</span>
-              </div>
-              <div className="flex-1 flex flex-col gap-2">
-                <div>
-                  <label className="text-[10px] text-gray-500 font-semibold block mb-0.5">Name</label>
-                  <input readOnly value={fighterAName}
-                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-black font-bold bg-white text-sm focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 font-semibold block mb-0.5">Club / Team</label>
-                  <input readOnly value={fighterAClub}
-                    className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-black font-semibold bg-white text-sm focus:outline-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Scores */}
-            <div className="flex justify-between items-center px-6 py-5 border-b border-gray-200 bg-white">
-              <ScoreCol label="IPPON"    value={scoreA.ippon}    big />
-              <ScoreCol label="WAZA-ARI" value={scoreA.wazaAri} big />
-              <ScoreCol label="YUKO"     value={scoreA.yuko}     big />
-              <ScoreCol label="SHIDO"    value={scoreA.shido}    />
-            </div>
-
-            {/* Actions */}
-            <div className="p-4 flex flex-col gap-3 bg-[#f0f2f5] flex-grow">
-              <span className="text-xs font-bold text-gray-600">Actions</span>
-              <div className="flex gap-1.5 flex-wrap">
-                <Btn label="Ippon"    onClick={() => addScore("A","ippon")}   disabled={!canScore} cls="bg-[#198754] text-white hover:bg-[#157347]" />
-                <Btn label="Waza-ari" onClick={() => addScore("A","wazaAri")} disabled={!canScore} cls="bg-[#ffc107] text-black hover:bg-[#e0a800]" />
-                <Btn label="Yuko"     onClick={() => addScore("A","yuko")}    disabled={!canScore} cls="bg-[#6c757d] text-white hover:bg-[#5a6268]" />
-                <Btn label="Shido"    onClick={() => addScore("A","shido")}   disabled={!canScore} cls="bg-white text-[#ffc107] border-2 border-[#ffc107] hover:bg-yellow-50" />
-                <Btn label="Red Card" onClick={() => addScore("A","shido")}   disabled={!canScore} cls="bg-white text-red-600 border-2 border-red-500 hover:bg-red-50" />
-              </div>
-              <div className="flex gap-1.5">
-                <Btn label="Undo"           onClick={() => undoScore("A","ippon")}       cls="bg-white text-gray-800 border border-gray-300 hover:bg-gray-100" />
-                <Btn label="Declare Winner" onClick={() => declareWinner("A","Decision")} cls="bg-[#198754] text-white hover:bg-[#157347] flex-1" />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex flex-1 gap-1">
-                  <select
-                    value={selectedTechA}
-                    onChange={(e) => setSelectedTechA(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-600 bg-white focus:outline-none"
-                  >
-                    <option value="">Select Technique</option>
-                    {techniques.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <button
-                    onClick={() => applyTechnique("A")}
-                    className="px-3 py-1.5 text-[#198754] font-bold text-xs border border-[#198754] rounded hover:bg-green-50"
-                  >
-                    Apply
-                  </button>
-                </div>
-                <div className="flex flex-1 gap-1">
-                  <select
-                    value={selectedPenA}
-                    onChange={(e) => setSelectedPenA(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-600 bg-white focus:outline-none"
-                  >
-                    <option value="">Select Penalty</option>
-                    {penalties.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <button
-                    onClick={() => applyPenalty("A")}
-                    className="px-3 py-1.5 text-[#ffc107] font-bold text-xs border border-[#ffc107] rounded hover:bg-yellow-50"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── CENTER ──────────────────────────────────────────────────────── */}
-          <div className="w-[270px] shrink-0 flex flex-col gap-2">
-            {/* Timer */}
-            <div className="bg-[#111827] border border-white/10 rounded-xl flex flex-col items-center justify-center py-5 px-4 shadow-xl">
-              {goldenScore && (
-                <div className="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-1">Golden Score</div>
-              )}
-              <div className="text-[72px] font-black text-[#ff2222] tabular-nums leading-none tracking-tight" style={{ fontVariantNumeric: "tabular-nums" }}>
-                {fmt(timeLeft)}
-              </div>
-              {osaActive && (
-                <div className="text-2xl font-black text-[#ffc107] tabular-nums mt-1">{osaTime}s</div>
-              )}
-              <div className="flex gap-2 w-full mt-4">
-                <button onClick={() => { if (!winner) { setRunning(r => !r); setTimerStarted(true); } }}
-                  className="flex-1 border border-white/30 bg-transparent hover:bg-white/10 text-white font-bold py-1.5 rounded text-sm transition-colors">
-                  {running ? "Pause" : "Start"}
-                </button>
-                <button onClick={() => setRunning(false)}
-                  className="flex-1 border border-white/30 bg-transparent hover:bg-white/10 text-white font-bold py-1.5 rounded text-sm transition-colors">
-                  End
-                </button>
-              </div>
-            </div>
-
-            {/* Osaekomi */}
-            <div className="bg-[#111827] border border-white/10 rounded-xl p-3 flex flex-col gap-1.5 shadow-xl">
-              <div className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-1 border-b border-white/10">
-                Osaekomi Timer Controls
-              </div>
-              <button onClick={() => startOsaekomi("A")}
-                className="w-full py-2 bg-[#1a1a1a] border border-white/20 text-white text-xs font-bold rounded hover:bg-white/10 transition-colors">
-                Osaekomi (White)
-              </button>
-              <button onClick={() => startOsaekomi("B")}
-                className="w-full py-2 bg-[#1a1a1a] border border-white/20 text-white text-xs font-bold rounded hover:bg-white/10 transition-colors">
-                Osaekomi (Blue)
-              </button>
-              <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")}
-                className="w-full py-2 bg-[#ffc107] hover:bg-[#e0a800] text-black text-xs font-bold rounded transition-colors">
-                Switch Hold
-              </button>
-              <button onClick={toketa}
-                className="w-full py-2 bg-[#dc3545] hover:bg-[#c82333] text-white text-xs font-bold rounded transition-colors">
-                Toketa
-              </button>
-            </div>
-
-            {/* Match Logs Console */}
-            <div className="bg-[#111827] border border-white/10 rounded-xl p-3 flex flex-col gap-2 shadow-xl flex-grow min-h-[160px] max-h-[220px]">
-              <div className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-1 border-b border-white/10">
-                Match Log
-              </div>
-              <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-1 text-[11px] text-gray-300 scrollbar-thin">
-                {logs.length === 0 ? (
-                  <div className="text-gray-500 text-center py-4 italic">No events logged.</div>
-                ) : (
-                  logs.map(l => (
-                    <div key={l.id} className="leading-tight border-b border-white/5 pb-1">
-                      <span className="text-[9px] text-gray-500 font-mono mr-1">
-                        {new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      </span>
-                      <span className={
-                        l.type === "score" ? "text-green-400 font-semibold" :
-                        l.type === "penalty" ? "text-yellow-400 font-semibold" :
-                        "text-gray-400 font-semibold"
-                      }>
-                        {l.text}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Utility */}
-            <button onClick={toggleFullscreen}
-              className="w-full py-2 bg-[#6c757d] hover:bg-[#5a6268] text-white text-xs font-bold rounded transition-colors">
-              Fullscreen
-            </button>
-            <button onClick={resetAll}
-              className="w-full py-2 bg-[#1a1a1a] border border-white/20 hover:bg-white/10 text-white text-xs font-bold rounded transition-colors">
-              Reset
-            </button>
-          </div>
-
-          {/* ── FIGHTER B — BLUE ────────────────────────────────────────────── */}
-          <div className="flex-[1.15] bg-[#001f5b] rounded-xl flex flex-col border-2 border-[#0d3b9e] shadow-xl overflow-hidden">
-            {/* Info */}
-            <div className="flex items-start gap-3 p-4 border-b border-blue-800/50 bg-[#002170]">
-              <div className="w-[72px] h-[84px] bg-[#001040] border border-blue-700 rounded flex-shrink-0 flex items-center justify-center overflow-hidden">
-                <span className="text-[10px] text-blue-400 font-semibold">Photo</span>
-              </div>
-              <div className="flex-1 flex flex-col gap-2">
-                <div>
-                  <label className="text-[10px] text-blue-300 font-semibold block mb-0.5">Name</label>
-                  <input readOnly value={fighterBName}
-                    className="w-full border border-blue-700/60 rounded px-2.5 py-1.5 text-white font-bold bg-[#001040] text-sm focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-blue-300 font-semibold block mb-0.5">Club / Team</label>
-                  <input readOnly value={fighterBClub}
-                    className="w-full border border-blue-700/60 rounded px-2.5 py-1.5 text-white font-semibold bg-[#001040] text-sm focus:outline-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Scores */}
-            <div className="flex justify-between items-center px-6 py-5 border-b border-blue-800/40 bg-[#001f5b]">
-              <ScoreCol label="IPPON"    value={scoreB.ippon}    big white />
-              <ScoreCol label="WAZA-ARI" value={scoreB.wazaAri} big white />
-              <ScoreCol label="YUKO"     value={scoreB.yuko}     big white />
-              <ScoreCol label="SHIDO"    value={scoreB.shido}    white />
-            </div>
-
-            {/* Actions */}
-            <div className="p-4 flex flex-col gap-3 flex-grow">
-              <span className="text-xs font-bold text-blue-200">Actions</span>
-              <div className="flex gap-1.5 flex-wrap">
-                <Btn label="Ippon"    onClick={() => addScore("B","ippon")}   disabled={!canScore} cls="bg-[#198754] text-white hover:bg-[#157347]" />
-                <Btn label="Waza-ari" onClick={() => addScore("B","wazaAri")} disabled={!canScore} cls="bg-[#ffc107] text-black hover:bg-[#e0a800]" />
-                <Btn label="Yuko"     onClick={() => addScore("B","yuko")}    disabled={!canScore} cls="bg-[#6c757d] text-white hover:bg-[#5a6268]" />
-                <Btn label="Shido"    onClick={() => addScore("B","shido")}   disabled={!canScore} cls="bg-transparent text-[#ffc107] border-2 border-[#ffc107] hover:bg-blue-900/40" />
-                <Btn label="Red Card" onClick={() => addScore("B","shido")}   disabled={!canScore} cls="bg-transparent text-red-400 border-2 border-red-500 hover:bg-blue-900/40" />
-              </div>
-              <div className="flex gap-1.5">
-                <Btn label="Undo"           onClick={() => undoScore("B","ippon")}       cls="bg-white text-gray-800 border border-gray-300 hover:bg-gray-100" />
-                <Btn label="Declare Winner" onClick={() => declareWinner("B","Decision")} cls="bg-[#0d6efd] text-white hover:bg-[#0b5ed7] flex-1" />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex flex-1 gap-1">
-                  <select
-                    value={selectedTechB}
-                    onChange={(e) => setSelectedTechB(e.target.value)}
-                    className="flex-1 border border-blue-700/60 rounded px-2 py-1.5 text-xs text-blue-200 bg-[#001040] focus:outline-none"
-                  >
-                    <option value="">Select Technique</option>
-                    {techniques.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <button
-                    onClick={() => applyTechnique("B")}
-                    className="px-3 py-1.5 text-[#198754] font-bold text-xs border border-[#198754] rounded hover:bg-green-900/30"
-                  >
-                    Apply
-                  </button>
-                </div>
-                <div className="flex flex-1 gap-1">
-                  <select
-                    value={selectedPenB}
-                    onChange={(e) => setSelectedPenB(e.target.value)}
-                    className="flex-1 border border-blue-700/60 rounded px-2 py-1.5 text-xs text-blue-200 bg-[#001040] focus:outline-none"
-                  >
-                    <option value="">Select Penalty</option>
-                    {penalties.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <button
-                    onClick={() => applyPenalty("B")}
-                    className="px-3 py-1.5 text-[#ffc107] font-bold text-xs border border-[#ffc107] rounded hover:bg-yellow-900/30"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Bottom Buttons ───────────────────────────────────────────────── */}
-        <div className="flex justify-center gap-3 py-1">
-          <button
-            className="px-5 py-2 bg-transparent border border-white/30 text-white rounded text-xs font-bold hover:bg-white/10 transition-colors">
-            Save to PDF
+        <div className="flex items-center gap-4">
+          <button className="flex items-center gap-2 bg-[#ffcccc] text-red-600 px-4 py-1.5 rounded-md font-bold text-sm">
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span> LIVE
           </button>
-          <button onClick={() => { saveToLocal(); saveMatchToDB(); }}
-            className="px-5 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded text-xs font-bold shadow-lg shadow-green-900/30 transition-colors">
-            Save Match (DB & Local)
+          <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-white text-black px-4 py-1.5 rounded-md font-bold text-sm hover:bg-gray-200">
+            <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={loadLast}
-            className="px-5 py-2 bg-transparent border border-white/30 text-white rounded text-xs font-bold hover:bg-white/10 transition-colors">
-            Load Last Match
+          <button className="bg-[#facc15] p-1.5 rounded-md text-black hover:bg-yellow-500">
+            <Settings size={20} />
           </button>
-        </div>
-
-        <div className="text-center pb-4 text-[10px] text-gray-600 font-bold uppercase tracking-[0.25em]">
-          TNJA © TAMIL NADU JUDO ASSOCIATION
         </div>
       </div>
 
-      {/* ── Winner Overlay ──────────────────────────────────────────────────── */}
+      {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
+      <div className="flex-1 p-6 flex gap-6 overflow-hidden">
+        
+        {/* ── PLAYER 1 (ORANGE) ──────────────────────────────────────────── */}
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border border-[#f97316] shadow-[0_0_15px_rgba(249,115,22,0.3)] overflow-hidden p-4 relative">
+          <div className="flex justify-between items-start mb-4">
+            <span className="bg-[#f97316] text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 1</span>
+            <span className="text-3xl">🇮🇳</span>
+          </div>
+          
+          <div className="flex items-center gap-6 mb-4">
+            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-[#e65c00] flex items-center justify-center shadow-lg">
+              <span className="text-white text-2xl font-black">{fighterAName.substring(0, 2).toUpperCase()}</span>
+            </div>
+            <div className="flex flex-col">
+              <h2 className="text-2xl font-bold text-white mb-1">{fighterAName}</h2>
+              <p className="text-sm text-gray-400 mb-2">{fighterAClub}</p>
+              <div className="text-xl font-bold text-white">Score : {totalScore(scoreA)}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <ScoreBox label="IPPON" value={scoreA.ippon} theme="orange" />
+            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="orange" />
+            <ScoreBox label="YUKO" value={scoreA.yuko} theme="orange" />
+            <ScoreBox label="SHIDO" value={scoreA.shido} theme="orange" />
+          </div>
+
+          <div className="flex flex-col flex-grow">
+            <span className="text-xs font-bold tracking-widest text-white mb-2">ACTIONS</span>
+            
+            <div className="grid grid-cols-5 gap-3 mb-4">
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="IPPON" onClick={() => addScore("A", "ippon")} />
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="WAZA-ARI" onClick={() => addScore("A", "wazaAri")} />
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="YUKO" onClick={() => addScore("A", "yuko")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-yellow-400 rounded-sm shadow-sm" />} label="SHIDO" onClick={() => addScore("A", "shido")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU-MAKE" onClick={() => applyPenalty("A", "Hansoku-make", "")} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <button onClick={() => undoScore("A", "ippon")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <RotateCcw size={16} /> UNDO
+              </button>
+              <button onClick={() => {
+                const ws = checkWin(scoreA, scoreB);
+                declareWinner("A", (ws.w === "A" && ws.m) ? ws.m : "Decision");
+              }} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <Trophy size={16} /> WINNER
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <select value={selectedTechA} onChange={e=>setSelectedTechA(e.target.value)} className="bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none">
+                <option value="">Select Technique</option>
+                {techniques.map(t=><option key={t} value={t} className="bg-[#141414]">{t}</option>)}
+              </select>
+              <select value={selectedPenA} onChange={e=>setSelectedPenA(e.target.value)} className="bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none">
+                <option value="">Select Penalty</option>
+                {penalties.map(p=><option key={p} value={p} className="bg-[#141414]">{p}</option>)}
+              </select>
+            </div>
+
+            <textarea value={descA} onChange={e=>setDescA(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+            
+            <div className="mt-auto flex justify-center">
+              <button onClick={() => handleApply("A")} className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold py-3 px-16 rounded text-sm transition-colors shadow-[0_0_15px_rgba(22,163,74,0.4)]">
+                APPLY
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── CENTER PANEL ────────────────────────────────────────────────── */}
+        <div className="w-[380px] shrink-0 flex flex-col gap-6">
+          <div className="bg-[#1a1a1a] rounded-2xl flex flex-col items-center justify-center pt-8 pb-4 relative shadow-lg">
+            
+            <div className="relative flex flex-col items-center justify-center">
+              <svg className="w-[260px] h-[260px]">
+                <defs>
+                  <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f97316" />
+                    <stop offset="100%" stopColor="#facc15" />
+                  </linearGradient>
+                </defs>
+                <path 
+                  d="M 47.98 212.02 A 116 116 0 1 1 212.02 212.02" 
+                  stroke="#333" strokeWidth="6" fill="none" strokeLinecap="round" 
+                />
+                <path 
+                  d="M 47.98 212.02 A 116 116 0 1 1 212.02 212.02" 
+                  stroke="url(#timerGrad)" 
+                  strokeWidth="14" 
+                  fill="none" 
+                  strokeLinecap="round" 
+                  style={{
+                    strokeDasharray: arcLength,
+                    strokeDashoffset: arcOffset,
+                    transition: "stroke-dashoffset 1s linear"
+                  }} 
+                />
+                
+                {/* ── DRAINING THUMB / DOT ── */}
+                <g 
+                  style={{ 
+                    transform: `rotate(${thumbAngle}deg)`, 
+                    transformOrigin: "130px 130px",
+                    transition: "transform 1s linear" 
+                  }}
+                >
+                  <circle 
+                    cx="246" cy="130" r="10" 
+                    fill="#f97316" 
+                    stroke="#ffffff" 
+                    strokeWidth="4" 
+                    style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" }}
+                  />
+                  <circle cx="243" cy="127" r="3" fill="#ffffff" opacity="0.6" />
+                </g>
+              </svg>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center pb-4">
+                <span className="text-[11px] font-black tracking-[0.2em] text-[#5a7fa8] mb-1">{goldenScore ? "GOLDEN SCORE" : "ROUND 1"}</span>
+                <span className="text-6xl font-black text-white tabular-nums tracking-tighter mb-1 drop-shadow-md">{fmt(timeLeft)}</span>
+                <span className="text-[10px] font-black tracking-[0.1em] text-[#5a7fa8]">TIME REMAINING</span>
+              </div>
+            </div>
+
+            <div className="flex gap-5 w-full px-4 mt-2 justify-center">
+              <button onClick={() => { if (!winner) { setRunning(true); } }} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(46,204,113,0.3)]">
+                <PlayCircle size={18} strokeWidth={2.5}/> START
+              </button>
+              <button onClick={() => setRunning(false)} className="bg-[#f1c40f] hover:bg-[#d4ac0d] text-black pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(241,196,15,0.3)]">
+                <PauseCircle size={18} strokeWidth={2.5}/> PAUSE
+              </button>
+              <button onClick={() => { setRunning(false); setTimeLeft(0); }} className="bg-[#e74c3c] hover:bg-[#c0392b] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(231,76,60,0.3)]">
+                <StopCircle size={18} strokeWidth={2.5}/> STOP
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <span className="text-xs font-bold tracking-widest text-white">OSAEKOMI TIMER</span>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => startOsaekomi("A")} className="bg-[#422006] hover:bg-[#78350f] text-[#f97316] text-xs font-bold py-2.5 rounded border border-[#78350f]">Osaekomi (P1)</button>
+              <button onClick={() => startOsaekomi("B")} className="bg-[#424006] hover:bg-[#716a04] text-[#eab308] text-xs font-bold py-2.5 rounded border border-[#716a04]">Osaekomi (P2)</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-xs font-bold py-2.5 rounded">Switch Hold</button>
+              <button onClick={toketa} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-xs font-bold py-2.5 rounded">Toketa</button>
+            </div>
+          </div>
+
+          <div className="bg-[#1a1a1a] rounded-xl flex-1 p-5 overflow-hidden flex flex-col shadow-lg border border-[#333]">
+            <div className="flex justify-between items-center mb-6">
+              <span className="text-xs font-bold tracking-widest text-white">MATCH STATISTICS</span>
+              <div className="flex flex-col gap-1 items-end">
+                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-[#f97316]"></span> PLAYER 1</span>
+                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-[#eab308]"></span> PLAYER 2</span>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-thin text-xs font-semibold text-gray-300 pr-2 relative">
+              <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-green-500 via-yellow-500 to-red-500 rounded-full" />
+              <div className="flex flex-col gap-4 relative z-10 pl-8 pt-2 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="absolute left-[9.5px] w-1.5 h-1.5 rounded-full bg-green-500 ring-4 ring-[#1a1a1a]" />
+                  <span className="text-[10px] text-gray-400 font-bold w-8">0:00</span>
+                  <span className="text-[10px] text-white font-bold">START</span>
+                </div>
+                {logs.map((l) => (
+                  <div key={l.id} className="flex items-start gap-3">
+                    <div className={`absolute left-[9.5px] w-1.5 h-1.5 rounded-full ring-4 ring-[#1a1a1a] ${l.fighter === "A" ? "bg-[#f97316]" : l.fighter === "B" ? "bg-[#eab308]" : "bg-gray-500"}`} />
+                    <span className="text-[10px] text-gray-400 font-bold w-8 mt-0.5">{new Date(l.timestamp).toLocaleTimeString([],{minute:'2-digit',second:'2-digit'})}</span>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white font-bold tracking-wider">
+                          {(() => {
+                            if (l.text.includes('scored')) return l.text.split('scored ')[1].toUpperCase();
+                            if (l.text.includes('Shido')) return 'SHIDO';
+                            if (l.text.includes('Hansoku-make')) return 'HANSOKU-MAKE';
+                            if (l.text.includes('executed')) return 'TECHNIQUE';
+                            if (l.text.includes('Undo')) return 'UNDO';
+                            if (l.text.includes('Winner')) return 'RESULT';
+                            return 'NOTE';
+                          })()}
+                        </span>
+                        {l.fighter && (
+                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${l.fighter === "A" ? "bg-[#f97316] text-white" : "bg-[#eab308] text-black"}`}>
+                            PLAYER {l.fighter === "A" ? "1" : "2"}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9px] text-gray-500 mt-0.5">{l.text}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── PLAYER 2 (YELLOW) ────────────────────────────────────────── */}
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border border-[#eab308] shadow-[0_0_15px_rgba(234,179,8,0.3)] overflow-hidden p-4 relative">
+          <div className="flex justify-between items-start mb-4">
+            <span className="bg-[#eab308] text-black text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 2</span>
+            <span className="text-3xl">🇮🇳</span>
+          </div>
+          
+          <div className="flex items-center gap-6 mb-4">
+            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-[#b3a100] flex items-center justify-center shadow-lg">
+              <span className="text-white text-2xl font-black">{fighterBName.substring(0, 2).toUpperCase()}</span>
+            </div>
+            <div className="flex flex-col">
+              <h2 className="text-2xl font-bold text-white mb-1">{fighterBName}</h2>
+              <p className="text-sm text-gray-400 mb-2">{fighterBClub}</p>
+              <div className="text-xl font-bold text-white">Score : {totalScore(scoreB)}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <ScoreBox label="IPPON" value={scoreB.ippon} theme="yellow" />
+            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="yellow" />
+            <ScoreBox label="YUKO" value={scoreB.yuko} theme="yellow" />
+            <ScoreBox label="SHIDO" value={scoreB.shido} theme="yellow" />
+          </div>
+
+          <div className="flex flex-col flex-grow">
+            <span className="text-xs font-bold tracking-widest text-white mb-2">ACTIONS</span>
+            
+            <div className="grid grid-cols-5 gap-3 mb-4">
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="IPPON" onClick={() => addScore("B", "ippon")} />
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="WAZA-ARI" onClick={() => addScore("B", "wazaAri")} />
+              <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="YUKO" onClick={() => addScore("B", "yuko")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-yellow-400 rounded-sm shadow-sm" />} label="SHIDO" onClick={() => addScore("B", "shido")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU-MAKE" onClick={() => applyPenalty("B", "Hansoku-make", "")} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <button onClick={() => undoScore("B", "ippon")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <RotateCcw size={16} /> UNDO
+              </button>
+              <button onClick={() => {
+                const ws = checkWin(scoreA, scoreB);
+                declareWinner("B", (ws.w === "B" && ws.m) ? ws.m : "Decision");
+              }} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <Trophy size={16} /> WINNER
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <select value={selectedTechB} onChange={e=>setSelectedTechB(e.target.value)} className="bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500 appearance-none">
+                <option value="">Select Technique</option>
+                {techniques.map(t=><option key={t} value={t} className="bg-[#141414]">{t}</option>)}
+              </select>
+              <select value={selectedPenB} onChange={e=>setSelectedPenB(e.target.value)} className="bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500 appearance-none">
+                <option value="">Select Penalty</option>
+                {penalties.map(p=><option key={p} value={p} className="bg-[#141414]">{p}</option>)}
+              </select>
+            </div>
+
+            <textarea value={descB} onChange={e=>setDescB(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+            
+            <div className="mt-auto flex justify-center">
+              <button onClick={() => handleApply("B")} className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold py-3 px-16 rounded text-sm transition-colors shadow-[0_0_15px_rgba(22,163,74,0.4)]">
+                APPLY
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ══ EXPORT SECTION ════════════════════════════════════════════════════ */}
+      <div className="pb-6 flex justify-center shrink-0">
+        <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-8 py-4 flex items-center gap-8 shadow-xl">
+          <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
+          <div className="flex gap-4">
+            <button onClick={() => window.print()} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+              <Download size={16} /> Save PDF
+            </button>
+            <button onClick={()=>saveMatchToDB()} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+              <CheckCircle size={16} /> Save Match
+            </button>
+            <button className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+              <RotateCcw size={16} /> Load Last Match
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── WINNER OVERLAY MODAL ─────────────────────────────────────────── */}
       <AnimatePresence>
         {winner && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 backdrop-blur-sm">
-            <motion.div
-              initial={{ scale: 0.7, y: 40, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 280, damping: 22 }}
-              className="text-center px-10 py-12 max-w-md w-full mx-6 bg-gradient-to-b from-[#1a1a2e] to-[#0d0d1a] border border-white/10 rounded-3xl shadow-2xl"
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md print:hidden"
+          >
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0, y: 30 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              className="bg-[#1a1a1a] border-2 border-[#333] p-12 rounded-[2rem] shadow-2xl flex flex-col items-center max-w-2xl w-full text-center relative overflow-hidden"
             >
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: "spring" }}
-                className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-orange-500/40">
-                <Trophy size={44} className="text-white" />
-              </motion.div>
-              <p className={`text-xs font-black uppercase tracking-[0.3em] mb-3 ${winner === "A" ? "text-gray-300" : "text-blue-400"}`}>
-                {winner === "A" ? "WHITE WINS" : "BLUE WINS"}
-              </p>
-              <h2 className="text-3xl font-black text-white leading-tight mb-1">
+              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-green-400 to-green-600" />
+              
+              <div className="w-24 h-24 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-6 ring-4 ring-green-500/20">
+                <Trophy size={48} />
+              </div>
+              <h2 className="text-xl font-black tracking-[0.3em] text-gray-500 mb-2">WINNER DECLARED</h2>
+              <h1 className="text-6xl font-black text-white mb-3 leading-tight drop-shadow-lg">
                 {winner === "A" ? fighterAName : fighterBName}
-              </h2>
-              <p className="text-white/40 font-bold text-sm mb-4">
+              </h1>
+              <h3 className="text-2xl font-bold text-gray-400 mb-10">
                 {winner === "A" ? fighterAClub : fighterBClub}
-              </p>
-              <div className="inline-flex px-5 py-2 bg-[#FF7400]/20 border border-[#FF7400]/30 rounded-2xl text-[#FF7400] font-black text-sm mb-8">
-                {winMethod}
+              </h3>
+              
+              <div className="bg-[#111] px-8 py-4 rounded-2xl border border-[#333] mb-10 w-full shadow-inner">
+                <span className="text-xs font-bold text-gray-500 tracking-[0.2em] uppercase block mb-2">Method of Victory</span>
+                <span className="text-2xl font-black text-[#FF7400] uppercase tracking-wider">{winMethod || "Decision"}</span>
               </div>
 
-              {/* Save Status Message */}
-              {saveMessage && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 px-4 py-2 bg-blue-500/20 border border-blue-400/50 rounded-xl text-blue-300 text-xs font-black text-center"
+              <div className="flex gap-4 w-full">
+                <button 
+                  onClick={() => window.print()} 
+                  className="flex-1 bg-white hover:bg-gray-200 text-black font-black py-4 rounded-xl transition-all shadow-xl shadow-white/10 flex items-center justify-center gap-3 text-lg"
                 >
-                  {saveMessage}
-                </motion.div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="space-y-2">
-                <button
-                  onClick={handleSaveMatch}
-                  className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-2xl font-black text-sm text-white transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle size={16} /> Save Match Result
+                  <Download size={24} /> Print Report
                 </button>
-
-                <button
-                  onClick={downloadMatchReport}
-                  className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 rounded-2xl font-black text-sm text-white transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                <button 
+                  onClick={() => setWinner(null)} 
+                  className="px-8 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-4 rounded-xl transition-all"
                 >
-                  <Download size={16} /> Download Report (PDF)
-                </button>
-
-                <button
-                  onClick={resetAll}
-                  className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-sm text-white/70 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <RotateCcw size={16} /> New Match / Reset
-                </button>
-
-                <button
-                  onClick={() => window.close()}
-                  className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-sm text-gray-400 hover:text-gray-200 transition-all flex items-center justify-center gap-2"
-                >
-                  <ArrowLeft size={16} /> Close Scoreboard
+                  Dismiss
                 </button>
               </div>
             </motion.div>
@@ -1414,87 +738,127 @@ function ScoreboardInner() {
         )}
       </AnimatePresence>
 
-      {/* ── Technique Score Type Selector Modal ────────────────────────────── */}
-      <AnimatePresence>
-        {techModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/70 backdrop-blur-xs">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="bg-[#111827] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-4 text-center shadow-2xl text-white"
-            >
-              <h3 className="text-lg font-bold mb-1">Apply Score</h3>
-              <p className="text-xs text-gray-400 mb-5">
-                Select score for <span className="text-orange-400 font-bold">{techModal.technique}</span> executed by{" "}
-                <span className="text-white font-bold">
-                  {techModal.fighter === "A" ? fighterAName : fighterBName}
-                </span>
-              </p>
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => confirmTechnique("ippon")}
-                  className="py-3 bg-[#198754] hover:bg-[#157347] rounded-xl font-bold text-sm transition-all"
-                >
-                  Ippon
-                </button>
-                <button
-                  onClick={() => confirmTechnique("wazaAri")}
-                  className="py-3 bg-[#ffc107] hover:bg-[#e0a800] text-black rounded-xl font-bold text-sm transition-all"
-                >
-                  Waza-ari
-                </button>
-                <button
-                  onClick={() => confirmTechnique("yuko")}
-                  className="py-3 bg-[#6c757d] hover:bg-[#5a6268] rounded-xl font-bold text-sm transition-all"
-                >
-                  Yuko
-                </button>
-                <button
-                  onClick={() => setTechModal(null)}
-                  className="py-2.5 bg-transparent border border-white/20 hover:bg-white/10 rounded-xl text-xs text-gray-400 font-bold transition-all mt-2"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+        </div>
+      </div>
+
+      {/* ── PRINTABLE MATCH REPORT ─────────────────────────────────────────── */}
+      <div className="hidden print:block bg-white text-black font-sans px-16 py-12 absolute inset-0 w-full min-h-screen z-[99999]">
+        <style type="text/css" media="print">
+          {`
+            @page { size: auto; margin: 0mm; }
+            html, body { background-color: #ffffff !important; }
+          `}
+        </style>
+        
+        <div className="text-center border-b-2 border-black pb-6 mb-8 flex flex-col items-center">
+          <img src="/navbar/Logo.png" alt="TNJA Logo" className="w-24 h-24 mb-4 object-contain" />
+          <h1 className="text-4xl font-black uppercase tracking-widest mb-2">Tamil Nadu Judo Association</h1>
+          <h2 className="text-2xl font-bold text-gray-600 uppercase">Official Match Report</h2>
+        </div>
+
+        <div className="flex justify-between items-end mb-10">
+          <div className="w-5/12 border-2 border-black rounded-xl p-6 bg-gray-50">
+            <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Player 1 (White)</span>
+            <p className="text-3xl font-black mt-2 text-orange-600">{fighterAName}</p>
+          </div>
+          <div className="text-4xl font-black text-gray-300 pb-6">VS</div>
+          <div className="w-5/12 border-2 border-black rounded-xl p-6 bg-gray-50 text-right">
+            <span className="text-sm font-bold text-gray-500 uppercase tracking-widest">Player 2 (Blue)</span>
+            <p className="text-3xl font-black mt-2 text-yellow-600">{fighterBName}</p>
+          </div>
+        </div>
+
+        <div className="mb-10">
+          <h3 className="text-xl font-bold uppercase tracking-widest border-b border-gray-300 pb-2 mb-4">Final Score</h3>
+          <table className="w-full text-center border-collapse">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-gray-400 p-3">Player</th>
+                <th className="border border-gray-400 p-3">Ippon</th>
+                <th className="border border-gray-400 p-3">Waza-Ari</th>
+                <th className="border border-gray-400 p-3">Yuko</th>
+                <th className="border border-gray-400 p-3">Shido</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-gray-400 p-3 font-bold">{fighterAName}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreA.ippon}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreA.wazaAri}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreA.yuko}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black text-red-600">{scoreA.shido}</td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td className="border border-gray-400 p-3 font-bold">{fighterBName}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreB.ippon}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreB.wazaAri}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black">{scoreB.yuko}</td>
+                <td className="border border-gray-400 p-3 text-2xl font-black text-red-600">{scoreB.shido}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mb-10">
+          <h3 className="text-xl font-bold uppercase tracking-widest border-b border-gray-300 pb-2 mb-4">Match Log / Timeline</h3>
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-gray-400 p-2 w-24">Time</th>
+                <th className="border border-gray-400 p-2 w-48">Competitor</th>
+                <th className="border border-gray-400 p-2">Action / Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((l) => (
+                <tr key={l.id} className="border-b border-gray-300">
+                  <td className="border-x border-gray-300 p-2 font-mono text-gray-600">
+                    {new Date(l.timestamp).toLocaleTimeString([], {minute:'2-digit',second:'2-digit'})}
+                  </td>
+                  <td className="border-x border-gray-300 p-2 font-bold">
+                    {l.fighter ? (l.fighter === "A" ? fighterAName : fighterBName) : "- System -"}
+                  </td>
+                  <td className="border-x border-gray-300 p-2">{l.text}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {winner && (
+          <div className="mt-12 p-8 bg-green-50 border-4 border-green-600 rounded-2xl text-center">
+            <p className="text-green-800 font-bold tracking-widest uppercase mb-2">Winner Declared</p>
+            <h2 className="text-4xl font-black text-green-700">{winner === "A" ? fighterAName : fighterBName}</h2>
+            <p className="text-gray-600 font-bold mt-4">Method of Victory: {winMethod}</p>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
+    </>
+  );
+}
+
+function ScoreBox({ label, value, theme }: { label: string; value: number; theme: "orange" | "yellow" }) {
+  const bgClass = theme === "orange" ? "bg-[#452109]" : "bg-[#424006]";
+  return (
+    <div className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border border-white/5`}>
+      <span className="text-xs text-white/50 font-bold tracking-widest mb-1">{label}</span>
+      <span className="text-4xl text-white font-black">{value}</span>
     </div>
   );
 }
 
-function ScoreCol({ label, value, big, white }: { label: string; value: number; big?: boolean; white?: boolean }) {
+function ActionBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className={`text-[10px] font-bold tracking-widest ${white ? "text-blue-300" : "text-gray-500"}`}>{label}</span>
-      <span className={`font-black tabular-nums leading-none ${big ? "text-[44px]" : "text-[28px]"} ${white ? "text-white" : "text-black"}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function Btn({ label, onClick, cls, disabled }: { label: string; onClick: () => void; cls?: string; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick} disabled={disabled}
-      className={`px-3 py-2 rounded text-xs font-bold transition-all whitespace-nowrap ${disabled ? "opacity-40 cursor-not-allowed" : ""} ${cls}`}
-    >
-      {label}
+    <button onClick={onClick} className="flex flex-col items-center justify-center gap-1.5 bg-transparent border border-[#444] hover:bg-[#333] rounded p-2 transition-colors">
+      <div className="h-5 flex items-center justify-center">{icon}</div>
+      <span className="text-[8px] font-black tracking-wider text-gray-300">{label}</span>
     </button>
   );
 }
 
 export default function ScoreboardPage() {
   return (
-    <Suspense fallback={
-      <div className="fixed inset-0 z-[9999] bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-white/40 text-sm font-black uppercase tracking-widest">Loading scoreboard...</div>
-      </div>
-    }>
+    <Suspense fallback={<div className="fixed inset-0 z-[9999] bg-[#111] flex items-center justify-center text-white/50 font-bold">Loading Scoreboard...</div>}>
       <ScoreboardInner />
     </Suspense>
   );

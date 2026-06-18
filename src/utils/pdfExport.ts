@@ -14,247 +14,244 @@ export function exportMatchToPDF(
   roundIndex: number,
   nextMatchInfo: any,
 ) {
+  const logs = match.logs || [];
+  const fighterA = match.slotA || { playerName: "Player A", club: "" };
+  const fighterB = match.slotB || { playerName: "Player B", club: "" };
+  const scoreA = match.scoreA || { ippon: 0, wazaAri: 0, yuko: 0, shido: 0 };
+  const scoreB = match.scoreB || { ippon: 0, wazaAri: 0, yuko: 0, shido: 0 };
+
+  const logsHtml = logs.length > 0 
+    ? logs.map((log: any) => {
+        const time = new Date(log.timestamp).toLocaleTimeString([], { minute: '2-digit', second: '2-digit' });
+        const comp = log.fighter === "A" ? fighterA.playerName : (log.fighter === "B" ? fighterB.playerName : "System");
+        return `
+          <tr>
+            <td style="border: 1px solid #d1d5db; padding: 12px 16px;">${time}</td>
+            <td style="border: 1px solid #d1d5db; padding: 12px 16px;">${comp}</td>
+            <td style="border: 1px solid #d1d5db; padding: 12px 16px;">
+              ${log.type === "score" ? "✅ " : (log.type === "penalty" ? "⚠️ " : "")}${log.text}
+            </td>
+          </tr>
+        `;
+      }).join("")
+    : `<tr><td colspan="3" style="border: 1px solid #d1d5db; padding: 16px; text-align: center; color: #6b7280;">No timeline data available for this match.</td></tr>`;
+
   const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Match Report</title>
+      <title>TNJA Official Match Report</title>
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        @page { size: auto; margin: 0mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: #f5f5f5;
-          padding: 20px;
-        }
-        .container {
-          max-width: 800px;
-          margin: 0 auto;
-          background: white;
-          padding: 40px;
-          border-radius: 12px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          font-family: 'Inter', sans-serif;
+          background-color: #ffffff !important;
+          -webkit-print-color-adjust: exact;
+          padding: 48px 64px;
+          color: #000;
         }
         .header {
           text-align: center;
-          margin-bottom: 30px;
-          border-bottom: 3px solid #FF7400;
-          padding-bottom: 20px;
+          border-bottom: 2px solid #000;
+          padding-bottom: 24px;
+          margin-bottom: 32px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        .header img {
+          width: 96px;
+          height: 96px;
+          object-fit: contain;
+          margin-bottom: 16px;
         }
         .header h1 {
-          font-size: 28px;
-          color: #333;
-          margin-bottom: 5px;
-        }
-        .header p {
-          color: #666;
-          font-size: 14px;
-        }
-        .tournament-info {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-          margin-bottom: 30px;
-          padding: 15px;
-          background: #f9f9f9;
-          border-radius: 8px;
-        }
-        .tournament-info div {
-          font-size: 13px;
-        }
-        .tournament-info label {
-          color: #FF7400;
-          font-weight: bold;
-          display: block;
-          margin-bottom: 3px;
-        }
-        .tournament-info span {
-          color: #333;
-          font-weight: 500;
-        }
-        .match-details {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-        .player-card {
-          padding: 20px;
-          border-radius: 8px;
-          border: 2px solid #ddd;
-        }
-        .player-card.winner {
-          border-color: #22c55e;
-          background: #f0fdf4;
-        }
-        .player-card.loser {
-          border-color: #ef4444;
-          background: #fef2f2;
-        }
-        .player-card h3 {
-          font-size: 14px;
-          color: #666;
+          font-size: 36px;
+          font-weight: 900;
           text-transform: uppercase;
-          margin-bottom: 8px;
-          font-weight: bold;
-        }
-        .player-card .name {
-          font-size: 22px;
-          font-weight: bold;
-          color: #333;
-          margin-bottom: 5px;
-        }
-        .player-card .club {
-          font-size: 13px;
-          color: #666;
+          letter-spacing: 0.1em;
           margin-bottom: 8px;
         }
-        .player-card .seed {
-          display: inline-block;
-          background: #fef3c7;
-          color: #b45309;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: bold;
-          margin-top: 8px;
+        .header h2 {
+          font-size: 24px;
+          font-weight: 700;
+          color: #4b5563;
+          text-transform: uppercase;
         }
-        .next-match {
-          background: #eff6ff;
-          border: 2px solid #3b82f6;
-          padding: 20px;
-          border-radius: 8px;
-          margin-bottom: 30px;
+        .vs-box {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 32px;
         }
-        .next-match h3 {
-          color: #1e40af;
+        .player-box {
+          flex: 1;
+          border: 2px solid #000;
+          border-radius: 12px;
+          padding: 24px;
+          text-align: center;
+        }
+        .player-box h3 {
           font-size: 14px;
-          margin-bottom: 10px;
-          font-weight: bold;
+          font-weight: 700;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 16px;
         }
-        .next-match .details {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-          font-size: 13px;
+        .player-box.white h2, .player-box.white h4 { color: #ea580c; }
+        .player-box.blue h2, .player-box.blue h4 { color: #d97706; }
+        .player-box h2 {
+          font-size: 30px;
+          font-weight: 900;
+          line-height: 1.2;
         }
-        .next-match .details div {
-          color: #333;
+        .player-box h4 {
+          font-size: 20px;
+          font-weight: 700;
+          margin-top: 4px;
         }
-        .next-match .details label {
-          color: #1e40af;
-          font-weight: bold;
-          display: block;
-          margin-bottom: 2px;
+        .vs-text {
+          padding: 0 32px;
+          font-size: 36px;
+          font-weight: 900;
+          color: #9ca3af;
+        }
+        .section-title {
+          font-size: 20px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 16px;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 1px solid #d1d5db;
+          margin-bottom: 40px;
+        }
+        th {
+          background-color: #f9fafb;
+          border: 1px solid #d1d5db;
+          padding: 12px 16px;
+          font-weight: 700;
+          text-align: center;
+        }
+        th.left { text-align: left; }
+        td {
+          border: 1px solid #d1d5db;
+          padding: 16px;
+          font-weight: 700;
+        }
+        td.center {
+          text-align: center;
+          font-size: 24px;
+          font-weight: 900;
+        }
+        td.shido { color: #dc2626; }
+        .winner-box {
+          border: 2px solid #000;
+          background-color: #f9fafb;
+          border-radius: 12px;
+          padding: 24px;
+          text-align: center;
+        }
+        .winner-box h3 {
+          font-size: 14px;
+          font-weight: 900;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 8px;
+        }
+        .winner-box h2 {
+          font-size: 36px;
+          font-weight: 900;
+          color: #16a34a;
         }
         .footer {
           text-align: center;
-          color: #999;
-          font-size: 12px;
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 1px solid #ddd;
-        }
-        .match-meta {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-          margin-bottom: 20px;
-          padding: 15px;
-          background: #f9f9f9;
-          border-radius: 8px;
-          font-size: 13px;
-        }
-        .match-meta label {
-          color: #666;
-          font-weight: bold;
-        }
-        .match-meta span {
-          color: #333;
+          color: #9ca3af;
+          font-size: 14px;
+          margin-top: 40px;
+          font-weight: 600;
         }
       </style>
     </head>
     <body>
-      <div class="container">
-        <div class="header">
-          <h1>⚔️ MATCH REPORT</h1>
-          <p>Match Result & Progression Record</p>
-        </div>
+      <div class="header">
+        <img src="/navbar/Logo.png" alt="TNJA Logo" />
+        <h1>Tamil Nadu Judo Association</h1>
+        <h2>Official Match Report</h2>
+      </div>
 
-        <div class="tournament-info">
-          <div>
-            <label>Tournament</label>
-            <span>${tournament?.title || "N/A"}</span>
-          </div>
-          <div>
-            <label>Date</label>
-            <span>${tournament?.date || "N/A"}</span>
-          </div>
-          <div>
-            <label>Level</label>
-            <span>${tournament?.level || "N/A"}</span>
-          </div>
-          <div>
-            <label>Location</label>
-            <span>${tournament?.location || "N/A"}</span>
-          </div>
+      <div class="vs-box">
+        <div class="player-box white">
+          <h3>Player 1 (White)</h3>
+          <h2>${fighterA.playerName}</h2>
+          <h4>${fighterA.club || ""}</h4>
         </div>
-
-        <div class="match-meta">
-          <div>
-            <label>Mat Number:</label>
-            <span>${match.matNumber}</span>
-          </div>
-          <div>
-            <label>Match Number:</label>
-            <span>#${match.matchNumber}</span>
-          </div>
+        <div class="vs-text">VS</div>
+        <div class="player-box blue">
+          <h3>Player 2 (Blue)</h3>
+          <h2>${fighterB.playerName}</h2>
+          <h4>${fighterB.club || ""}</h4>
         </div>
+      </div>
 
-        <div class="match-details">
-          <div class="player-card winner">
-            <h3>🏆 Winner</h3>
-            <div class="name">${winner.playerName}</div>
-            <div class="club">${winner.club || ""}</div>
-            ${winner.seedNumber ? `<span class="seed">Seed #${winner.seedNumber}</span>` : ""}
-          </div>
-          <div class="player-card loser">
-            <h3>Opponent</h3>
-            <div class="name">${loser.playerName}</div>
-            <div class="club">${loser.club || ""}</div>
-            ${loser.seedNumber ? `<span class="seed">Seed #${loser.seedNumber}</span>` : ""}
-          </div>
-        </div>
+      <div class="section-title">Final Score</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="left">Player</th>
+            <th>Ippon</th>
+            <th>Waza-Ari</th>
+            <th>Yuko</th>
+            <th>Shido</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${fighterA.playerName}</td>
+            <td class="center">${scoreA.ippon}</td>
+            <td class="center">${scoreA.wazaAri}</td>
+            <td class="center">${scoreA.yuko}</td>
+            <td class="center shido">${scoreA.shido}</td>
+          </tr>
+          <tr>
+            <td>${fighterB.playerName}</td>
+            <td class="center">${scoreB.ippon}</td>
+            <td class="center">${scoreB.wazaAri}</td>
+            <td class="center">${scoreB.yuko}</td>
+            <td class="center shido">${scoreB.shido}</td>
+          </tr>
+        </tbody>
+      </table>
 
-        ${
-          nextMatchInfo
-            ? `
-          <div class="next-match">
-            <h3>📍 NEXT MATCH</h3>
-            <div class="details">
-              <div>
-                <label>Round:</label>
-                <span>${roundName(nextMatchInfo.roundIndex, 5)}</span>
-              </div>
-              <div>
-                <label>Match:</label>
-                <span>#${nextMatchInfo.matchNumber}</span>
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label>Opponent Status:</label>
-                <span>${nextMatchInfo.opponent ? `vs ${nextMatchInfo.opponent}` : "⏳ Waiting for opponent to advance"}</span>
-              </div>
-            </div>
-          </div>
-        `
-            : ""
-        }
+      <div class="section-title">Match Log / Timeline</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="left" style="width: 100px;">Time</th>
+            <th class="left" style="width: 200px;">Competitor</th>
+            <th class="left">Action / Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${logsHtml}
+        </tbody>
+      </table>
 
-        <div class="footer">
-          <p>Generated on ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
-          <p>TNJA Tournament Management System</p>
-        </div>
+      <div class="winner-box">
+        <h3>Officially Declared Winner</h3>
+        <h2>${winner.playerName}</h2>
+      </div>
+
+      <div class="footer">
+        Generated by TNJA Tournament Management System on ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}
       </div>
     </body>
     </html>
@@ -264,9 +261,14 @@ export function exportMatchToPDF(
   iframe.style.display = "none";
   document.body.appendChild(iframe);
 
+  iframe.contentWindow?.document.open();
   iframe.contentWindow?.document.write(html);
+  iframe.contentWindow?.document.close();
+
   iframe.onload = () => {
-    iframe.contentWindow?.print();
-    setTimeout(() => document.body.removeChild(iframe), 100);
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 500);
   };
 }

@@ -526,9 +526,15 @@ export default function TournamentDetailPage() {
         const data = await res.json();
         const drawMap: Record<string, DrawCategory> = {};
         (Array.isArray(data) ? data : []).forEach((d: DrawCategory) => {
+          let roundsArr = d.rounds;
+          if (typeof roundsArr === "string") {
+            try { roundsArr = JSON.parse(roundsArr); } catch (err) {}
+          }
+          if (!Array.isArray(roundsArr)) roundsArr = [];
+          
           drawMap[categoryKey(d.ageGroup, d.gender, d.weightCategory)] = {
             ...d,
-            rounds: processByeMatches(d.rounds),
+            rounds: processByeMatches(roundsArr),
             generated: true, saved: true,
           };
         });
@@ -558,21 +564,6 @@ export default function TournamentDetailPage() {
   const currentDraw = draws[currentKey];
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  const handleShuffle = () => {
-    setDrawPhase("shuffling");
-    setShuffleKey(k => k + 1);
-    setTimeout(() => {
-      // draw shuffled
-      setDrawPhase("idle");
-      setDraws((prev) => {
-        const d = prev[currentKey];
-        if (!d) return prev;
-        return { ...prev, [currentKey]: { ...d, generated: false, saved: false } };
-      });
-      showToast("Players shuffled randomly");
-    }, 900);
-  };
-
   const handleAssignSeed = (seedNum: 1 | 2 | 3 | 4, player: RegisteredPlayer) => {
     setSeeds((prev) => {
       const n = { ...prev };
@@ -585,60 +576,65 @@ export default function TournamentDetailPage() {
     setAssigningSeed(null);
   };
 
-  const handleGenerateDraw = () => {
+  const handleGenerateAndSaveDraw = (isShuffle = false) => {
     if (filteredPlayers.length < 2) {
       showToast("Need at least 2 players to generate a draw", false);
       return;
     }
-    setDrawPhase("dealing");
+    setDrawPhase(isShuffle ? "shuffling" : "dealing");
+    if (isShuffle) setShuffleKey(k => k + 1);
+    
     const rawRounds = generateIJFBracket(filteredPlayers, seeds);
     const rounds = processByeMatches(rawRounds);
-    setTimeout(() => {
-      setDraws((prev) => ({
-        ...prev,
-        [currentKey]: {
-          ageGroup: ageFilter, gender: genderFilter,
-          weightCategory: weightFilter, rounds, generated: true, saved: false,
-        },
-      }));
+    
+    setTimeout(async () => {
+      const newDraw = {
+        ageGroup: ageFilter, gender: genderFilter,
+        weightCategory: weightFilter, rounds, generated: true, saved: false,
+      };
+
+      setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
       setDrawPhase("done");
-      showToast(`Draw generated for ${filteredPlayers.length} players`);
-    }, 700);
+      
+      setSaving(true);
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ageGroup: newDraw.ageGroup, gender: newDraw.gender,
+            weightCategory: newDraw.weightCategory, rounds: newDraw.rounds,
+          }),
+        });
+        if (res.ok) {
+          const updatedDraw = await res.json();
+          let backendRounds = updatedDraw.draw?.rounds || newDraw.rounds;
+          if (typeof backendRounds === "string") {
+            try { backendRounds = JSON.parse(backendRounds); } catch (err) {}
+          }
+          if (!Array.isArray(backendRounds)) backendRounds = newDraw.rounds;
+
+          setDraws((prev) => ({
+            ...prev,
+            [currentKey]: {
+              ...newDraw,
+              rounds: backendRounds,
+              saved: true
+            }
+          }));
+          showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
+          await fetchDraws();
+        } else {
+          showToast("Failed to auto-save draw", false);
+        }
+      } catch { showToast("Error auto-saving draw", false); }
+      finally { setSaving(false); }
+
+    }, isShuffle ? 900 : 700);
   };
 
-  const handleSaveDraw = async () => {
-    const draw = draws[currentKey];
-    if (!draw) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ageGroup: draw.ageGroup, gender: draw.gender,
-          weightCategory: draw.weightCategory, rounds: draw.rounds,
-        }),
-      });
-      if (res.ok) {
-        const updatedDraw = await res.json();
-        // Update with auto-advanced rounds from backend
-        setDraws((prev) => ({
-          ...prev,
-          [currentKey]: {
-            ...draw,
-            rounds: updatedDraw.draw?.rounds || draw.rounds,
-            saved: true
-          }
-        }));
-        showToast("Draw saved & winners auto-advanced! 🏆");
-        // Refresh draws to show real-time updates
-        await fetchDraws();
-      } else {
-        showToast("Failed to save draw", false);
-      }
-    } catch { showToast("Error saving draw", false); }
-    finally { setSaving(false); }
-  };
+  const handleShuffle = () => handleGenerateAndSaveDraw(true);
+  const handleGenerateDraw = () => handleGenerateAndSaveDraw(false);
 
   const handleAutoGenerateAllDraws = async () => {
     if (players.length === 0) {
@@ -1109,35 +1105,30 @@ export default function TournamentDetailPage() {
                   disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {drawPhase === "shuffling"
-                    ? <><Loader2 size={15} className="animate-spin" /> Shuffling...</>
-                    : <><Shuffle size={16} /> Shuffle Players</>}
+                    ? <><Loader2 size={15} className="animate-spin" /> Shuffling & Saving...</>
+                    : <><Shuffle size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Shuffle Players"}</>}
                 </button>
-                <button onClick={handleGenerateDraw}
-                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {drawPhase === "dealing"
-                    ? <><Loader2 size={15} className="animate-spin" /> Dealing Cards...</>
-                    : <><Zap size={16} /> Generate Draw</>}
-                </button>
+                {!currentDraw?.generated && (
+                  <button onClick={handleGenerateDraw}
+                    disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    {drawPhase === "dealing"
+                      ? <><Loader2 size={15} className="animate-spin" /> Generating...</>
+                      : <><Zap size={16} /> Generate & Save Bracket</>}
+                  </button>
+                )}
                 <button onClick={handleAutoGenerateAllDraws}
                   disabled={players.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {autoGenerating ? (
                     <><Loader2 size={15} className="animate-spin" /> Generating All...</>
                   ) : (
-                    <><Zap size={16} /> Auto-Generate All Category Draws</>
+                    <><Zap size={16} /> Auto-Generate All Categories</>
                   )}
                 </button>
-                {currentDraw?.generated && !currentDraw.saved && (
-                  <button onClick={handleSaveDraw} disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                    Save Draw
-                  </button>
-                )}
                 {currentDraw?.saved && (
                   <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
-                    <Check size={16} /> Draw Saved ✓
+                    <Check size={16} /> Auto-Saved ✓
                   </span>
                 )}
               </>

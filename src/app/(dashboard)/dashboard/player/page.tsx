@@ -290,10 +290,17 @@ export default function PlayerDashboard() {
             if (!drawRes2.ok) continue;
             const draws2 = await drawRes2.json();
             for (const draw of draws2) {
-              if (!draw.rounds || draw.rounds.length === 0) continue;
-              const finalRound = draw.rounds[draw.rounds.length - 1];
+              let roundsArr = draw.rounds;
+              if (typeof roundsArr === "string") {
+                try { roundsArr = JSON.parse(roundsArr); } catch { continue; }
+              }
+              if (!Array.isArray(roundsArr) || roundsArr.length === 0) continue;
+              
+              const finalRound = roundsArr[roundsArr.length - 1];
+              if (!Array.isArray(finalRound)) continue;
+
               for (const match of finalRound) {
-                if (match.status === "COMPLETED" && match.winnerId === profileData.user.id) {
+                if (match?.status === "COMPLETED" && match?.winnerId === profileData.user.id) {
                   wins.push({
                     tournamentId: trn.id,
                     tournamentName: trn.title,
