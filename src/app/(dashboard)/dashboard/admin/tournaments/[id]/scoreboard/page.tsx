@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, Settings, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle } from "lucide-react";
+import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle } from "lucide-react";
 
 interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
 type Fighter = "A" | "B";
@@ -97,6 +97,13 @@ function ScoreboardInner() {
   const [osaTime, setOsaTime]     = useState(0);
   const osaRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const osaMilestones = useRef({ wazaAri: false });
+
+  const [confirmWinner, setConfirmWinner] = useState<Fighter | null>(null);
+  const [toastMsg, setToastMsg] = useState("");
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 4000);
+  }, []);
 
   const saveMatchToDB = useCallback(async (
     currentScoreA = scoreA, currentScoreB = scoreB, currentWinner = winner, currentWinMethod = winMethod, currentLogs = logs
@@ -212,8 +219,13 @@ function ScoreboardInner() {
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
   }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB]);
 
+  const isMatchEnded = checkWin(scoreA, scoreB).w !== null;
+
   const addScore = useCallback((fighter: Fighter, field: keyof Score) => {
-    if (winner) return;
+    if (winner || isMatchEnded) {
+      showToast("Match has ended! Please undo the score or declare the winner.");
+      return;
+    }
     setRunning(false);
 
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
@@ -252,6 +264,36 @@ function ScoreboardInner() {
     }
   };
 
+  const undoLastScore = (fighter: Fighter) => {
+    if (winner) return;
+    const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
+    if (fighterLogs.length === 0) return;
+    
+    const lastAction = fighterLogs[fighterLogs.length - 1];
+    const text = lastAction.text.toLowerCase();
+    
+    let field: keyof Score | null = null;
+    if (text.includes("ippon")) field = "ippon";
+    else if (text.includes("waza-ari")) field = "wazaAri";
+    else if (text.includes("yuko")) field = "yuko";
+    else if (text.includes("shido") || text.includes("hansoku-make") || text.includes("disqualified")) field = "shido";
+
+    if (field) {
+      // Remove the undone action from the logs so they can click undo again
+      const filteredLogs = logs.filter(l => l.id !== lastAction.id);
+      const fighterName = fighter === "A" ? fighterAName : fighterBName;
+      const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
+      const nextLogs = [...filteredLogs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
+      setLogs(nextLogs);
+
+      if (fighter === "A") {
+        setScoreA(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(next, scoreB, null, "", nextLogs); return next; });
+      } else {
+        setScoreB(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(scoreA, next, null, "", nextLogs); return next; });
+      }
+    }
+  };
+
   const applyTechnique = (fighter: Fighter, tech: string, desc: string) => {
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
     const logText = `${fighterName} executed ${tech}${desc ? ` - ${desc}` : ""}`;
@@ -283,7 +325,10 @@ function ScoreboardInner() {
   };
 
   const handleApply = (fighter: Fighter) => {
-    if (winner) return;
+    if (winner || isMatchEnded) {
+      showToast("Match has ended! Please undo the score or declare the winner.");
+      return;
+    }
     const selectedTech = fighter === "A" ? selectedTechA : selectedTechB;
     const selectedPen = fighter === "A" ? selectedPenA : selectedPenB;
     const desc = fighter === "A" ? descA : descB;
@@ -347,7 +392,10 @@ function ScoreboardInner() {
   }, [osaActive, osaFor, scoreA, scoreB, saveMatchToDB, logs]);
 
   const startOsaekomi = (fighter: Fighter) => {
-    if (winner) return;
+    if (winner || isMatchEnded) {
+      showToast("Match has ended! Cannot start Osaekomi.");
+      return;
+    }
     setOsaActive(true); setOsaFor(fighter); setOsaTime(0);
     osaMilestones.current = { wazaAri: false };
     if (!running) setRunning(true);
@@ -371,12 +419,9 @@ function ScoreboardInner() {
         <div className="w-full max-w-[1400px] h-full max-h-[900px] flex flex-col bg-[#111111] relative border border-white/10 rounded-lg shadow-2xl overflow-hidden my-auto mx-4">
         
         {/* ══ HEADER ════════════════════════════════════════════════════════ */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-[0_0_10px_#f97316]">
-            <span className="text-black font-black text-xs">TNJA</span>
-          </div>
-          <span className="text-[#f97316] font-bold text-sm tracking-widest">TAMIL NADU JUDO ASSOCIATION 329/2017</span>
+        <div className="flex items-center justify-between px-8 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
+        <div className="flex items-center">
+          <img src="/navbar/Logo.png" alt="TNJA Logo" className="h-16 w-auto object-contain" />
         </div>
         <div className="flex flex-col items-center">
           <h1 className="text-[#f97316] text-xl font-black tracking-wide">Scoreboard</h1>
@@ -385,15 +430,21 @@ function ScoreboardInner() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <button className="flex items-center gap-2 bg-[#ffcccc] text-red-600 px-4 py-1.5 rounded-md font-bold text-sm">
-            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span> LIVE
-          </button>
+          {winner ? (
+            <div className="bg-green-600 text-white px-4 py-1.5 rounded-md font-bold text-sm shadow-[0_0_10px_rgba(22,163,74,0.6)] flex items-center gap-2 tracking-widest uppercase">
+              <Trophy size={14} /> MATCH FINISHED • WINNER: {winner === "A" ? fighterAName : fighterBName}
+            </div>
+          ) : (
+            <button className="flex items-center gap-2 bg-[#ffcccc] text-red-600 px-4 py-1.5 rounded-md font-bold text-sm">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span> LIVE
+            </button>
+          )}
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-white text-black px-4 py-1.5 rounded-md font-bold text-sm hover:bg-gray-200">
             <RefreshCw size={14} /> Refresh
           </button>
-          <button className="bg-[#facc15] p-1.5 rounded-md text-black hover:bg-yellow-500">
+          {/* <button className="bg-[#facc15] p-1.5 rounded-md text-black hover:bg-yellow-500">
             <Settings size={20} />
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -419,10 +470,10 @@ function ScoreboardInner() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreA.ippon} theme="orange" />
-            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="orange" />
-            <ScoreBox label="YUKO" value={scoreA.yuko} theme="orange" />
-            <ScoreBox label="SHIDO" value={scoreA.shido} theme="orange" />
+            <ScoreBox label="IPPON" value={scoreA.ippon} theme="orange" onUndo={() => undoScore("A", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="orange" onUndo={() => undoScore("A", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreA.yuko} theme="orange" onUndo={() => undoScore("A", "yuko")} />
+            <ScoreBox label="SHIDO" value={scoreA.shido} theme="orange" onUndo={() => undoScore("A", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -437,13 +488,10 @@ function ScoreboardInner() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <button onClick={() => undoScore("A", "ippon")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-                <RotateCcw size={16} /> UNDO
+              <button onClick={() => undoLastScore("A")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <RotateCcw size={16} /> UNDO LAST
               </button>
-              <button onClick={() => {
-                const ws = checkWin(scoreA, scoreB);
-                declareWinner("A", (ws.w === "A" && ws.m) ? ws.m : "Decision");
-              }} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+              <button onClick={() => setConfirmWinner("A")} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
                 <Trophy size={16} /> WINNER
               </button>
             </div>
@@ -617,10 +665,10 @@ function ScoreboardInner() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreB.ippon} theme="yellow" />
-            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="yellow" />
-            <ScoreBox label="YUKO" value={scoreB.yuko} theme="yellow" />
-            <ScoreBox label="SHIDO" value={scoreB.shido} theme="yellow" />
+            <ScoreBox label="IPPON" value={scoreB.ippon} theme="yellow" onUndo={() => undoScore("B", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="yellow" onUndo={() => undoScore("B", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreB.yuko} theme="yellow" onUndo={() => undoScore("B", "yuko")} />
+            <ScoreBox label="SHIDO" value={scoreB.shido} theme="yellow" onUndo={() => undoScore("B", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -635,13 +683,10 @@ function ScoreboardInner() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <button onClick={() => undoScore("B", "ippon")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-                <RotateCcw size={16} /> UNDO
+              <button onClick={() => undoLastScore("B")} className="border border-red-700 text-red-500 hover:bg-red-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+                <RotateCcw size={16} /> UNDO LAST
               </button>
-              <button onClick={() => {
-                const ws = checkWin(scoreA, scoreB);
-                declareWinner("B", (ws.w === "B" && ws.m) ? ws.m : "Decision");
-              }} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+              <button onClick={() => setConfirmWinner("B")} className="border border-green-700 text-green-500 hover:bg-green-900/30 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors">
                 <Trophy size={16} /> WINNER
               </button>
             </div>
@@ -731,6 +776,57 @@ function ScoreboardInner() {
                   className="px-8 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-4 rounded-xl transition-all"
                 >
                   Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── TOAST MESSAGE ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600 border-2 border-red-400 text-white font-bold px-8 py-4 rounded-full shadow-[0_0_20px_rgba(220,38,38,0.5)] z-[99999] flex items-center gap-3"
+          >
+            <span className="text-xl">⚠️</span> {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── CONFIRM WINNER MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {confirmWinner && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm print:hidden"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              className="bg-[#1a1a1a] border-2 border-[#333] p-8 rounded-2xl max-w-md w-full text-center shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+              <h2 className="text-2xl font-black text-white mb-2">Confirm Winner?</h2>
+              <p className="text-gray-400 mb-8 font-semibold text-sm">
+                Are you sure you want to declare <span className="text-white font-bold">{confirmWinner === "A" ? fighterAName : fighterBName}</span> as the final winner? This will end the match immediately.
+              </p>
+              <div className="flex gap-4">
+                <button onClick={() => setConfirmWinner(null)} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button onClick={() => {
+                  const ws = checkWin(scoreA, scoreB);
+                  declareWinner(confirmWinner, (ws.w === confirmWinner && ws.m) ? ws.m : "Decision");
+                  setConfirmWinner(null);
+                }} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-xl shadow-lg shadow-green-500/20 transition-all">
+                  Yes, Declare
                 </button>
               </div>
             </motion.div>
@@ -837,10 +933,10 @@ function ScoreboardInner() {
   );
 }
 
-function ScoreBox({ label, value, theme }: { label: string; value: number; theme: "orange" | "yellow" }) {
+function ScoreBox({ label, value, theme, onUndo }: { label: string; value: number; theme: "orange" | "yellow"; onUndo?: () => void }) {
   const bgClass = theme === "orange" ? "bg-[#452109]" : "bg-[#424006]";
   return (
-    <div className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border border-white/5`}>
+    <div onClick={onUndo} className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border border-white/5 ${onUndo ? "cursor-pointer hover:bg-white/10 transition-colors" : ""}`}>
       <span className="text-xs text-white/50 font-bold tracking-widest mb-1">{label}</span>
       <span className="text-4xl text-white font-black">{value}</span>
     </div>

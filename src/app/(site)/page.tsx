@@ -17,6 +17,7 @@ export default function Home() {
       <TalentedCoaches />
       <TalentedPlayers />
       
+      
       {/* Other sections can be added here */}
     </main>
   );

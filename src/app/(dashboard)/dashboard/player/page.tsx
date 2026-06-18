@@ -753,7 +753,12 @@ export default function PlayerDashboard() {
               )}
 
               {/* Match Statistics Card Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {(() => {
+                const totalWins = completedMatches.filter(m => m.rawMatch.winnerId === playerData?.id).length;
+                const totalLosses = completedMatches.filter(m => m.rawMatch.winnerId && m.rawMatch.winnerId !== playerData?.id).length;
+                const totalDraws = completedMatches.filter(m => !m.rawMatch.winnerId).length;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Wins Card */}
                 <motion.div
                   whileHover={{ scale: 1.02 }}
@@ -761,7 +766,7 @@ export default function PlayerDashboard() {
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-emerald-600/80 uppercase tracking-wider">Total Wins</p>
-                    <h3 className="text-4xl font-black text-emerald-700">{playerData.wins || 0}</h3>
+                    <h3 className="text-4xl font-black text-emerald-700">{totalWins}</h3>
                   </div>
                   <div className="p-4 bg-emerald-500/10 text-emerald-600 rounded-2xl">
                     <Trophy size={28} />
@@ -775,7 +780,7 @@ export default function PlayerDashboard() {
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-rose-600/80 uppercase tracking-wider">Total Losses</p>
-                    <h3 className="text-4xl font-black text-rose-700">{playerData.losses || 0}</h3>
+                    <h3 className="text-4xl font-black text-rose-700">{totalLosses}</h3>
                   </div>
                   <div className="p-4 bg-rose-500/10 text-rose-600 rounded-2xl">
                     <XCircle size={28} />
@@ -789,13 +794,15 @@ export default function PlayerDashboard() {
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total Draws</p>
-                    <h3 className="text-4xl font-black text-slate-700">{playerData.draws || 0}</h3>
+                    <h3 className="text-4xl font-black text-slate-700">{totalDraws}</h3>
                   </div>
                   <div className="p-4 bg-slate-500/10 text-slate-600 rounded-2xl">
                     <Scale size={28} />
                   </div>
                 </motion.div>
               </div>
+              );
+            })()}
 
               {/* Upcoming Matches Card */}
               {upcomingMatches.length > 0 && (

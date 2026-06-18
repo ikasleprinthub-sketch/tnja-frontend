@@ -581,6 +581,17 @@ export default function TournamentDetailPage() {
       showToast("Need at least 2 players to generate a draw", false);
       return;
     }
+
+    const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+    if (hasActive) {
+      showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+      return;
+    }
+
+    if (isShuffle && currentDraw?.generated) {
+      if (!window.confirm("Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.")) return;
+    }
+
     setDrawPhase(isShuffle ? "shuffling" : "dealing");
     if (isShuffle) setShuffleKey(k => k + 1);
     
@@ -650,17 +661,28 @@ export default function TournamentDetailPage() {
       categoryGroups[key].push(p);
     });
 
-    // Filter categories with 2 or more players
-    const eligibleCategories = Object.entries(categoryGroups).filter(
-      ([_, catPlayers]) => catPlayers.length >= 2
-    );
+    // Filter categories with 2 or more players AND no active matches
+    let skippedActive = 0;
+    const eligibleCategories = Object.entries(categoryGroups).filter(([catKey, catPlayers]) => {
+      if (catPlayers.length < 2) return false;
+      const draw = draws[catKey];
+      const hasActive = draw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+      if (hasActive) {
+        skippedActive++;
+        return false;
+      }
+      return true;
+    });
 
     if (eligibleCategories.length === 0) {
-      showToast("No categories found with 2 or more players", false);
+      showToast(skippedActive > 0 ? "All eligible categories already have active matches." : "No categories found with 2 or more players", false);
       return;
     }
 
-    const confirmMsg = `Found ${eligibleCategories.length} categories with 2 or more players. This will auto-shuffle and generate draws for all of them. Any existing draws for these categories will be overwritten. Proceed?`;
+    let confirmMsg = `Found ${eligibleCategories.length} eligible categories. This will auto-shuffle and generate draws for them.`;
+    if (skippedActive > 0) confirmMsg += `\n\n(Skipped ${skippedActive} categories because they already have active matches.)`;
+    confirmMsg += `\n\nProceed?`;
+    
     if (!window.confirm(confirmMsg)) return;
 
     setAutoGenerating(true);
@@ -1295,8 +1317,23 @@ export default function TournamentDetailPage() {
                     </span>
                   </h3>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setDraws(p => ({ ...p, [currentKey]: { ...currentDraw!, generated: false, saved: false } })); setDrawPhase("idle"); }}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                    <button 
+                      onClick={() => { 
+                        const hasActive = currentDraw.rounds.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+                        if (hasActive) {
+                          showToast("Cannot re-draw the bracket because matches have already started or completed!", false);
+                          return;
+                        }
+                        if (window.confirm("Are you sure you want to re-draw this bracket? This will wipe the current bracket.")) {
+                          setDraws(p => ({ ...p, [currentKey]: { ...currentDraw!, generated: false, saved: false } })); 
+                          setDrawPhase("idle"); 
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                        currentDraw.rounds.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"))
+                          ? "text-slate-300 cursor-not-allowed"
+                          : "text-slate-500 hover:text-red-500 hover:bg-red-50"
+                      }`}>
                       ↺ Re-draw
                     </button>
                     <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
@@ -1795,7 +1832,7 @@ function BracketView({
 
   const numR1   = rounds[0].length;
   const totalH  = Math.max(numR1 * (MATCH_H + G0) - G0, MATCH_H);
-  const totalW  = rounds.length * MATCH_W + (rounds.length - 1) * CONN_W;
+  const totalW  = rounds.length * MATCH_W + rounds.length * CONN_W + (MATCH_W - 20);
 
   const slotH   = (ri: number) => totalH / (numR1 / Math.pow(2, ri));
   const mTop    = (ri: number, mi: number) => { const s = slotH(ri); return mi * s + (s - MATCH_H) / 2; };
@@ -1839,13 +1876,22 @@ function BracketView({
           {/* Round headers */}
           <div className="flex mb-3">
             {rounds.map((_, ri) => (
-              <div key={ri} className="flex shrink-0" style={{ width: ri < rounds.length - 1 ? MATCH_W + CONN_W : MATCH_W }}>
+              <div key={ri} className="flex shrink-0" style={{ width: MATCH_W + CONN_W }}>
                 <div style={{ width: MATCH_W }}
                   className="text-center text-[10px] font-black text-slate-500 uppercase tracking-wider py-1 bg-slate-100 rounded-lg mr-0">
                   {roundName(ri, rounds.length)}
                 </div>
               </div>
             ))}
+            {/* Champion Header */}
+            {rounds.length > 0 && (
+              <div className="flex shrink-0" style={{ width: MATCH_W - 20 }}>
+                <div style={{ width: "100%" }}
+                  className="text-center text-[10px] font-black text-orange-600 uppercase tracking-wider py-1 bg-orange-100 border border-orange-200 rounded-lg shadow-sm">
+                  🏆 Winner
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bracket area */}
@@ -1889,6 +1935,22 @@ function BracketView({
                   );
                 });
               })}
+
+              {/* Final Winner Connector */}
+              {(() => {
+                if (rounds.length === 0) return null;
+                const finalMatch = rounds[rounds.length - 1][0];
+                if (finalMatch && finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
+                  const xBase = (rounds.length - 1) * (MATCH_W + CONN_W) + MATCH_W;
+                  const y1 = mCenterY(rounds.length - 1, 0);
+                  return (
+                    <motion.g key="winner-line" initial={{ opacity: 0, pathLength: 0 }} animate={{ opacity: 1, pathLength: 1 }} transition={{ delay: 0.5, duration: 0.8 }} stroke="#FF7400" strokeWidth={2.5} fill="none">
+                      <line x1={xBase} y1={y1} x2={xBase + CONN_W} y2={y1} />
+                    </motion.g>
+                  );
+                }
+                return null;
+              })()}
             </svg>
 
             {/* Match cards */}
@@ -1960,6 +2022,43 @@ function BracketView({
                 );
               });
             })}
+
+            {/* Champion Node */}
+            {(() => {
+              if (rounds.length === 0) return null;
+              const finalMatch = rounds[rounds.length - 1][0];
+              if (!finalMatch || finalMatch.status !== "COMPLETED" || !finalMatch.winnerId) return null;
+              
+              const isSlotAWinner = finalMatch.winnerId === finalMatch.slotA.playerId;
+              const championName = isSlotAWinner ? finalMatch.slotA.playerName : finalMatch.slotB.playerName;
+              const championClub = isSlotAWinner ? finalMatch.slotA.club : finalMatch.slotB.club;
+              const top = mCenterY(rounds.length - 1, 0) - MATCH_H / 2;
+              const xOffset = rounds.length * (MATCH_W + CONN_W);
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5, x: -20 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  transition={{ delay: 0.7, type: "spring", stiffness: 200, damping: 15 }}
+                  style={{ position: "absolute", top, left: xOffset, width: MATCH_W - 20, height: MATCH_H, zIndex: 2 }}
+                  className="bg-gradient-to-r from-orange-500 to-[#FF7400] rounded-xl shadow-xl shadow-orange-500/30 overflow-hidden flex items-center justify-center border border-white"
+                >
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-white opacity-10 rounded-bl-full" />
+                  <div className="absolute bottom-0 left-0 w-10 h-10 bg-white opacity-10 rounded-tr-full" />
+                  
+                  <div className="flex items-center gap-3 w-full px-4 relative z-10">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                      <Trophy size={20} className="text-[#FF7400]" />
+                    </div>
+                    <div className="flex flex-col min-w-0 flex-grow">
+                      <span className="text-[9px] font-black text-orange-100 uppercase tracking-widest leading-none mb-0.5">Gold Medalist</span>
+                      <span className="text-sm font-black text-white truncate leading-tight">{championName}</span>
+                      <span className="text-[10px] font-bold text-orange-200 truncate leading-tight">{championClub || "---"}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })()}
           </div>
         </div>
       </div>
