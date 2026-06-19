@@ -187,6 +187,37 @@ const ClubRegistrationForm = () => {
       return;
     }
 
+    // --- Player Count Validation ---
+    const totalPlayers = Number(formData.noOfStudents) || 0;
+    const totalMale = Number(formData.maleStudents) || 0;
+    const totalFemale = Number(formData.femaleStudents) || 0;
+
+    const male6to11 = Number(formData.age6to11Male) || 0;
+    const male12to18 = Number(formData.age12to18Male) || 0;
+    const male16plus = Number(formData.age16AboveMale) || 0;
+
+    const female6to11 = Number(formData.age6to11Female) || 0;
+    const female12to18 = Number(formData.age12to18Female) || 0;
+    const female16plus = Number(formData.age16AboveFemale) || 0;
+
+    if (totalMale + totalFemale !== totalPlayers) {
+      setError("Error: The total number of Male and Female players must exactly equal the 'No Of Players'.");
+      return;
+    }
+
+    const calculatedMaleTotal = male6to11 + male12to18 + male16plus;
+    if (calculatedMaleTotal !== totalMale) {
+      setError(`Error: Your male age groups add up to ${calculatedMaleTotal}, but you stated there are ${totalMale} male players.`);
+      return;
+    }
+
+    const calculatedFemaleTotal = female6to11 + female12to18 + female16plus;
+    if (calculatedFemaleTotal !== totalFemale) {
+      setError(`Error: Your female age groups add up to ${calculatedFemaleTotal}, but you stated there are ${totalFemale} female players.`);
+      return;
+    }
+    // ---------------------------------
+
     setLoading(true);
     setError(null);
 

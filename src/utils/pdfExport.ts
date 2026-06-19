@@ -188,6 +188,21 @@ export function exportMatchToPDF(
         <h2>Official Match Report</h2>
       </div>
 
+      <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding: 20px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 12px;">
+        <div>
+          <p style="font-size: 12px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Tournament</p>
+          <p style="font-size: 18px; font-weight: 800; color: #1f2937;">${tournament?.title || "TNJA Championship"}</p>
+        </div>
+        <div style="text-align: center;">
+          <p style="font-size: 12px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Mat Number</p>
+          <p style="font-size: 18px; font-weight: 800; color: #ea580c;">${match?.matNumber || "N/A"}</p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 12px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Match Number</p>
+          <p style="font-size: 18px; font-weight: 800; color: #3b82f6;">#${match?.matchNumber || "N/A"}</p>
+        </div>
+      </div>
+
       <div class="vs-box">
         <div class="player-box white">
           <h3>Player 1 (White)</h3>

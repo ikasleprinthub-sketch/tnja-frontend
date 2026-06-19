@@ -370,7 +370,7 @@ export default function UserManagementPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all text-sm shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#FF7400] text-white rounded-xl font-semibold hover:bg-blue-700 transition-all text-sm shadow-sm"
           >
             <Plus size={16} />
             Create New

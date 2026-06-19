@@ -236,6 +236,7 @@ export default function DashboardLayout({
     ? [
         { name: "Dashboard", href: "/dashboard/player", icon: LayoutDashboard },
         { name: "Tournaments", href: "/dashboard/player/tournaments", icon: Trophy },
+        { name: "Match History", href: "/dashboard/player/match-history", icon: ScrollText },
         { name: "Events", href: "/dashboard/member/events", icon: Calendar },
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ]

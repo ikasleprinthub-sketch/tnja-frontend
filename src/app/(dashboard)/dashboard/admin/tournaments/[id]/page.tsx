@@ -778,6 +778,11 @@ export default function TournamentDetailPage() {
       }
       if (foundRi === -1) continue;
 
+      if (newRounds[foundRi][foundMi].status === "COMPLETED") {
+        alert("This match is already completed and locked. You cannot change the winner.");
+        return;
+      }
+
       newRounds[foundRi][foundMi] = { ...newRounds[foundRi][foundMi], winnerId, status: "COMPLETED" };
 
       if (foundRi + 1 < newRounds.length) {
@@ -1379,7 +1384,7 @@ export default function TournamentDetailPage() {
                                   </span>
                                 </div>
                               </div>
-                              {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && !match.slotA.isBye && !match.slotB.isBye && (
+                              {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && !match.slotA.isBye && !match.slotB.isBye && match.status !== "COMPLETED" && (
                                 <button onClick={() => openScoreboard(match)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
                                   <Monitor size={11} /> Scoreboard
