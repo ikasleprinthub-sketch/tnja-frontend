@@ -25,6 +25,7 @@ import {
   EyeOff,
   Phone,
   Plus,
+  ChevronDown,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -78,7 +79,9 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState<TNJAUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
+  const [genderFilter, setGenderFilter] = useState<string>("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
@@ -111,11 +114,23 @@ export default function UserManagementPage() {
   });
   const [taluksList, setTaluksList] = useState<any[]>([]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/users/all`, {
+      const params = new URLSearchParams();
+      if (debouncedSearchQuery) params.append("search", debouncedSearchQuery);
+      if (roleFilter !== "ALL") params.append("role", roleFilter);
+      if (genderFilter !== "ALL") params.append("gender", genderFilter);
+
+      const res = await fetch(`${API_BASE}/users/all?${params.toString()}`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -128,7 +143,7 @@ export default function UserManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearchQuery, roleFilter, genderFilter]);
 
   const fetchCoaches = async () => {
     try {
@@ -153,9 +168,12 @@ export default function UserManagementPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
     fetchCoaches();
     fetchDistricts();
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
   }, [fetchUsers]);
 
   useEffect(() => {
@@ -292,24 +310,7 @@ export default function UserManagementPage() {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.tempId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.permanentId && u.permanentId.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    let matchesRole = false;
-    if (roleFilter === "ALL") {
-      matchesRole = true;
-    } else if (roleFilter === "MEMBER") {
-      matchesRole = ["MEMBER", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(u.role);
-    } else {
-      matchesRole = u.role === roleFilter;
-    }
-    
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = users;
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -386,15 +387,29 @@ export default function UserManagementPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-        <div className="relative w-full lg:w-96 shrink-0">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search by name, email, or IDs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all text-black"
-          />
+        <div className="flex w-full lg:w-auto gap-4 shrink-0 items-center">
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search by name, email, or IDs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all text-black"
+            />
+          </div>
+          <div className="relative shrink-0">
+            <select
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
+              className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] hover:border-[#FF7400] hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+            >
+              <option value="ALL">All Genders</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+          </div>
         </div>
         
         <div className="flex gap-4 overflow-x-auto pb-2 w-full lg:w-auto lg:justify-end scrollbar-hide">

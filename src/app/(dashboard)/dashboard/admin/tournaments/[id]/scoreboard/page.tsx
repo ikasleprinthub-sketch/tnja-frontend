@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle } from "lucide-react";
+import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle, AlertTriangle } from "lucide-react";
 
 interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
 type Fighter = "A" | "B";
@@ -80,6 +80,7 @@ function ScoreboardInner() {
   const [winMethod, setWinMethod] = useState("");
   const [matchSaved, setMatchSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [dbMatchStatus, setDbMatchStatus] = useState("");
 
   const [durationInput, setDurationInput] = useState(4);
   const [timeLeft, setTimeLeft]   = useState(4 * 60);
@@ -175,6 +176,7 @@ function ScoreboardInner() {
           for (const round of draw.rounds) {
             for (const m of round) {
               if (m.matchId === matchId) {
+                if (m.status) setDbMatchStatus(m.status);
                 if (m.scoreA) setScoreA(m.scoreA);
                 if (m.scoreB) setScoreB(m.scoreB);
                 if (m.winnerId) { const f: Fighter = m.winnerId === sp.get("fighterAId") ? "A" : "B"; setWinner(f); }
@@ -200,6 +202,10 @@ function ScoreboardInner() {
   }, []);
 
   const declareWinner = useCallback((f: Fighter, method: string) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     setWinner(f); setWinMethod(method); setRunning(false); setOsaActive(false);
     if (timerRef.current) clearInterval(timerRef.current);
     if (osaRef.current)   clearInterval(osaRef.current);
@@ -217,11 +223,15 @@ function ScoreboardInner() {
     } catch {}
 
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
-  }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB]);
+  }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB, dbMatchStatus]);
 
   const isMatchEnded = checkWin(scoreA, scoreB).w !== null;
 
   const addScore = useCallback((fighter: Fighter, field: keyof Score) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     if (winner || isMatchEnded) {
       showToast("Match has ended! Please undo the score or declare the winner.");
       return;
@@ -248,9 +258,13 @@ function ScoreboardInner() {
         return next;
       });
     }
-  }, [winner, fighterAName, fighterBName, logs, saveMatchToDB, scoreA, scoreB]);
+  }, [winner, isMatchEnded, fighterAName, fighterBName, logs, saveMatchToDB, scoreA, scoreB, dbMatchStatus]);
 
   const undoScore = (fighter: Fighter, field: keyof Score) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     if (winner) return;
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
     const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
@@ -265,6 +279,10 @@ function ScoreboardInner() {
   };
 
   const undoLastScore = (fighter: Fighter) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     if (winner) return;
     const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
     if (fighterLogs.length === 0) return;
@@ -325,8 +343,8 @@ function ScoreboardInner() {
   };
 
   const handleApply = (fighter: Fighter) => {
-    if (winner || isMatchEnded) {
-      showToast("Match has ended! Please undo the score or declare the winner.");
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
       return;
     }
     const selectedTech = fighter === "A" ? selectedTechA : selectedTechB;
@@ -392,6 +410,10 @@ function ScoreboardInner() {
   }, [osaActive, osaFor, scoreA, scoreB, saveMatchToDB, logs]);
 
   const startOsaekomi = (fighter: Fighter) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     if (winner || isMatchEnded) {
       showToast("Match has ended! Cannot start Osaekomi.");
       return;
@@ -402,6 +424,10 @@ function ScoreboardInner() {
   };
 
   const toketa = () => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
     setOsaActive(false); setOsaFor(null); setOsaTime(0);
     if (osaRef.current) clearInterval(osaRef.current);
   };
@@ -447,6 +473,11 @@ function ScoreboardInner() {
           </button> */}
         </div>
       </div>
+      {dbMatchStatus === "COMPLETED" && (
+        <div className="bg-red-600 text-white text-center py-2 text-sm font-bold tracking-wider shrink-0 uppercase shadow-md z-[10]">
+          This match is already completed and locked. You cannot change the winner.
+        </div>
+      )}
 
       {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
       <div className="flex-1 p-6 flex gap-6 overflow-hidden">
@@ -573,13 +604,13 @@ function ScoreboardInner() {
             </div>
 
             <div className="flex gap-5 w-full px-4 mt-2 justify-center">
-              <button onClick={() => { if (!winner) { setRunning(true); } }} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(46,204,113,0.3)]">
+              <button onClick={() => { if (dbMatchStatus === "COMPLETED") { showToast("This match is already completed and locked."); return; } if (!winner) { setRunning(true); } }} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(46,204,113,0.3)]">
                 <PlayCircle size={18} strokeWidth={2.5}/> START
               </button>
-              <button onClick={() => setRunning(false)} className="bg-[#f1c40f] hover:bg-[#d4ac0d] text-black pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(241,196,15,0.3)]">
+              <button onClick={() => { if (dbMatchStatus === "COMPLETED") { showToast("This match is already completed and locked."); return; } setRunning(false); }} className="bg-[#f1c40f] hover:bg-[#d4ac0d] text-black pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(241,196,15,0.3)]">
                 <PauseCircle size={18} strokeWidth={2.5}/> PAUSE
               </button>
-              <button onClick={() => { setRunning(false); setTimeLeft(0); }} className="bg-[#e74c3c] hover:bg-[#c0392b] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(231,76,60,0.3)]">
+              <button onClick={() => { if (dbMatchStatus === "COMPLETED") { showToast("This match is already completed and locked."); return; } setRunning(false); setTimeLeft(0); }} className="bg-[#e74c3c] hover:bg-[#c0392b] text-white pt-2 pb-1.5 w-[90px] rounded-lg font-black text-[11px] tracking-wider flex flex-col items-center gap-1 shadow-[0_4px_10px_rgba(231,76,60,0.3)]">
                 <StopCircle size={18} strokeWidth={2.5}/> STOP
               </button>
             </div>
@@ -792,7 +823,7 @@ function ScoreboardInner() {
             exit={{ opacity: 0, y: 50 }}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600 border-2 border-red-400 text-white font-bold px-8 py-4 rounded-full shadow-[0_0_20px_rgba(220,38,38,0.5)] z-[99999] flex items-center gap-3"
           >
-            <span className="text-xl">⚠️</span> {toastMsg}
+            <AlertTriangle size={20} /> {toastMsg}
           </motion.div>
         )}
       </AnimatePresence>
