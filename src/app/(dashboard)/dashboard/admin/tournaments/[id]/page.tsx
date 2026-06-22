@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
-  Target, Zap, Award,
+  Target, Zap, Award, Medal,
   AlertCircle, Clock, Download, BarChart3,
 } from "lucide-react";
 
@@ -1676,12 +1676,14 @@ export default function TournamentDetailPage() {
                   {/* Placement Legend */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {[
-                      { label: "🥇 1st Place", value: "FIRST", color: "bg-yellow-500" },
-                      { label: "🥈 2nd Place", value: "SECOND", color: "bg-slate-400" },
-                      { label: "🥉 3rd Place", value: "THIRD", color: "bg-orange-600" },
-                      { label: "🎖️ Participation", value: "PARTICIPATION", color: "bg-blue-500" },
+                      { label: "1st Place", icon: <Trophy size={14} />, value: "FIRST", color: "bg-yellow-500" },
+                      { label: "2nd Place", icon: <Medal size={14} />, value: "SECOND", color: "bg-slate-400" },
+                      { label: "3rd Place", icon: <Medal size={14} />, value: "THIRD", color: "bg-orange-600" },
+                      { label: "Participation", icon: <Award size={14} />, value: "PARTICIPATION", color: "bg-blue-500" },
                     ].map((p) => (
-                      <span key={p.value} className={`flex items-center gap-1 px-3 py-1 ${p.color} text-white text-xs font-black rounded-full`}>{p.label}</span>
+                      <span key={p.value} className={`flex items-center gap-1.5 px-3 py-1 ${p.color} text-white text-xs font-black rounded-full`}>
+                        {p.icon} {p.label}
+                      </span>
                     ))}
                   </div>
 
