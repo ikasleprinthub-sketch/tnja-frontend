@@ -809,13 +809,15 @@ export default function AdminTournamentsPage() {
                             <Clock size={10} /> Expired
                           </span>
                         ) : (
-                          <span className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${t.status === "APPROVED"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : t.status === "REJECTED"
-                              ? "bg-red-50 text-red-600 border-red-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                            }`}>
-                            {t.status === "APPROVED" ? <><CheckCircle2 size={10} /> Approved</> : t.status === "REJECTED" ? <><XCircle size={10} /> Rejected</> : <><Hourglass size={10} /> Pending</>}
+                          <span className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+                            t.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            t.status === "CLOSED" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                            t.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
+                            "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}>
+                            {t.status === "APPROVED" ? <><CheckCircle2 size={10} /> Approved</> :
+                             t.status === "CLOSED" ? <><CheckCircle2 size={10} /> Concluded</> :
+                             t.status === "REJECTED" ? <><XCircle size={10} /> Rejected</> : <><Hourglass size={10} /> Pending</>}
                           </span>
                         )}
                       </div>

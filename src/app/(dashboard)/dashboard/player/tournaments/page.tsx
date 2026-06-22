@@ -18,6 +18,8 @@ import {
   Building2,
   Globe2,
   Flag,
+  Download,
+  Award,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -75,6 +77,33 @@ export default function PlayerTournamentsPage() {
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleDownloadCertificate = async (tournamentId: string, tournamentTitle: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      showToast("Generating your certificate...", "success");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/certificate`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || "Failed to generate certificate", "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${tournamentTitle.replace(/\s+/g, "_")}_certificate.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast("Certificate downloaded! 🎖️", "success");
+    } catch (err) {
+      showToast("Error downloading certificate", "error");
+    }
   };
 
   const fetchProfile = useCallback(async () => {
@@ -136,7 +165,7 @@ export default function PlayerTournamentsPage() {
 
 
 
-    const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
+  const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
     const height = directHeight || physicalDetails.height;
     const weight = directWeight || physicalDetails.weight;
 
@@ -486,7 +515,40 @@ export default function PlayerTournamentsPage() {
                     )}
 
                     <div className="mt-auto pt-4 border-t border-slate-100">
-                      {myReg ? (
+                      {/* ── CLOSED: Show placement + Download Certificate ── */}
+                      {tournament.status === "CLOSED" && myReg ? (
+                        <div className="space-y-2">
+                          {/* Placement badge */}
+                          {(() => {
+                            const p = myReg.placement;
+                            const cfg: Record<string, { label: string; cls: string }> = {
+                              FIRST:         { label: "🥇 1st Place — Gold",   cls: "bg-yellow-50 text-yellow-700 border-yellow-300" },
+                              SECOND:        { label: "🥈 2nd Place — Silver", cls: "bg-slate-50 text-slate-700 border-slate-300" },
+                              THIRD:         { label: "🥉 3rd Place — Bronze", cls: "bg-orange-50 text-orange-700 border-orange-300" },
+                              PARTICIPATION: { label: "🎖️ Participation",      cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                            };
+                            const entry = cfg[p] ?? cfg["PARTICIPATION"];
+                            return (
+                              <div className={`w-full py-2.5 text-center text-sm font-black rounded-xl border ${entry.cls}`}>
+                                {entry.label}
+                              </div>
+                            );
+                          })()}
+                          {/* Download Certificate */}
+                          <button
+                            onClick={() => handleDownloadCertificate(tournament.id, tournament.title)}
+                            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                          >
+                            <Award size={15} /> Download Certificate
+                          </button>
+                        </div>
+                      ) : tournament.status === "CLOSED" ? (
+                        /* CLOSED but not registered */
+                        <div className="w-full py-3 text-center text-sm font-bold rounded-xl bg-slate-100 text-slate-400 border border-slate-200">
+                          Tournament Closed
+                        </div>
+                      ) : myReg ? (
+                        /* APPROVED — registered */
                         <div
                           className={`w-full py-3 text-center text-sm font-bold rounded-xl border ${
                             regStatusConfig[myReg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"
@@ -519,7 +581,7 @@ export default function PlayerTournamentsPage() {
                           ) : isFree ? (
                             <>Register (Free) <ArrowRight size={16} /></>
                           ) : (
-                            <>Pay ₹{tournament.entryFee} &amp; Register <ArrowRight size={16} /></>
+                            <>Pay &#x20B9;{tournament.entryFee} &amp; Register <ArrowRight size={16} /></>
                           )}
                         </button>
                       )}

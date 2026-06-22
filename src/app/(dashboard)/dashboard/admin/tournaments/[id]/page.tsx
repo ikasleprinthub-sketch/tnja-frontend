@@ -468,6 +468,96 @@ export default function TournamentDetailPage() {
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [autoGenProgress, setAutoGenProgress] = useState("");
 
+  // ── Result Submission State ─────────────────────────────────────────────────
+  const [placements, setPlacements] = useState<Record<string, "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION">>({});
+  const [submittingResults, setSubmittingResults] = useState(false);
+  const [placementsAutoDetected, setPlacementsAutoDetected] = useState(false);
+
+  // ── Auto-detect placements from draw results ─────────────────────────────────
+  // Runs whenever the draws or players change (e.g. when Results tab is opened)
+  const autoDetectPlacements = useCallback(() => {
+    if (Object.keys(draws).length === 0 || players.length === 0) return;
+
+    const detected: Record<string, "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION"> = {};
+
+    // Start everyone as PARTICIPATION
+    players.forEach((p) => { detected[p.id] = "PARTICIPATION"; });
+
+    // Iterate over every draw category to find final + semi-final losers/winners
+    for (const draw of Object.values(draws)) {
+      const rounds = draw.rounds;
+      if (!rounds || rounds.length === 0) continue;
+
+      const totalRounds = rounds.length;
+
+      // ── Final (last round) ──────────────────────────────────────────────────
+      const finalRound = rounds[totalRounds - 1];
+      if (finalRound && finalRound.length > 0) {
+        const finalMatch = finalRound[0];
+        if (finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
+          // 🥇 Gold: winner of the final
+          detected[finalMatch.winnerId] = "FIRST";
+
+          // 🥈 Silver: loser of the final
+          const silverPlayerId =
+            finalMatch.winnerId === finalMatch.slotA.playerId
+              ? finalMatch.slotB.playerId
+              : finalMatch.slotA.playerId;
+          if (silverPlayerId) detected[silverPlayerId] = "SECOND";
+        }
+      }
+
+      // ── Semi-Finals (second-to-last round, if exists) ────────────────────────
+      if (totalRounds >= 2) {
+        const semiRound = rounds[totalRounds - 2];
+        for (const match of semiRound) {
+          if (match.status === "COMPLETED" && match.winnerId) {
+            // 🥉 Bronze: loser of each semi-final
+            const bronzePlayerId =
+              match.winnerId === match.slotA.playerId
+                ? match.slotB.playerId
+                : match.slotA.playerId;
+            if (bronzePlayerId && detected[bronzePlayerId] === "PARTICIPATION") {
+              detected[bronzePlayerId] = "THIRD";
+            }
+          }
+        }
+      }
+    }
+
+    setPlacements(detected);
+    setPlacementsAutoDetected(true);
+  }, [draws, players]);
+
+  const handleConcludeTournament = async () => {
+    if (!window.confirm("Are you sure you want to conclude this tournament and submit the final results? This will CLOSE the tournament and allow participants to download their certificates. This action cannot be undone.")) return;
+
+    const results = players.map((p) => ({
+      playerId: p.id,
+      placement: placements[p.id] || "PARTICIPATION",
+    }));
+
+    setSubmittingResults(true);
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/results`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ results }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Tournament concluded! Certificates are now available for download. 🏆");
+        fetchTournament();
+      } else {
+        showToast(data.error || "Failed to submit results", false);
+      }
+    } catch {
+      showToast("Error submitting results", false);
+    } finally {
+      setSubmittingResults(false);
+    }
+  };
+
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
 
   const showToast = (msg: string, ok = true) => {
@@ -549,6 +639,13 @@ export default function TournamentDetailPage() {
     fetchPlayers();
     fetchDraws();
   }, [fetchTournament, fetchPlayers, fetchDraws]);
+
+  // Auto-detect placements whenever the Results tab becomes active or draws/players update
+  useEffect(() => {
+    if (activeTab === "results") {
+      autoDetectPlacements();
+    }
+  }, [activeTab, autoDetectPlacements]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const filteredPlayers = players.filter((p) => {
@@ -937,6 +1034,15 @@ export default function TournamentDetailPage() {
               </div>
             ))}
           </div>
+          {/* CLOSED badge */}
+          {tournament.status === "CLOSED" && (
+            <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-400/30 rounded-xl">
+                <Check size={15} className="text-emerald-400" />
+                <span className="text-emerald-300 font-black text-sm">Tournament Concluded — Certificates Available</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -959,7 +1065,9 @@ export default function TournamentDetailPage() {
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
         {(["overview", "players", "draws", "matches", "results"] as Tab[]).map((tab) => {
-          const lockedByExpiry = expired && (tab === "draws" || tab === "matches" || tab === "results");
+          // Results tab is ALWAYS accessible — even for expired/CLOSED tournaments
+          // Draws and matches are locked once the tournament date has passed
+          const lockedByExpiry = expired && (tab === "draws" || tab === "matches");
           return (
             <button
               key={tab}
@@ -1520,10 +1628,7 @@ export default function TournamentDetailPage() {
       )}
 
       {/* ══ RESULTS & REPORTS ══════════════════════════════════════════════════ */}
-      {activeTab === "results" && expired && (
-        <ExpiredBlock label="Results & Reports" />
-      )}
-      {activeTab === "results" && !expired && (
+      {activeTab === "results" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -1533,6 +1638,116 @@ export default function TournamentDetailPage() {
               <p className="text-slate-500 text-sm mt-1">View completed matches, winners, and generate PDF reports</p>
             </div>
           </div>
+
+          {/* ── Conclude Tournament Panel ── */}
+          {tournament?.status !== "CLOSED" ? (
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 bg-[#FF7400]/20 rounded-2xl flex items-center justify-center shrink-0">
+                  <Award size={24} className="text-[#FF7400]" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Conclude Tournament & Issue Certificates</h3>
+                  <p className="text-slate-400 text-sm mt-1">Assign final placements to players, then click Conclude. All participants can then download their certificates.</p>
+                </div>
+              </div>
+
+              {players.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 font-semibold">No registered players found.</div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Auto-detect status banner */}
+                  {placementsAutoDetected && (
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-900/40 border border-emerald-500/30 rounded-xl mb-2">
+                      <div className="flex items-center gap-2">
+                        <Check size={14} className="text-emerald-400 shrink-0" />
+                        <p className="text-emerald-300 text-xs font-bold">
+                          Auto-detected: {Object.values(placements).filter(v => v === "FIRST").length} Gold · {Object.values(placements).filter(v => v === "SECOND").length} Silver · {Object.values(placements).filter(v => v === "THIRD").length} Bronze · {players.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
+                        </p>
+                      </div>
+                      <button
+                        onClick={autoDetectPlacements}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-all shrink-0"
+                      >
+                        <Zap size={11} className="text-[#FF7400]" /> Re-detect
+                      </button>
+                    </div>
+                  )}
+                  {/* Placement Legend */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {[
+                      { label: "🥇 1st Place", value: "FIRST", color: "bg-yellow-500" },
+                      { label: "🥈 2nd Place", value: "SECOND", color: "bg-slate-400" },
+                      { label: "🥉 3rd Place", value: "THIRD", color: "bg-orange-600" },
+                      { label: "🎖️ Participation", value: "PARTICIPATION", color: "bg-blue-500" },
+                    ].map((p) => (
+                      <span key={p.value} className={`flex items-center gap-1 px-3 py-1 ${p.color} text-white text-xs font-black rounded-full`}>{p.label}</span>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                    {players.map((player) => {
+                      const placement = placements[player.id] || "PARTICIPATION";
+                      const placementColors: Record<string, string> = {
+                        FIRST: "border-yellow-400 bg-yellow-500/10",
+                        SECOND: "border-slate-400 bg-slate-400/10",
+                        THIRD: "border-orange-500 bg-orange-500/10",
+                        PARTICIPATION: "border-slate-600 bg-slate-700/30",
+                      };
+                      const placementLabels: Record<string, string> = {
+                        FIRST: "🥇 1st Place",
+                        SECOND: "🥈 2nd Place",
+                        THIRD: "🥉 3rd Place",
+                        PARTICIPATION: "🎖️ Participant",
+                      };
+                      return (
+                        <div key={player.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${placementColors[placement]}`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white shrink-0 ${player.gender === "FEMALE" ? "bg-pink-500" : "bg-blue-600"}`}>
+                            {player.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black text-white truncate">{player.name}</p>
+                            <p className="text-[11px] text-slate-400 truncate">{player.club || player.district}</p>
+                          </div>
+                          <select
+                            value={placement}
+                            onChange={(e) => setPlacements((prev) => ({ ...prev, [player.id]: e.target.value as any }))}
+                            className="text-xs font-bold bg-slate-700 border border-slate-600 text-white rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF7400] shrink-0"
+                          >
+                            <option value="FIRST">🥇 1st Place</option>
+                            <option value="SECOND">🥈 2nd Place</option>
+                            <option value="THIRD">🥉 3rd Place</option>
+                            <option value="PARTICIPATION">🎖️ Participant</option>
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-4 flex items-center justify-between border-t border-slate-700 mt-4">
+                    <p className="text-slate-400 text-xs font-semibold">
+                      {Object.values(placements).filter(v => v === "FIRST").length} Gold · {Object.values(placements).filter(v => v === "SECOND").length} Silver · {Object.values(placements).filter(v => v === "THIRD").length} Bronze · {players.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
+                    </p>
+                    <button
+                      onClick={handleConcludeTournament}
+                      disabled={submittingResults || players.length === 0}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submittingResults ? <><Loader2 size={16} className="animate-spin" /> Concluding...</> : <><Trophy size={16} /> Conclude & Issue Certificates</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-4 px-6 py-4 bg-emerald-900/30 border border-emerald-500/40 rounded-2xl">
+              <Check size={24} className="text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-emerald-300 font-black">Tournament Concluded</p>
+                <p className="text-emerald-400/70 text-xs mt-0.5">All participants can now download their certificates from their dashboard.</p>
+              </div>
+            </div>
+          )}
 
           <CategoryFilters />
 
