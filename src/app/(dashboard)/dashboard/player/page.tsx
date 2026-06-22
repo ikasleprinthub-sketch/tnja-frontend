@@ -754,9 +754,9 @@ export default function PlayerDashboard() {
 
               {/* Match Statistics Card Grid */}
               {(() => {
-                const totalWins = completedMatches.filter(m => m.rawMatch.winnerId === playerData?.id).length;
-                const totalLosses = completedMatches.filter(m => m.rawMatch.winnerId && m.rawMatch.winnerId !== playerData?.id).length;
-                const totalDraws = completedMatches.filter(m => !m.rawMatch.winnerId).length;
+                const totalWins = playerData?.wins || 0;
+                const totalLosses = playerData?.losses || 0;
+                const totalDraws = playerData?.draws || 0;
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Wins Card */}

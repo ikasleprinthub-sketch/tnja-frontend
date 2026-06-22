@@ -472,6 +472,7 @@ export default function TournamentDetailPage() {
   const [placements, setPlacements] = useState<Record<string, "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION">>({});
   const [submittingResults, setSubmittingResults] = useState(false);
   const [placementsAutoDetected, setPlacementsAutoDetected] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // ── Auto-detect placements from draw results ─────────────────────────────────
   // Runs whenever the draws or players change (e.g. when Results tab is opened)
@@ -1711,16 +1712,51 @@ export default function TournamentDetailPage() {
                             <p className="text-sm font-black text-white truncate">{player.name}</p>
                             <p className="text-[11px] text-slate-400 truncate">{player.club || player.district}</p>
                           </div>
-                          <select
-                            value={placement}
-                            onChange={(e) => setPlacements((prev) => ({ ...prev, [player.id]: e.target.value as any }))}
-                            className="text-xs font-bold bg-slate-700 border border-slate-600 text-white rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF7400] shrink-0"
-                          >
-                            <option value="FIRST">🥇 1st Place</option>
-                            <option value="SECOND">🥈 2nd Place</option>
-                            <option value="THIRD">🥉 3rd Place</option>
-                            <option value="PARTICIPATION">🎖️ Participant</option>
-                          </select>
+                          <div className="relative shrink-0">
+                            <button
+                              onClick={() => setOpenDropdownId(openDropdownId === player.id ? null : player.id)}
+                              className="flex items-center justify-between w-[120px] gap-2 text-xs font-bold bg-slate-700 border border-slate-600 text-white rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF7400]"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                {placement === "FIRST" && <><Trophy size={14} className="text-yellow-500"/> 1st Place</>}
+                                {placement === "SECOND" && <><Medal size={14} className="text-slate-400"/> 2nd Place</>}
+                                {placement === "THIRD" && <><Medal size={14} className="text-orange-600"/> 3rd Place</>}
+                                {placement === "PARTICIPATION" && <><Award size={14} className="text-blue-500"/> Participant</>}
+                              </span>
+                            </button>
+                            <AnimatePresence>
+                              {openDropdownId === player.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden"
+                                  >
+                                    {[
+                                      { val: "FIRST", label: "1st Place", icon: <Trophy size={14} className="text-yellow-500"/> },
+                                      { val: "SECOND", label: "2nd Place", icon: <Medal size={14} className="text-slate-400"/> },
+                                      { val: "THIRD", label: "3rd Place", icon: <Medal size={14} className="text-orange-600"/> },
+                                      { val: "PARTICIPATION", label: "Participant", icon: <Award size={14} className="text-blue-500"/> }
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.val}
+                                        onClick={() => {
+                                          setPlacements(prev => ({ ...prev, [player.id]: opt.val as any }));
+                                          setOpenDropdownId(null);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-slate-700 flex items-center gap-2 transition-colors"
+                                      >
+                                        {opt.icon} {opt.label}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
                       );
                     })}

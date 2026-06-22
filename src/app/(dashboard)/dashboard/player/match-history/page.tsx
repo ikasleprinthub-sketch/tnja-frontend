@@ -168,16 +168,11 @@ export default function MatchHistoryPage() {
 
   // Statistics
   const stats = useMemo(() => {
-    let wins = 0, losses = 0, draws = 0;
-    if (playerData?.id) {
-      completedMatches.forEach(m => {
-        if (m.rawMatch.winnerId === playerData.id) wins++;
-        else if (!m.rawMatch.winnerId) draws++;
-        else losses++;
-      });
-    }
-    return { wins, losses, draws, total: completedMatches.length };
-  }, [completedMatches, playerData]);
+    let wins = playerData?.wins || 0;
+    let losses = playerData?.losses || 0;
+    let draws = playerData?.draws || 0;
+    return { wins, losses, draws, total: wins + losses + draws };
+  }, [playerData]);
 
   // Reset page when filters change
   useEffect(() => {

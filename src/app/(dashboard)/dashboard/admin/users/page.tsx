@@ -310,7 +310,17 @@ export default function UserManagementPage() {
     }
   };
 
-  const filteredUsers = users;
+  const filteredUsers = users.filter((u) => {
+    if (!debouncedSearchQuery) return true;
+    const q = debouncedSearchQuery.toLowerCase();
+    return (
+      u.fullName?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.mobileNumber?.includes(q) ||
+      u.tempId?.toLowerCase().includes(q) ||
+      u.permanentId?.toLowerCase().includes(q)
+    );
+  });
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {

@@ -20,6 +20,7 @@ import {
   Flag,
   Download,
   Award,
+  Medal,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -521,16 +522,16 @@ export default function PlayerTournamentsPage() {
                           {/* Placement badge */}
                           {(() => {
                             const p = myReg.placement;
-                            const cfg: Record<string, { label: string; cls: string }> = {
-                              FIRST:         { label: "🥇 1st Place — Gold",   cls: "bg-yellow-50 text-yellow-700 border-yellow-300" },
-                              SECOND:        { label: "🥈 2nd Place — Silver", cls: "bg-slate-50 text-slate-700 border-slate-300" },
-                              THIRD:         { label: "🥉 3rd Place — Bronze", cls: "bg-orange-50 text-orange-700 border-orange-300" },
-                              PARTICIPATION: { label: "🎖️ Participation",      cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                            const cfg: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
+                              FIRST:         { label: "1st Place — Gold",   cls: "bg-yellow-50 text-yellow-700 border-yellow-300", icon: <Trophy size={16} /> },
+                              SECOND:        { label: "2nd Place — Silver", cls: "bg-slate-50 text-slate-700 border-slate-300", icon: <Medal size={16} /> },
+                              THIRD:         { label: "3rd Place — Bronze", cls: "bg-orange-50 text-orange-700 border-orange-300", icon: <Medal size={16} /> },
+                              PARTICIPATION: { label: "Participation",      cls: "bg-blue-50 text-blue-700 border-blue-200", icon: <Award size={16} /> },
                             };
                             const entry = cfg[p] ?? cfg["PARTICIPATION"];
                             return (
-                              <div className={`w-full py-2.5 text-center text-sm font-black rounded-xl border ${entry.cls}`}>
-                                {entry.label}
+                              <div className={`w-full py-2.5 flex items-center justify-center gap-2 text-sm font-black rounded-xl border ${entry.cls}`}>
+                                {entry.icon} {entry.label}
                               </div>
                             );
                           })()}
