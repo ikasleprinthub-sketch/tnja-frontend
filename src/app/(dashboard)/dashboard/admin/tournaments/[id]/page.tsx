@@ -95,7 +95,9 @@ function shuffleArray<T>(arr: T[]): T[] {
 // ─── IJF Bracket Generator ────────────────────────────────────────────────────
 function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketMatch[][] {
   const N = nextPow2(Math.max(players.length, 2));
-  const slots: (RegisteredPlayer | null)[] = new Array(N).fill(null);
+  const M = N / 2; // Number of matches in Round 1
+  const B = N - players.length; // Number of BYEs
+  const slots: (RegisteredPlayer | null | "BYE")[] = new Array(N).fill(null);
 
   // IJF seed positions: S1=top, S2=bottom, S3=2nd quarter, S4=3rd quarter
   if (seeds[1]) slots[0] = { ...seeds[1], seedNumber: 1 };
@@ -108,15 +110,48 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
   );
   const nonSeeded = shuffleArray(players.filter((p) => !seededIds.has(p.id)));
 
-  let ni = 0;
-  for (let i = 0; i < N; i++) {
-    if (slots[i] === null) slots[i] = nonSeeded[ni++] || null;
+  // Determine which matches get a BYE to distribute them evenly and avoid BYE vs BYE
+  const byeMatches = new Set<number>();
+  if (B > 0) {
+    if (B >= 1) byeMatches.add(0);
+    if (B >= 2) byeMatches.add(M - 1);
+    if (B >= 3) byeMatches.add(Math.floor(M / 4));
+    if (B >= 4) byeMatches.add(Math.floor((3 * M) / 4));
+    
+    let remaining = B - byeMatches.size;
+    if (remaining > 0) {
+      const available: number[] = [];
+      for (let i = 0; i < M; i++) {
+        if (!byeMatches.has(i)) available.push(i);
+      }
+      for (let i = 0; i < remaining; i++) {
+        const idx = Math.floor((i * available.length) / remaining);
+        byeMatches.add(available[idx]);
+      }
+    }
   }
 
-  const toSlot = (p: RegisteredPlayer | null): BracketSlot =>
-    p
-      ? { playerId: p.id, playerName: p.name, club: p.club, isBye: false, seedNumber: p.seedNumber }
-      : { playerId: null, playerName: "BYE", club: "", isBye: true };
+  // Assign BYEs to the slots of those matches
+  for (const matchIdx of byeMatches) {
+    const slotA = matchIdx * 2;
+    const slotB = matchIdx * 2 + 1;
+    if (slots[slotA] !== null) slots[slotB] = "BYE";
+    else if (slots[slotB] !== null) slots[slotA] = "BYE";
+    else slots[slotB] = "BYE"; // Default to bottom slot
+  }
+
+  // Fill remaining slots with unseeded players
+  let ni = 0;
+  for (let i = 0; i < N; i++) {
+    if (slots[i] === null) {
+      slots[i] = nonSeeded[ni++] || null;
+    }
+  }
+
+  const toSlot = (p: RegisteredPlayer | null | "BYE"): BracketSlot => {
+    if (p === "BYE" || p === null) return { playerId: null, playerName: "BYE", club: "", isBye: true };
+    return { playerId: p.id, playerName: p.name, club: p.club, isBye: false, seedNumber: p.seedNumber };
+  };
 
   const rounds: BracketMatch[][] = [];
   const r1: BracketMatch[] = [];
@@ -937,21 +972,20 @@ export default function TournamentDetailPage() {
   }, [handleMatchResult]);
 
   // ── Category filters UI ─────────────────────────────────────────────────────
-  const CategoryFilters = () => (
-    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-        Filter by Category
-      </p>
-      <div className="flex flex-wrap gap-3">
-        <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
-          <option value="ALL">All Age Groups</option>
-          <option value="SUB_JUNIOR">Subjunior (10–15 yrs)</option>
-          <option value="CADET">Cadets (Under 18)</option>
-          <option value="JUNIOR">Juniors (Under 21)</option>
-          <option value="SENIOR">Seniors (Above 21)</option>
-          <option value="VETERAN">Veterans (Masters/Coach)</option>
-        </select>
+  const CategoryFilters = () => {
+    const allAgeGroups = [...new Set(players.map((p) => p.ageGroup))].sort((a, b) => a.localeCompare(b));
+
+    return (
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
+          Filter by Category
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+            <option value="ALL">All Age Groups</option>
+            {allAgeGroups.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
         <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
           <option value="MALE">Male</option>
@@ -967,7 +1001,8 @@ export default function TournamentDetailPage() {
         </span>
       </div>
     </div>
-  );
+    );
+  };
 
   // ── Expired check ────────────────────────────────────────────────────────────
   const expired = (() => {
