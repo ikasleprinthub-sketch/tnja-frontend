@@ -5,7 +5,7 @@ import { useSearchParams, useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Download, CheckCircle, RotateCcw, ArrowLeft, RefreshCw, Hand, Activity, StopCircle, PlayCircle, PauseCircle, AlertTriangle } from "lucide-react";
 
-interface Score { ippon: number; wazaAri: number; yuko: number; shido: number }
+interface Score { ippon: number; wazaAri: number; yuko: number; shido: number; awaseteIppon?: boolean }
 type Fighter = "A" | "B";
 
 const OSAEKOMI_IPPON_S   = 20;
@@ -44,9 +44,12 @@ function ScoreboardInner() {
   const fighterBName    = sp.get("fighterBName")    || "FIGHTER B";
   const fighterAClub    = sp.get("fighterAClub")    || "";
   const fighterBClub    = sp.get("fighterBClub")    || "";
+  const fighterACoach   = sp.get("fighterACoach")   || "";
+  const fighterBCoach   = sp.get("fighterBCoach")   || "";
   const weightCategory  = sp.get("weightCategory")  || "48 kg";
   const matchNumber     = sp.get("matchNumber")     || "1";
   const matNumber       = sp.get("matNumber")       || "1";
+  const tournamentTitle = sp.get("tournamentTitle") || "TNJA Championship";
 
   const [techniques, setTechniques] = useState<string[]>(FALLBACK_techniques);
   const [penalties, setPenalties]   = useState<string[]>(FALLBACK_penalties);
@@ -87,6 +90,7 @@ function ScoreboardInner() {
   const [maxTime, setMaxTime]     = useState(4 * 60);
   const [running, setRunning]     = useState(false);
   const [goldenScore, setGoldenScore] = useState(false);
+  const goldenScoreLoggedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -100,6 +104,8 @@ function ScoreboardInner() {
   const osaMilestones = useRef({ wazaAri: false });
 
   const [confirmWinner, setConfirmWinner] = useState<Fighter | null>(null);
+  const [undoPrompt, setUndoPrompt] = useState<{ fighter: Fighter, type: "last" | "specific", field?: keyof Score } | null>(null);
+  const [undoComment, setUndoComment] = useState("");
   const [toastMsg, setToastMsg] = useState("");
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -181,7 +187,13 @@ function ScoreboardInner() {
                 if (m.scoreB) setScoreB(m.scoreB);
                 if (m.winnerId) { const f: Fighter = m.winnerId === sp.get("fighterAId") ? "A" : "B"; setWinner(f); }
                 if (m.winMethod) setWinMethod(m.winMethod);
-                if (m.logs) setLogs(m.logs);
+                if (m.logs) {
+                  setLogs(m.logs);
+                  if (m.logs.some((l: any) => l.text.includes("GOLDEN SCORE started"))) {
+                    setGoldenScore(true);
+                    goldenScoreLoggedRef.current = true;
+                  }
+                }
                 if (typeof m.timeLeft === "number") setTimeLeft(m.timeLeft);
                 break;
               }
@@ -191,11 +203,19 @@ function ScoreboardInner() {
       }).catch(err => console.error("Error restoring match state from DB:", err));
   }, [tournamentId, matchId, sp]);
 
-  const checkWin = useCallback((sA: Score, sB: Score): { w: Fighter | null; m: string } => {
+  const checkWin = useCallback((sA: Score, sB: Score, isGolden: boolean): { w: Fighter | null; m: string } => {
+    if (sA.awaseteIppon) return { w: "A", m: "Ippon (Waza-ari-awasete)" };
+    if (sB.awaseteIppon) return { w: "B", m: "Ippon (Waza-ari-awasete)" };
     if (sA.ippon >= 1)   return { w: "A", m: "Ippon" };
     if (sB.ippon >= 1)   return { w: "B", m: "Ippon" };
-    if (sA.wazaAri >= 2) return { w: "A", m: "Ippon (2× Waza-ari)" };
-    if (sB.wazaAri >= 2) return { w: "B", m: "Ippon (2× Waza-ari)" };
+    
+    if (isGolden) {
+      const aS = sA.wazaAri * 10 + sA.yuko;
+      const bS = sB.wazaAri * 10 + sB.yuko;
+      if (aS > bS) return { w: "A", m: "Golden Score" };
+      if (bS > aS) return { w: "B", m: "Golden Score" };
+    }
+
     if (sA.shido >= 3)   return { w: "B", m: "Hansoku-make (3× Shido)" };
     if (sB.shido >= 3)   return { w: "A", m: "Hansoku-make (3× Shido)" };
     return { w: null, m: "" };
@@ -225,7 +245,45 @@ function ScoreboardInner() {
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
   }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB, dbMatchStatus]);
 
-  const isMatchEnded = checkWin(scoreA, scoreB).w !== null;
+  const resetMatch = useCallback(() => {
+    if (window.confirm("Are you sure you want to completely reset this match? This will clear all scores, penalties, logs, and timers.")) {
+      setScoreA(emptyScore());
+      setScoreB(emptyScore());
+      setWinner(null);
+      setWinMethod("");
+      setLogs([]);
+      setTimeLeft(durationInput * 60);
+      setRunning(false);
+      setGoldenScore(false);
+      goldenScoreLoggedRef.current = false;
+      setOsaActive(false);
+      setOsaFor(null);
+      setOsaTime(0);
+      setDbMatchStatus("PENDING");
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (osaRef.current) clearInterval(osaRef.current);
+      
+      saveMatchToDB(emptyScore(), emptyScore(), null, "", []);
+      showToast("Match has been reset successfully!");
+    }
+  }, [durationInput, saveMatchToDB, showToast]);
+
+  const handlePrint = () => {
+    const ageGroup = sp.get("ageGroup") || "";
+    const weightCategory = sp.get("weightCategory") || "";
+    const titleParts = [fighterAName];
+    if (ageGroup) titleParts.push(ageGroup);
+    if (weightCategory) titleParts.push(weightCategory);
+    titleParts.push("vs", fighterBName);
+    
+    const newTitle = titleParts.join(" ");
+    const originalTitle = document.title;
+    document.title = newTitle;
+    window.print();
+    setTimeout(() => { document.title = originalTitle; }, 500);
+  };
+
+  const isMatchEnded = checkWin(scoreA, scoreB, goldenScore).w !== null;
 
   const addScore = useCallback((fighter: Fighter, field: keyof Score) => {
     if (dbMatchStatus === "COMPLETED") {
@@ -236,23 +294,51 @@ function ScoreboardInner() {
       showToast("Match has ended! Please undo the score or declare the winner.");
       return;
     }
-    setRunning(false);
+    const nextScoreA = fighter === "A" ? { ...scoreA, [field]: (scoreA[field] as number) + 1 } : scoreA;
+    const nextScoreB = fighter === "B" ? { ...scoreB, [field]: (scoreB[field] as number) + 1 } : scoreB;
+    if (checkWin(nextScoreA, nextScoreB, goldenScore).w !== null) {
+      setRunning(false);
+    }
 
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
     const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
 
     if (fighter === "A") {
       setScoreA(prev => {
-        const next = { ...prev, [field]: prev[field] + 1 };
-        const nextLogs = [...logs, { id: `${Date.now()}_score_a_${field}`, timestamp: Date.now(), text: `${fighterName} scored ${label}`, type: "score" as const, fighter }];
+        const next = { ...prev, [field]: (prev[field] as number) + 1 };
+        if (field === "wazaAri" && next.wazaAri === 2) {
+          next.wazaAri = 0;
+          next.ippon = 1;
+          next.awaseteIppon = true;
+        }
+        let logText = `${fighterName} scored ${label}`;
+        let logType: "score" | "penalty" | "system" = "score";
+        if (field === "shido") {
+          logType = "penalty";
+          if (next.shido >= 3) logText = `${fighterName} disqualified via Hansoku-make (3x Shido)`;
+          else logText = `${fighterName} received Shido`;
+        }
+        const nextLogs = [...logs, { id: `${Date.now()}_score_a_${field}`, timestamp: Date.now(), text: logText, type: logType, fighter }];
         setLogs(nextLogs);
         saveMatchToDB(next, scoreB, null, "", nextLogs);
         return next;
       });
     } else {
       setScoreB(prev => {
-        const next = { ...prev, [field]: prev[field] + 1 };
-        const nextLogs = [...logs, { id: `${Date.now()}_score_b_${field}`, timestamp: Date.now(), text: `${fighterName} scored ${label}`, type: "score" as const, fighter }];
+        const next = { ...prev, [field]: (prev[field] as number) + 1 };
+        if (field === "wazaAri" && next.wazaAri === 2) {
+          next.wazaAri = 0;
+          next.ippon = 1;
+          next.awaseteIppon = true;
+        }
+        let logText = `${fighterName} scored ${label}`;
+        let logType: "score" | "penalty" | "system" = "score";
+        if (field === "shido") {
+          logType = "penalty";
+          if (next.shido >= 3) logText = `${fighterName} disqualified via Hansoku-make (3x Shido)`;
+          else logText = `${fighterName} received Shido`;
+        }
+        const nextLogs = [...logs, { id: `${Date.now()}_score_b_${field}`, timestamp: Date.now(), text: logText, type: logType, fighter }];
         setLogs(nextLogs);
         saveMatchToDB(scoreA, next, null, "", nextLogs);
         return next;
@@ -266,16 +352,7 @@ function ScoreboardInner() {
       return;
     }
     if (winner) return;
-    const fighterName = fighter === "A" ? fighterAName : fighterBName;
-    const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
-    const nextLogs = [...logs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
-    setLogs(nextLogs);
-
-    if (fighter === "A") {
-      setScoreA(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(next, scoreB, null, "", nextLogs); return next; });
-    } else {
-      setScoreB(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(scoreA, next, null, "", nextLogs); return next; });
-    }
+    setUndoPrompt({ fighter, type: "specific", field });
   };
 
   const undoLastScore = (fighter: Fighter) => {
@@ -285,31 +362,100 @@ function ScoreboardInner() {
     }
     if (winner) return;
     const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
-    if (fighterLogs.length === 0) return;
-    
-    const lastAction = fighterLogs[fighterLogs.length - 1];
-    const text = lastAction.text.toLowerCase();
-    
-    let field: keyof Score | null = null;
-    if (text.includes("ippon")) field = "ippon";
-    else if (text.includes("waza-ari")) field = "wazaAri";
-    else if (text.includes("yuko")) field = "yuko";
-    else if (text.includes("shido") || text.includes("hansoku-make") || text.includes("disqualified")) field = "shido";
+    if (fighterLogs.length === 0) {
+      showToast("No score or penalty logs found to undo.");
+      return;
+    }
+    setUndoPrompt({ fighter, type: "last" });
+  };
 
-    if (field) {
-      // Remove the undone action from the logs so they can click undo again
-      const filteredLogs = logs.filter(l => l.id !== lastAction.id);
-      const fighterName = fighter === "A" ? fighterAName : fighterBName;
+  const confirmUndo = () => {
+    if (!undoPrompt) return;
+    const { fighter, type, field } = undoPrompt;
+    const fighterName = fighter === "A" ? fighterAName : fighterBName;
+    const reasonText = undoComment.trim() ? ` - Reason: ${undoComment.trim()}` : "";
+
+    if (type === "specific" && field) {
       const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
-      const nextLogs = [...filteredLogs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
+      const nextLogs = [...logs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})${reasonText}`, type: "system" as const, fighter }];
       setLogs(nextLogs);
 
       if (fighter === "A") {
-        setScoreA(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(next, scoreB, null, "", nextLogs); return next; });
+        setScoreA(p => { 
+          const next = { ...p };
+          if (field === "wazaAri" && p.awaseteIppon) {
+            next.wazaAri = 1;
+            next.ippon = Math.max(0, p.ippon - 1);
+            next.awaseteIppon = false;
+          } else {
+            (next as any)[field] = Math.max(0, (p[field] as number) - 1);
+          }
+          saveMatchToDB(next, scoreB, null, "", nextLogs); 
+          return next; 
+        });
       } else {
-        setScoreB(p => { const next = { ...p, [field]: Math.max(0, p[field] - 1) }; saveMatchToDB(scoreA, next, null, "", nextLogs); return next; });
+        setScoreB(p => { 
+          const next = { ...p };
+          if (field === "wazaAri" && p.awaseteIppon) {
+            next.wazaAri = 1;
+            next.ippon = Math.max(0, p.ippon - 1);
+            next.awaseteIppon = false;
+          } else {
+            (next as any)[field] = Math.max(0, (p[field] as number) - 1);
+          }
+          saveMatchToDB(scoreA, next, null, "", nextLogs); 
+          return next; 
+        });
+      }
+    } else if (type === "last") {
+      const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
+      const lastAction = fighterLogs[fighterLogs.length - 1];
+      const text = lastAction.text.toLowerCase();
+      
+      let parsedField: keyof Score | null = null;
+      if (text.includes("ippon")) parsedField = "ippon";
+      else if (text.includes("waza-ari")) parsedField = "wazaAri";
+      else if (text.includes("yuko")) parsedField = "yuko";
+      else if (text.includes("shido") || text.includes("hansoku-make") || text.includes("disqualified")) parsedField = "shido";
+
+      if (parsedField) {
+        const filteredLogs = logs.filter(l => l.id !== lastAction.id);
+        const label = parsedField === "wazaAri" ? "Waza-ari" : parsedField.toUpperCase();
+        const nextLogs = [...filteredLogs, { id: `${Date.now()}_undo_${fighter}_${parsedField}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})${reasonText}`, type: "system" as const, fighter }];
+        setLogs(nextLogs);
+
+        if (fighter === "A") {
+          setScoreA(p => { 
+            const next = { ...p };
+            if (parsedField === "wazaAri" && p.awaseteIppon) {
+              next.wazaAri = 1;
+              next.ippon = Math.max(0, p.ippon - 1);
+              next.awaseteIppon = false;
+            } else {
+              (next as any)[parsedField!] = Math.max(0, (p[parsedField!] as number) - 1);
+            }
+            saveMatchToDB(next, scoreB, null, "", nextLogs); 
+            return next; 
+          });
+        } else {
+          setScoreB(p => { 
+            const next = { ...p };
+            if (parsedField === "wazaAri" && p.awaseteIppon) {
+              next.wazaAri = 1;
+              next.ippon = Math.max(0, p.ippon - 1);
+              next.awaseteIppon = false;
+            } else {
+              (next as any)[parsedField!] = Math.max(0, (p[parsedField!] as number) - 1);
+            }
+            saveMatchToDB(scoreA, next, null, "", nextLogs); 
+            return next; 
+          });
+        }
       }
     }
+    
+    setUndoPrompt(null);
+    setUndoComment("");
   };
 
   const applyTechnique = (fighter: Fighter, tech: string, desc: string) => {
@@ -322,9 +468,12 @@ function ScoreboardInner() {
 
   const applyPenalty = (fighter: Fighter, pen: string, desc: string) => {
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
-    setRunning(false);
-
     const isDirectHansoku = pen.toLowerCase().includes("hansoku-make");
+    const nextShido = (fighter === "A" ? scoreA.shido : scoreB.shido) + (isDirectHansoku ? 3 : 1);
+    if (isDirectHansoku || nextShido >= 3) {
+      setRunning(false);
+    }
+
     if (isDirectHansoku) {
       const logText = `${fighterName} disqualified via Hansoku-make (${pen})${desc ? ` - ${desc}` : ""}`;
       const nextLogs = [...logs, { id: `${Date.now()}_pen_disq`, timestamp: Date.now(), text: logText, type: "penalty" as const, fighter }];
@@ -369,45 +518,127 @@ function ScoreboardInner() {
     if (running) {
       timerRef.current = setInterval(() => {
         setTimeLeft(t => {
-          if (t <= 1) {
+          if (!goldenScore && t <= 1) {
             clearInterval(timerRef.current!); setRunning(false);
             const aS = scoreA.wazaAri * 10 + scoreA.yuko + scoreA.ippon * 100;
             const bS = scoreB.wazaAri * 10 + scoreB.yuko + scoreB.ippon * 100;
-            if (aS === bS) { setGoldenScore(true); return durationInput * 60; }
+            if (aS === bS) { setGoldenScore(true); return 0; }
             return 0;
           }
-          return t - 1;
+          return goldenScore ? t + 1 : t - 1;
         });
       }, 1000);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [running, scoreA, scoreB, durationInput]);
+  }, [running, scoreA, scoreB, goldenScore]);
+
+  useEffect(() => {
+    if (goldenScore && !goldenScoreLoggedRef.current) {
+      goldenScoreLoggedRef.current = true;
+      const newLog = { id: `${Date.now()}_system_golden`, timestamp: Date.now(), text: `Match tied! GOLDEN SCORE started.`, type: "system" as const };
+      const nextLogs = [...logsRef.current, newLog];
+      setLogs(nextLogs);
+      logsRef.current = nextLogs;
+      if (saveMatchToDBRef.current) saveMatchToDBRef.current(undefined, undefined, undefined, undefined, nextLogs);
+    }
+  }, [goldenScore]);
+
+  const saveMatchToDBRef = useRef(saveMatchToDB);
+  useEffect(() => { saveMatchToDBRef.current = saveMatchToDB; }, [saveMatchToDB]);
+
+  const logsRef = useRef(logs);
+  useEffect(() => { logsRef.current = logs; }, [logs]);
+
+  const runningRef = useRef(running);
+  useEffect(() => { runningRef.current = running; }, [running]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if (e.key === "Tab") {
+        e.preventDefault();
+        if (dbMatchStatus === "COMPLETED") {
+          showToast("This match is already completed and locked.");
+          return;
+        }
+        if (!runningRef.current && winner) return;
+        
+        const nextState = !runningRef.current;
+        setRunning(nextState);
+        showToast(nextState ? "Timer Started" : "Timer Paused");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [dbMatchStatus, winner, showToast]);
+
+  const osaTimeRef = useRef(0);
 
   useEffect(() => {
     if (osaActive && osaFor) {
       osaRef.current = setInterval(() => {
-        setOsaTime(t => {
-          const next = t + 1;
-          if (next === OSAEKOMI_WAZAARI_S && !osaMilestones.current.wazaAri) {
-            osaMilestones.current.wazaAri = true;
-            if (osaFor === "A") setScoreA(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; saveMatchToDB(nx, scoreB, null, "", logs); return nx; });
-            else                setScoreB(p => { const nx = { ...p, wazaAri: p.wazaAri + 1 }; saveMatchToDB(scoreA, nx, null, "", logs); return nx; });
+        osaTimeRef.current += 1;
+        const next = osaTimeRef.current;
+        setOsaTime(next);
+
+        if (next === OSAEKOMI_WAZAARI_S && !osaMilestones.current.wazaAri) {
+          osaMilestones.current.wazaAri = true;
+          const fighterName = osaFor === "A" ? fighterAName : fighterBName;
+          const newLog = { id: `${Date.now()}_osa_${osaFor}_wazaari`, timestamp: Date.now(), text: `${fighterName} scored WAZA-ARI (Osaekomi)`, type: "score" as const, fighter: osaFor };
+          const nL = [...logsRef.current, newLog];
+          setLogs(nL); logsRef.current = nL;
+          
+          if (osaFor === "A") {
+            setScoreA(p => { 
+              const nx = { ...p, wazaAri: p.wazaAri + 1 }; 
+              if (nx.wazaAri === 2) {
+                nx.wazaAri = 0;
+                nx.ippon = 1;
+                nx.awaseteIppon = true;
+              }
+              saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL); 
+              return nx; 
+            });
+          } else {
+            setScoreB(p => { 
+              const nx = { ...p, wazaAri: p.wazaAri + 1 }; 
+              if (nx.wazaAri === 2) {
+                nx.wazaAri = 0;
+                nx.ippon = 1;
+                nx.awaseteIppon = true;
+              }
+              saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL); 
+              return nx; 
+            });
           }
-          if (next >= OSAEKOMI_IPPON_S) {
-            clearInterval(osaRef.current!); setOsaActive(false); setRunning(false);
-            if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDB(nx, scoreB, null, "", logs); return nx; }); }
-            else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDB(scoreA, nx, null, "", logs); return nx; }); }
-          }
-          return next;
-        });
+        }
+        if (next >= OSAEKOMI_IPPON_S) {
+          clearInterval(osaRef.current!); setOsaActive(false); setRunning(false);
+          const fighterName = osaFor === "A" ? fighterAName : fighterBName;
+          const newLog = { id: `${Date.now()}_osa_${osaFor}_ippon`, timestamp: Date.now(), text: `${fighterName} scored IPPON (Osaekomi)`, type: "score" as const, fighter: osaFor };
+          const nL = [...logsRef.current, newLog];
+          setLogs(nL); logsRef.current = nL;
+          
+          if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL); return nx; }); }
+          else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL); return nx; }); }
+        }
       }, 1000);
     } else {
       if (osaRef.current) clearInterval(osaRef.current);
     }
     return () => { if (osaRef.current) clearInterval(osaRef.current); };
-  }, [osaActive, osaFor, scoreA, scoreB, saveMatchToDB, logs]);
+  }, [osaActive, osaFor]);
+
+  useEffect(() => {
+    if (isMatchEnded && osaActive) {
+      if (osaRef.current) clearInterval(osaRef.current);
+      setOsaActive(false);
+      setRunning(false);
+    }
+  }, [isMatchEnded, osaActive]);
 
   const startOsaekomi = (fighter: Fighter) => {
     if (dbMatchStatus === "COMPLETED") {
@@ -418,7 +649,9 @@ function ScoreboardInner() {
       showToast("Match has ended! Cannot start Osaekomi.");
       return;
     }
-    setOsaActive(true); setOsaFor(fighter); setOsaTime(0);
+    osaTimeRef.current = 0;
+    setOsaTime(0);
+    setOsaActive(true); setOsaFor(fighter);
     osaMilestones.current = { wazaAri: false };
     if (!running) setRunning(true);
   };
@@ -428,7 +661,9 @@ function ScoreboardInner() {
       showToast("This match is already completed and locked. You cannot change the winner.");
       return;
     }
-    setOsaActive(false); setOsaFor(null); setOsaTime(0);
+    setOsaActive(false); setOsaFor(null); 
+    osaTimeRef.current = 0;
+    setOsaTime(0);
     if (osaRef.current) clearInterval(osaRef.current);
   };
 
@@ -450,7 +685,7 @@ function ScoreboardInner() {
           <img src="/navbar/Logo.png" alt="TNJA Logo" className="h-16 w-auto object-contain" />
         </div>
         <div className="flex flex-col items-center">
-          <h1 className="text-[#f97316] text-xl font-black tracking-wide">Scoreboard</h1>
+          <h1 className="text-[#f97316] text-xl font-black tracking-wide uppercase">{tournamentTitle}</h1>
           <p className="text-gray-400 text-sm font-medium tracking-wide">
             {weightCategory} <span className="text-[#f97316]">●</span> Match {matchNumber} <span className="text-[#f97316]">●</span> Mat {matNumber}
           </p>
@@ -468,6 +703,9 @@ function ScoreboardInner() {
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-white text-black px-4 py-1.5 rounded-md font-bold text-sm hover:bg-gray-200">
             <RefreshCw size={14} /> Refresh
           </button>
+          <button onClick={resetMatch} className="flex items-center gap-2 bg-red-600/20 border border-red-600 text-red-500 px-4 py-1.5 rounded-md font-bold text-sm hover:bg-red-600 hover:text-white transition-colors">
+            <RotateCcw size={14} /> Reset Match
+          </button>
           {/* <button className="bg-[#facc15] p-1.5 rounded-md text-black hover:bg-yellow-500">
             <Settings size={20} />
           </button> */}
@@ -482,29 +720,30 @@ function ScoreboardInner() {
       {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
       <div className="flex-1 p-6 flex gap-6 overflow-hidden">
         
-        {/* ── PLAYER 1 (ORANGE) ──────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border border-[#f97316] shadow-[0_0_15px_rgba(249,115,22,0.3)] overflow-hidden p-4 relative">
+        {/* ── PLAYER 1 (WHITE) ──────────────────────────────────────────── */}
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.3)] overflow-hidden p-4 relative">
           <div className="flex justify-between items-start mb-4">
-            <span className="bg-[#f97316] text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 1</span>
+            <span className="bg-white text-black text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 1</span>
             <span className="text-3xl">🇮🇳</span>
           </div>
           
           <div className="flex items-center gap-6 mb-4">
-            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-[#e65c00] flex items-center justify-center shadow-lg">
-              <span className="text-white text-2xl font-black">{fighterAName.substring(0, 2).toUpperCase()}</span>
+            <div className="w-20 h-20 rounded-full border border-gray-400 overflow-hidden bg-gray-200 flex items-center justify-center shadow-lg">
+              <span className="text-black text-2xl font-black">{fighterAName.substring(0, 2).toUpperCase()}</span>
             </div>
             <div className="flex flex-col">
               <h2 className="text-2xl font-bold text-white mb-1">{fighterAName}</h2>
               <p className="text-sm text-gray-400 mb-2">{fighterAClub}</p>
+              {fighterACoach && <div className="text-gray-500 text-xs font-semibold tracking-wider mb-2">Coach: {fighterACoach}</div>}
               <div className="text-xl font-bold text-white">Score : {totalScore(scoreA)}</div>
             </div>
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreA.ippon} theme="orange" onUndo={() => undoScore("A", "ippon")} />
-            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="orange" onUndo={() => undoScore("A", "wazaAri")} />
-            <ScoreBox label="YUKO" value={scoreA.yuko} theme="orange" onUndo={() => undoScore("A", "yuko")} />
-            <ScoreBox label="SHIDO" value={scoreA.shido} theme="orange" onUndo={() => undoScore("A", "shido")} />
+            <ScoreBox label="IPPON" value={scoreA.ippon} theme="white" onUndo={() => undoScore("A", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="white" onUndo={() => undoScore("A", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreA.yuko} theme="white" onUndo={() => undoScore("A", "yuko")} />
+            <ScoreBox label={scoreA.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreA.shido >= 3 ? "H" : scoreA.shido} theme="white" onUndo={() => undoScore("A", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -528,17 +767,17 @@ function ScoreboardInner() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <select value={selectedTechA} onChange={e=>setSelectedTechA(e.target.value)} className="bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none">
+              <select value={selectedTechA} onChange={e=>setSelectedTechA(e.target.value)} className="bg-transparent border border-white/50 text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-white appearance-none">
                 <option value="">Select Technique</option>
                 {techniques.map(t=><option key={t} value={t} className="bg-[#141414]">{t}</option>)}
               </select>
-              <select value={selectedPenA} onChange={e=>setSelectedPenA(e.target.value)} className="bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500 appearance-none">
+              <select value={selectedPenA} onChange={e=>setSelectedPenA(e.target.value)} className="bg-transparent border border-white/50 text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-white appearance-none">
                 <option value="">Select Penalty</option>
                 {penalties.map(p=><option key={p} value={p} className="bg-[#141414]">{p}</option>)}
               </select>
             </div>
 
-            <textarea value={descA} onChange={e=>setDescA(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-[#f97316] text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+            <textarea value={descA} onChange={e=>setDescA(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-white/50 text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-white" />
             
             <div className="mt-auto flex justify-center">
               <button onClick={() => handleApply("A")} className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold py-3 px-16 rounded text-sm transition-colors shadow-[0_0_15px_rgba(22,163,74,0.4)]">
@@ -617,10 +856,17 @@ function ScoreboardInner() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <span className="text-xs font-bold tracking-widest text-white">OSAEKOMI TIMER</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold tracking-widest text-white">OSAEKOMI TIMER</span>
+              {osaActive && (
+                <span className={`text-xl font-black animate-pulse ${osaFor === "A" ? "text-white" : "text-blue-400"}`}>
+                  {osaTime}s
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => startOsaekomi("A")} className="bg-[#422006] hover:bg-[#78350f] text-[#f97316] text-xs font-bold py-2.5 rounded border border-[#78350f]">Osaekomi (P1)</button>
-              <button onClick={() => startOsaekomi("B")} className="bg-[#424006] hover:bg-[#716a04] text-[#eab308] text-xs font-bold py-2.5 rounded border border-[#716a04]">Osaekomi (P2)</button>
+              <button onClick={() => startOsaekomi("A")} className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold py-2.5 rounded border border-white/30">Osaekomi (P1)</button>
+              <button onClick={() => startOsaekomi("B")} className="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 text-xs font-bold py-2.5 rounded border border-blue-700">Osaekomi (P2)</button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-xs font-bold py-2.5 rounded">Switch Hold</button>
@@ -632,8 +878,8 @@ function ScoreboardInner() {
             <div className="flex justify-between items-center mb-6">
               <span className="text-xs font-bold tracking-widest text-white">MATCH STATISTICS</span>
               <div className="flex flex-col gap-1 items-end">
-                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-[#f97316]"></span> PLAYER 1</span>
-                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-[#eab308]"></span> PLAYER 2</span>
+                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-white"></span> PLAYER 1</span>
+                <span className="text-[10px] flex items-center gap-2 text-gray-400 font-bold tracking-wider"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> PLAYER 2</span>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-thin text-xs font-semibold text-gray-300 pr-2 relative">
@@ -646,7 +892,7 @@ function ScoreboardInner() {
                 </div>
                 {logs.map((l) => (
                   <div key={l.id} className="flex items-start gap-3">
-                    <div className={`absolute left-[9.5px] w-1.5 h-1.5 rounded-full ring-4 ring-[#1a1a1a] ${l.fighter === "A" ? "bg-[#f97316]" : l.fighter === "B" ? "bg-[#eab308]" : "bg-gray-500"}`} />
+                    <div className={`absolute left-[9.5px] w-1.5 h-1.5 rounded-full ring-4 ring-[#1a1a1a] ${l.fighter === "A" ? "bg-white" : l.fighter === "B" ? "bg-blue-500" : "bg-gray-500"}`} />
                     <span className="text-[10px] text-gray-400 font-bold w-8 mt-0.5">{new Date(l.timestamp).toLocaleTimeString([],{minute:'2-digit',second:'2-digit'})}</span>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
@@ -662,7 +908,7 @@ function ScoreboardInner() {
                           })()}
                         </span>
                         {l.fighter && (
-                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${l.fighter === "A" ? "bg-[#f97316] text-white" : "bg-[#eab308] text-black"}`}>
+                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${l.fighter === "A" ? "bg-white text-black" : "bg-blue-600 text-white"}`}>
                             PLAYER {l.fighter === "A" ? "1" : "2"}
                           </span>
                         )}
@@ -677,15 +923,15 @@ function ScoreboardInner() {
 
         </div>
 
-        {/* ── PLAYER 2 (YELLOW) ────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border border-[#eab308] shadow-[0_0_15px_rgba(234,179,8,0.3)] overflow-hidden p-4 relative">
+        {/* ── PLAYER 2 (BLUE) ────────────────────────────────────────── */}
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-blue-500 shadow-[0_0_35px_rgba(37,99,235,0.5)] overflow-hidden p-4 relative">
           <div className="flex justify-between items-start mb-4">
-            <span className="bg-[#eab308] text-black text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 2</span>
+            <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 2</span>
             <span className="text-3xl">🇮🇳</span>
           </div>
           
           <div className="flex items-center gap-6 mb-4">
-            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-[#b3a100] flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-blue-800 flex items-center justify-center shadow-lg">
               <span className="text-white text-2xl font-black">{fighterBName.substring(0, 2).toUpperCase()}</span>
             </div>
             <div className="flex flex-col">
@@ -696,10 +942,10 @@ function ScoreboardInner() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreB.ippon} theme="yellow" onUndo={() => undoScore("B", "ippon")} />
-            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="yellow" onUndo={() => undoScore("B", "wazaAri")} />
-            <ScoreBox label="YUKO" value={scoreB.yuko} theme="yellow" onUndo={() => undoScore("B", "yuko")} />
-            <ScoreBox label="SHIDO" value={scoreB.shido} theme="yellow" onUndo={() => undoScore("B", "shido")} />
+            <ScoreBox label="IPPON" value={scoreB.ippon} theme="blue" onUndo={() => undoScore("B", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="blue" onUndo={() => undoScore("B", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreB.yuko} theme="blue" onUndo={() => undoScore("B", "yuko")} />
+            <ScoreBox label={scoreB.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreB.shido >= 3 ? "H" : scoreB.shido} theme="blue" onUndo={() => undoScore("B", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -723,17 +969,17 @@ function ScoreboardInner() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <select value={selectedTechB} onChange={e=>setSelectedTechB(e.target.value)} className="bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500 appearance-none">
+              <select value={selectedTechB} onChange={e=>setSelectedTechB(e.target.value)} className="bg-transparent border border-blue-500 text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none">
                 <option value="">Select Technique</option>
                 {techniques.map(t=><option key={t} value={t} className="bg-[#141414]">{t}</option>)}
               </select>
-              <select value={selectedPenB} onChange={e=>setSelectedPenB(e.target.value)} className="bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500 appearance-none">
+              <select value={selectedPenB} onChange={e=>setSelectedPenB(e.target.value)} className="bg-transparent border border-blue-500 text-gray-300 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 appearance-none">
                 <option value="">Select Penalty</option>
                 {penalties.map(p=><option key={p} value={p} className="bg-[#141414]">{p}</option>)}
               </select>
             </div>
 
-            <textarea value={descB} onChange={e=>setDescB(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-[#eab308] text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+            <textarea value={descB} onChange={e=>setDescB(e.target.value)} placeholder="Description" className="w-full bg-transparent border border-blue-500 text-gray-300 rounded p-3 text-sm h-16 resize-none mb-4 focus:outline-none focus:ring-1 focus:ring-blue-400" />
             
             <div className="mt-auto flex justify-center">
               <button onClick={() => handleApply("B")} className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold py-3 px-16 rounded text-sm transition-colors shadow-[0_0_15px_rgba(22,163,74,0.4)]">
@@ -750,14 +996,14 @@ function ScoreboardInner() {
         <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-8 py-4 flex items-center gap-8 shadow-xl">
           <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
           <div className="flex gap-4">
-            <button onClick={() => window.print()} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+            <button onClick={handlePrint} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
               <Download size={16} /> Save PDF
             </button>
             <button onClick={()=>saveMatchToDB()} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
               <CheckCircle size={16} /> Save Match
             </button>
-            <button className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
-              <RotateCcw size={16} /> Load Last Match
+            <button onClick={resetMatch} className="bg-red-600 text-white font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-red-500 transition-colors">
+              <RotateCcw size={16} /> Reset Match
             </button>
           </div>
         </div>
@@ -797,7 +1043,7 @@ function ScoreboardInner() {
 
               <div className="flex gap-4 w-full">
                 <button 
-                  onClick={() => window.print()} 
+                  onClick={handlePrint} 
                   className="flex-1 bg-white hover:bg-gray-200 text-black font-black py-4 rounded-xl transition-all shadow-xl shadow-white/10 flex items-center justify-center gap-3 text-lg"
                 >
                   <Download size={24} /> Print Report
@@ -853,11 +1099,53 @@ function ScoreboardInner() {
                   Cancel
                 </button>
                 <button onClick={() => {
-                  const ws = checkWin(scoreA, scoreB);
+                  const ws = checkWin(scoreA, scoreB, goldenScore);
                   declareWinner(confirmWinner, (ws.w === confirmWinner && ws.m) ? ws.m : "Decision");
                   setConfirmWinner(null);
                 }} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-xl shadow-lg shadow-green-500/20 transition-all">
                   Yes, Declare
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── UNDO SCORE OVERLAY MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {undoPrompt && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              className="bg-[#1a1a1a] border-2 border-[#333] p-8 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+              <h2 className="text-2xl font-black text-white mb-2 text-center">Undo Score</h2>
+              <p className="text-gray-400 mb-6 font-semibold text-sm text-center">
+                Please provide a reason for undoing this score.
+              </p>
+              
+              <input
+                type="text"
+                placeholder="Reason (e.g. Referee decision)"
+                value={undoComment}
+                onChange={(e) => setUndoComment(e.target.value)}
+                className="w-full bg-[#111] text-white px-4 py-3 rounded-lg border border-[#333] focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all mb-6"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") confirmUndo(); }}
+              />
+
+              <div className="flex gap-4">
+                <button onClick={() => { setUndoPrompt(null); setUndoComment(""); }} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button onClick={confirmUndo} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl shadow-lg shadow-red-500/20 transition-all">
+                  Confirm Undo
                 </button>
               </div>
             </motion.div>
@@ -964,10 +1252,12 @@ function ScoreboardInner() {
   );
 }
 
-function ScoreBox({ label, value, theme, onUndo }: { label: string; value: number; theme: "orange" | "yellow"; onUndo?: () => void }) {
-  const bgClass = theme === "orange" ? "bg-[#452109]" : "bg-[#424006]";
+function ScoreBox({ label, value, theme, onUndo }: { label: string; value: number | string; theme: "white" | "blue"; onUndo?: () => void }) {
+  const bgClass = theme === "white" 
+    ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.15)] border-white/30" 
+    : "bg-blue-600/20 shadow-[0_0_20px_rgba(37,99,235,0.3)] border-blue-500/40";
   return (
-    <div onClick={onUndo} className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border border-white/5 ${onUndo ? "cursor-pointer hover:bg-white/10 transition-colors" : ""}`}>
+    <div onClick={onUndo} className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border ${onUndo ? "cursor-pointer hover:bg-white/20 transition-colors" : ""}`}>
       <span className="text-xs text-white/50 font-bold tracking-widest mb-1">{label}</span>
       <span className="text-4xl text-white font-black">{value}</span>
     </div>

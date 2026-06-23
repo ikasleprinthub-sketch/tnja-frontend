@@ -151,7 +151,7 @@ const ApprovalChain = () => null;
 // ─── Empty form ───────────────────────────────────────────────────────────────
 const emptyForm = {
   title: "", dateFrom: "", dateTo: "", location: "", description: "",
-  entryFee: "", totalSlots: "", ageFrom: "0", ageTo: "100",
+  entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100",
   gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT",
 };
 
@@ -350,6 +350,7 @@ export default function AdminTournamentsPage() {
           ...formData,
           entryFee: Number(formData.entryFee),
           totalSlots: Number(formData.totalSlots),
+          numberOfMats: Number(formData.numberOfMats),
         }),
       });
       const json = await res.json();
@@ -1039,6 +1040,15 @@ export default function AdminTournamentsPage() {
                     <input
                       required type="number" min="2" value={formData.totalSlots}
                       onChange={e => setFormData({ ...formData, totalSlots: e.target.value })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
+                    <input
+                      required type="number" min="1" value={formData.numberOfMats}
+                      onChange={e => setFormData({ ...formData, numberOfMats: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>

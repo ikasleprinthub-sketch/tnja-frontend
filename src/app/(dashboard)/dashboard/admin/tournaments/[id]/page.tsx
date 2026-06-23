@@ -20,7 +20,8 @@ interface Tournament {
   id: string; title: string; date: string; dateTo?: string;
   location: string; level: string; entryFee: number; totalSlots: number;
   ageFrom: number; ageTo: number; gender: string; beltEligibility?: string;
-  allowBPL: boolean; status: string;
+  allowBPL: boolean; status: string; rejectionRemark?: string;
+  numberOfMats?: number;
   districtApproval: string; stateApproval: string;
   superAdminApproval: string; ceoApproval: string;
   registrationCount?: number;
@@ -29,13 +30,14 @@ interface Tournament {
 
 interface RegisteredPlayer {
   id: string; name: string; club: string; district: string;
-  weight: number; ageGroup: string; gender: string; belt: string;
-  seedNumber?: number;
+  weight: number; weightLabel?: string; ageGroup: string; exactAge?: number; gender: string; belt: string;
+  seedNumber?: number; coachName?: string;
 }
 
 interface BracketSlot {
   playerId: string | null; playerName: string;
   club: string; isBye: boolean; seedNumber?: number;
+  coachName?: string;
 }
 
 interface BracketMatch {
@@ -45,7 +47,7 @@ interface BracketMatch {
 }
 
 interface DrawCategory {
-  ageGroup: string; gender: string; weightCategory: string;
+  ageGroup: string; exactAge?: number; gender: string; weightCategory: string; matNumber?: number;
   rounds: BracketMatch[][]; generated: boolean; saved: boolean;
 }
 
@@ -149,8 +151,8 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
   }
 
   const toSlot = (p: RegisteredPlayer | null | "BYE"): BracketSlot => {
-    if (p === "BYE" || p === null) return { playerId: null, playerName: "BYE", club: "", isBye: true };
-    return { playerId: p.id, playerName: p.name, club: p.club, isBye: false, seedNumber: p.seedNumber };
+    if (p === "BYE" || p === null) return { playerId: null, playerName: "BYE", club: "", isBye: true, coachName: "" };
+    return { playerId: p.id, playerName: p.name, club: p.club, isBye: false, seedNumber: p.seedNumber, coachName: p.coachName };
   };
 
   const rounds: BracketMatch[][] = [];
@@ -174,8 +176,8 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
       round.push({
         matchId: `M_${rNum}_${i + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         round: rNum, matchNumber: i + 1, matNumber: (i % 3) + 1,
-        slotA: { playerId: null, playerName: "TBD", club: "", isBye: false },
-        slotB: { playerId: null, playerName: "TBD", club: "", isBye: false },
+        slotA: { playerId: null, playerName: "TBD", club: "", isBye: false, coachName: "" },
+        slotB: { playerId: null, playerName: "TBD", club: "", isBye: false, coachName: "" },
         winnerId: null, status: "PENDING",
       });
     }
@@ -487,6 +489,7 @@ export default function TournamentDetailPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("bracket"); // default bracket
 
   const [ageFilter, setAgeFilter] = useState("ALL");
+  const [exactAgeFilter, setExactAgeFilter] = useState("ALL");
   const [genderFilter, setGenderFilter] = useState("MALE");
   const [weightFilter, setWeightFilter] = useState("ALL");
 
@@ -602,9 +605,9 @@ export default function TournamentDetailPage() {
   };
 
 
-  const categoryKey = (age: string, gender: string, weight: string) =>
-    `${age}_${gender}_${weight}`;
-  const currentKey = categoryKey(ageFilter, genderFilter, weightFilter);
+  const categoryKey = (age: string, exactAge: string, gender: string, weight: string) =>
+    `${age}_${exactAge}_${gender}_${weight}`;
+  const currentKey = categoryKey(ageFilter, exactAgeFilter, genderFilter, weightFilter);
 
   // ── Fetch tournament ────────────────────────────────────────────────────────
   const fetchTournament = useCallback(async () => {
@@ -626,16 +629,24 @@ export default function TournamentDetailPage() {
         const raw = await res.json();
         // normalise: backend may return nested player objects
         const normalised: RegisteredPlayer[] = (Array.isArray(raw) ? raw : raw.registrations || []).map(
-          (r: any) => ({
-            id: r.playerId || r.player?.id || r.id,
-            name: r.player?.fullName || r.playerName || r.name || "Unknown",
-            club: r.player?.club?.name || r.club || "",
-            district: r.player?.district?.name || r.district || "",
-            weight: Math.ceil(Number(r.weightCategory || r.weight || 0) / 5) * 5,
-            ageGroup: r.ageGroup || "SENIOR",
-            gender: r.gender || r.player?.gender || "MALE",
-            belt: r.belt || r.player?.belt || "",
-          })
+          (r: any) => {
+            const exactWeight = Number(r.weightCategory || r.weight || 0);
+            const bucketWeight = Math.ceil(exactWeight / 5) * 5;
+            const weightLabel = bucketWeight <= 50 ? "Under 50" : `${bucketWeight - 4}-${bucketWeight}`;
+            
+            return {
+              id: r.playerId || r.player?.id || r.id,
+              name: r.player?.fullName || r.playerName || r.name || "Unknown",
+              club: r.player?.club?.name || r.club || "",
+              district: r.player?.district?.name || r.district || "",
+              weight: bucketWeight,
+              weightLabel: weightLabel,
+              ageGroup: r.ageGroup || "SENIOR",
+              exactAge: Number(r.player?.age || 0),
+              gender: r.gender || r.player?.gender || "MALE",
+              belt: r.belt || r.player?.belt || "",
+            };
+          }
         );
         setPlayers(normalised);
       }
@@ -658,7 +669,7 @@ export default function TournamentDetailPage() {
           }
           if (!Array.isArray(roundsArr)) roundsArr = [];
           
-          drawMap[categoryKey(d.ageGroup, d.gender, d.weightCategory)] = {
+          drawMap[categoryKey(d.ageGroup, d.exactAge ? String(d.exactAge) : "0", d.gender, d.weightCategory)] = {
             ...d,
             rounds: processByeMatches(roundsArr),
             generated: true, saved: true,
@@ -686,6 +697,7 @@ export default function TournamentDetailPage() {
   // ── Derived ─────────────────────────────────────────────────────────────────
   const filteredPlayers = players.filter((p) => {
     if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
+    if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
     if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
     if (weightFilter !== "ALL" && String(p.weight) !== weightFilter) return false;
     return true;
@@ -794,6 +806,7 @@ export default function TournamentDetailPage() {
     // Filter players based on current age and gender dropdowns (ignore weight filter to generate all weights)
     const targetPlayers = players.filter((p) => {
       if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
+      if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
       if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
       return true;
     });
@@ -806,7 +819,7 @@ export default function TournamentDetailPage() {
     // Group players by category
     const categoryGroups: Record<string, RegisteredPlayer[]> = {};
     targetPlayers.forEach((p) => {
-      const key = categoryKey(p.ageGroup, p.gender, String(p.weight));
+      const key = categoryKey(p.ageGroup, String(p.exactAge || 0), p.gender, String(p.weight));
       if (!categoryGroups[key]) categoryGroups[key] = [];
       categoryGroups[key].push(p);
     });
@@ -837,19 +850,41 @@ export default function TournamentDetailPage() {
 
     setAutoGenerating(true);
     let successCount = 0;
+    
+    // Distribute matches evenly across available mats
+    const matsCount = tournament?.numberOfMats || 1;
+    const matLoads = new Array(matsCount).fill(0); // Track estimated matches per mat
 
     try {
-      for (const [key, catPlayers] of eligibleCategories) {
+      // Sort categories by size descending for better packing
+      const sortedCategories = eligibleCategories.sort((a, b) => b[1].length - a[1].length);
+
+      for (const [key, catPlayers] of sortedCategories) {
         const firstPlayer = catPlayers[0];
         const ageGroup = firstPlayer.ageGroup;
+        const exactAge = firstPlayer.exactAge || 0;
         const gender = firstPlayer.gender;
         const weightCategory = String(firstPlayer.weight);
-        const displayLabel = `${ageGroup} ${gender} ${weightCategory}kg`;
+        const displayLabel = `${ageGroup} (${exactAge}y) ${gender} ${weightCategory}kg`;
 
         setAutoGenProgress(`Generating & saving draw for ${displayLabel}...`);
 
         const emptySeeds: Seeds = { 1: null, 2: null, 3: null, 4: null };
         const rounds = processByeMatches(generateIJFBracket(catPlayers, emptySeeds));
+
+        // Find mat with least load
+        let minLoad = Infinity;
+        let assignedMatIdx = 0;
+        for (let i = 0; i < matsCount; i++) {
+          if (matLoads[i] < minLoad) {
+            minLoad = matLoads[i];
+            assignedMatIdx = i;
+          }
+        }
+        
+        // Add estimated matches to this mat's load (approx N-1 matches for knockout)
+        matLoads[assignedMatIdx] += Math.max(1, catPlayers.length - 1);
+        const matNumber = assignedMatIdx + 1;
 
         try {
           const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
@@ -860,8 +895,10 @@ export default function TournamentDetailPage() {
             },
             body: JSON.stringify({
               ageGroup,
+              exactAge,
               gender,
               weightCategory,
+              matNumber,
               rounds,
             }),
           });
@@ -895,7 +932,11 @@ export default function TournamentDetailPage() {
       fighterBName: match.slotB.playerName,
       fighterAClub: match.slotA.club,
       fighterBClub: match.slotB.club,
+      fighterACoach: match.slotA.coachName || "",
+      fighterBCoach: match.slotB.coachName || "",
       weightCategory: weightFilter === "ALL" ? "" : `${weightFilter} kg`,
+      ageGroup: ageFilter === "ALL" ? "" : ageFilter,
+      gender: genderFilter === "ALL" ? "" : genderFilter,
       matchNumber: String(match.matchNumber),
       matNumber: String(match.matNumber),
       tournamentTitle: tournament?.title || "TNJA Championship",
@@ -937,7 +978,7 @@ export default function TournamentDetailPage() {
 
       if (foundRi + 1 < newRounds.length) {
         const nextMatchIdx = Math.floor(foundMi / 2);
-        const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
+        const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false, coachName: "" }; // coachName not really needed in next round display, but could be passed if tracked
         const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
         if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
         else                   nextMatch.slotB = winnerSlot;
@@ -991,6 +1032,7 @@ export default function TournamentDetailPage() {
   // ── Category filters UI ─────────────────────────────────────────────────────
   const CategoryFilters = () => {
     const allAgeGroups = [...new Set(players.map((p) => p.ageGroup))].sort((a, b) => a.localeCompare(b));
+    const exactAgeOptions = [...new Set(players.map((p) => String(p.exactAge || 0)))].sort((a, b) => Number(a) - Number(b));
 
     return (
       <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
@@ -1003,6 +1045,11 @@ export default function TournamentDetailPage() {
             <option value="ALL">All Age Groups</option>
             {allAgeGroups.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
+          <select value={exactAgeFilter} onChange={(e) => setExactAgeFilter(e.target.value)}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+            <option value="ALL">All Exact Ages</option>
+            {exactAgeOptions.map(opt => <option key={opt} value={opt}>{opt} Years</option>)}
+          </select>
         <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
           <option value="MALE">Male</option>
@@ -1011,7 +1058,10 @@ export default function TournamentDetailPage() {
         <select value={weightFilter} onChange={(e) => setWeightFilter(e.target.value)}
           className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
           <option value="ALL">All Weights</option>
-          {weightOptions.map((w) => <option key={w} value={w}>{w} kg</option>)}
+          {weightOptions.map((w) => {
+            const label = players.find((p) => String(p.weight) === w)?.weightLabel || `${w} kg`;
+            return <option key={w} value={w}>{label}</option>;
+          })}
         </select>
         <span className="ml-auto text-sm font-bold text-slate-500 self-center">
           {filteredPlayers.length} players
@@ -1481,6 +1531,11 @@ export default function TournamentDetailPage() {
                     <span className="ml-2 text-xs font-semibold text-slate-400">
                       {ageFilter !== "ALL" ? ageFilter : ""} {genderFilter !== "ALL" ? genderFilter : ""} {weightFilter !== "ALL" ? `${weightFilter}kg` : ""}
                     </span>
+                    {currentDraw.matNumber && (
+                      <span className="ml-3 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                        MAT {currentDraw.matNumber}
+                      </span>
+                    )}
                   </h3>
                   <div className="flex items-center gap-2">
                     <button 
@@ -1531,7 +1586,7 @@ export default function TournamentDetailPage() {
                             >
                               <div className="flex items-center gap-4">
                                 <span className="text-[10px] font-black text-slate-400 min-w-[80px]">
-                                  Mat {match.matNumber} · #{match.matchNumber}
+                                  Mat {currentDraw.matNumber || 1} · #{match.matchNumber}
                                 </span>
                                 <div className="flex items-center gap-2">
                                   <span className={`text-sm font-bold flex items-center gap-1 ${match.slotA.isBye ? "text-slate-300" : match.winnerId === match.slotA.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
@@ -1691,6 +1746,8 @@ export default function TournamentDetailPage() {
               <p className="text-slate-500 text-sm mt-1">View completed matches, winners, and generate PDF reports</p>
             </div>
           </div>
+          
+          <CategoryFilters />
 
           {/* ── Conclude Tournament Panel ── */}
           {tournament?.status !== "CLOSED" ? (
@@ -1705,8 +1762,8 @@ export default function TournamentDetailPage() {
                 </div>
               </div>
 
-              {players.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 font-semibold">No registered players found.</div>
+              {filteredPlayers.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 font-semibold">No players found for this category.</div>
               ) : (
                 <div className="space-y-3">
                   {/* Auto-detect status banner */}
@@ -1715,7 +1772,7 @@ export default function TournamentDetailPage() {
                       <div className="flex items-center gap-2">
                         <Check size={14} className="text-emerald-400 shrink-0" />
                         <p className="text-emerald-300 text-xs font-bold">
-                          Auto-detected: {Object.values(placements).filter(v => v === "FIRST").length} Gold · {Object.values(placements).filter(v => v === "SECOND").length} Silver · {Object.values(placements).filter(v => v === "THIRD").length} Bronze · {players.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
+                          Auto-detected: {filteredPlayers.filter(p => placements[p.id] === "FIRST").length} Gold · {filteredPlayers.filter(p => placements[p.id] === "SECOND").length} Silver · {filteredPlayers.filter(p => placements[p.id] === "THIRD").length} Bronze · {filteredPlayers.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
                         </p>
                       </div>
                       <button
@@ -1741,7 +1798,7 @@ export default function TournamentDetailPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
-                    {players.map((player) => {
+                    {filteredPlayers.map((player) => {
                       const placement = placements[player.id] || "PARTICIPATION";
                       const placementColors: Record<string, string> = {
                         FIRST: "border-yellow-400 bg-yellow-500/10",
@@ -1839,7 +1896,6 @@ export default function TournamentDetailPage() {
             </div>
           )}
 
-          <CategoryFilters />
 
           {currentDraw?.generated ? (
             <div className="space-y-6">

@@ -55,6 +55,7 @@ export default function ClubTournamentsPage() {
     description: "",
     entryFee: "",
     totalSlots: "",
+    numberOfMats: "1",
     ageFrom: "0",
     ageTo: "100",
     gender: "BOTH",
@@ -72,6 +73,7 @@ export default function ClubTournamentsPage() {
     description: "",
     entryFee: "",
     totalSlots: "",
+    numberOfMats: "1",
     ageFrom: "0",
     ageTo: "100",
     gender: "BOTH",
@@ -279,6 +281,7 @@ export default function ClubTournamentsPage() {
       description: tournament.description,
       entryFee: String(tournament.entryFee),
       totalSlots: String(tournament.totalSlots),
+      numberOfMats: String(tournament.numberOfMats || 1),
       ageFrom: String(tournament.ageFrom || 0),
       ageTo: String(tournament.ageTo || 100),
       gender: tournament.gender || "BOTH",
@@ -310,6 +313,7 @@ export default function ClubTournamentsPage() {
           ...editData,
           entryFee: Number(editData.entryFee),
           totalSlots: Number(editData.totalSlots),
+          numberOfMats: Number(editData.numberOfMats),
         }),
       });
       const json = await res.json();
@@ -364,13 +368,14 @@ export default function ClubTournamentsPage() {
           ...formData,
           entryFee: Number(formData.entryFee),
           totalSlots: Number(formData.totalSlots),
+          numberOfMats: Number(formData.numberOfMats),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create tournament");
       showToast("Tournament created! Your club players will be notified.", "success");
       setIsCreateModalOpen(false);
-      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "" });
+      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "" });
       fetchTournaments();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -949,6 +954,11 @@ export default function ClubTournamentsPage() {
                     <input type="number" required min="2" value={formData.totalSlots} onChange={(e) => setFormData({ ...formData, totalSlots: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
+                    <input type="number" required min="1" value={formData.numberOfMats} onChange={(e) => setFormData({ ...formData, numberOfMats: e.target.value })}
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                  </div>
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">
                     <input type="checkbox" id="allowBpl_create" checked={formData.allowBPL} onChange={(e) => setFormData({ ...formData, allowBPL: e.target.checked })}
                       className="w-5 h-5 accent-[#FF7400]" />
@@ -1078,6 +1088,11 @@ export default function ClubTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
                     <input type="number" required min="2" value={editData.totalSlots} onChange={(e) => setEditData({ ...editData, totalSlots: e.target.value })}
+                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
+                    <input type="number" required min="1" value={editData.numberOfMats} onChange={(e) => setEditData({ ...editData, numberOfMats: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">

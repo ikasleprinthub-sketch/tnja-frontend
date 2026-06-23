@@ -73,7 +73,8 @@ export default function PlayerTournamentsPage() {
   const [playerData, setPlayerData] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [registerModal, setRegisterModal] = useState<any | null>(null);
-  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "" });
+  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "", coachId: "" });
+  const [coaches, setCoaches] = useState<any[]>([]);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -128,9 +129,10 @@ export default function PlayerTournamentsPage() {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [clubRes, matchesRes] = await Promise.all([
+      const [clubRes, matchesRes, coachesRes] = await Promise.all([
         fetch(`${API_BASE}/tournaments/player`, { headers }),
         fetch(`${API_BASE}/tournaments/player/matches`, { headers }),
+        fetch(`${API_BASE}/coaches`, { headers }),
       ]);
 
       if (clubRes.ok) {
@@ -141,6 +143,9 @@ export default function PlayerTournamentsPage() {
         setDistrictMatches(data.district ?? []);
         setZonalMatches(data.zonal ?? []);
         setStateNationalMatches(data.stateAndNational ?? []);
+      }
+      if (coachesRes.ok) {
+        setCoaches(await coachesRes.json());
       }
     } catch (err) {
       console.error("Failed to load tournaments", err);
@@ -166,12 +171,13 @@ export default function PlayerTournamentsPage() {
 
 
 
-  const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
+  const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string, directCoachId?: string) => {
     const height = directHeight || physicalDetails.height;
     const weight = directWeight || physicalDetails.weight;
+    const coachId = directCoachId || physicalDetails.coachId;
 
-    if (!height || !weight) {
-      showToast("Height and weight are required.", "error");
+    if (!height || !weight || !coachId) {
+      showToast("Height, weight, and coach selection are required.", "error");
       return;
     }
     if (!playerData?.isPaid && !playerData?.isBPL) {
@@ -207,6 +213,7 @@ export default function PlayerTournamentsPage() {
           tournamentId: tournament.id,
           height,
           weight,
+          coachId,
         }),
       });
 
@@ -236,6 +243,7 @@ export default function PlayerTournamentsPage() {
                 tournamentId: tournament.id,
                 height,
                 weight,
+                coachId,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
@@ -265,7 +273,7 @@ export default function PlayerTournamentsPage() {
     } finally {
       setPaying(null);
       setRegisterModal(null);
-      setPhysicalDetails({ height: "", weight: "" });
+      setPhysicalDetails({ height: "", weight: "", coachId: "" });
     }
   };
 
@@ -568,10 +576,15 @@ export default function PlayerTournamentsPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            if (playerData?.height && playerData?.weight) {
-                              handleRegister(tournament, playerData.height, playerData.weight);
+                            if (playerData?.height && playerData?.weight && playerData?.coachId) {
+                              handleRegister(tournament, playerData.height, playerData.weight, playerData.coachId);
                             } else {
                               setRegisterModal(tournament);
+                              setPhysicalDetails({
+                                height: playerData?.height || "",
+                                weight: playerData?.weight || "",
+                                coachId: playerData?.coachId || "",
+                              });
                             }
                           }}
                           disabled={isPayingThis}
@@ -647,13 +660,31 @@ export default function PlayerTournamentsPage() {
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Select Coach
+                  </label>
+                  <select
+                    required
+                    value={physicalDetails.coachId}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, coachId: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
+                  >
+                    <option value="">Select a coach</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-4">
                 <button
                   onClick={() => {
                     setRegisterModal(null);
-                    setPhysicalDetails({ height: "", weight: "" });
+                    setPhysicalDetails({ height: "", weight: "", coachId: "" });
                   }}
                   className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
                 >
@@ -661,7 +692,7 @@ export default function PlayerTournamentsPage() {
                 </button>
                 <button
                   onClick={() => handleRegister(registerModal)}
-                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight}
+                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight || !physicalDetails.coachId}
                   className="flex-1 py-3 bg-[#FF7400] hover:bg-[#e66a00] text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {paying === registerModal.id ? <Loader2 size={16} className="animate-spin" /> : "Proceed"}
