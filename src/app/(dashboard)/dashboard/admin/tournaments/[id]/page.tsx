@@ -631,7 +631,7 @@ export default function TournamentDetailPage() {
             name: r.player?.fullName || r.playerName || r.name || "Unknown",
             club: r.player?.club?.name || r.club || "",
             district: r.player?.district?.name || r.district || "",
-            weight: Number(r.weightCategory || r.weight || 0),
+            weight: Math.ceil(Number(r.weightCategory || r.weight || 0) / 5) * 5,
             ageGroup: r.ageGroup || "SENIOR",
             gender: r.gender || r.player?.gender || "MALE",
             belt: r.belt || r.player?.belt || "",
@@ -710,6 +710,11 @@ export default function TournamentDetailPage() {
   };
 
   const handleGenerateAndSaveDraw = (isShuffle = false) => {
+    if (ageFilter === "ALL") {
+      showToast("Please select a specific Age Group to generate a manual draw, or use 'Auto-Generate Categories'.", false);
+      return;
+    }
+
     if (filteredPlayers.length < 2) {
       showToast("Need at least 2 players to generate a draw", false);
       return;
@@ -786,9 +791,21 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    // Filter players based on current age and gender dropdowns (ignore weight filter to generate all weights)
+    const targetPlayers = players.filter((p) => {
+      if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
+      if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
+      return true;
+    });
+
+    if (targetPlayers.length === 0) {
+      showToast("No players found for the selected Age and Gender.", false);
+      return;
+    }
+
     // Group players by category
     const categoryGroups: Record<string, RegisteredPlayer[]> = {};
-    players.forEach((p) => {
+    targetPlayers.forEach((p) => {
       const key = categoryKey(p.ageGroup, p.gender, String(p.weight));
       if (!categoryGroups[key]) categoryGroups[key] = [];
       categoryGroups[key].push(p);
@@ -1294,7 +1311,7 @@ export default function TournamentDetailPage() {
                   {autoGenerating ? (
                     <><Loader2 size={15} className="animate-spin" /> Generating All...</>
                   ) : (
-                    <><Zap size={16} /> Auto-Generate All Categories</>
+                    <><Zap size={16} /> Auto-Generate {ageFilter === "ALL" ? "All Categories" : ageFilter}</>
                   )}
                 </button>
                 {currentDraw?.saved && (
