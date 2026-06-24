@@ -414,32 +414,36 @@ const CoachRegistrationForm = () => {
           {/* Select Your Location */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Select Your Location" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8 pt-2">
-              <SelectField 
-                label="Select Your District" 
-                name="districtId" 
-                required 
-                options={districts.map(d => ({ label: d.name, value: d.id }))}
-                value={formData.districtId}
-                onChange={handleDistrictChange}
-              />
-              <SelectField 
-                label="Select Your Taluk" 
-                name="talukId" 
-                required 
-                options={taluks.map(t => ({ label: t.name, value: t.id }))}
-                value={formData.talukId}
-                onChange={handleTalukChange}
-              />
-              <InputField 
-                label="Pincode" 
-                name="pincode" 
-                placeholder="6 Digit Pincode" 
-                required 
-                value={formData.pincode}
-                onChange={handleInputChange}
-                maxLength={6}
-              />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <SelectField 
+                  label="Select Your District" 
+                  name="districtId" 
+                  required 
+                  options={districts.map(d => ({ label: d.name, value: d.id }))}
+                  value={formData.districtId}
+                  onChange={handleDistrictChange}
+                />
+                <SelectField 
+                  label="Select Your Taluk" 
+                  name="talukId" 
+                  required 
+                  options={taluks.map(t => ({ label: t.name, value: t.id }))}
+                  value={formData.talukId}
+                  onChange={handleTalukChange}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField 
+                  label="Pincode" 
+                  name="pincode" 
+                  placeholder="6 Digit Pincode" 
+                  required 
+                  value={formData.pincode}
+                  onChange={handleInputChange}
+                  maxLength={6}
+                />
+              </div>
             </div>
           </section>
 

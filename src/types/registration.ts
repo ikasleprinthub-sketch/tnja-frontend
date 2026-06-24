@@ -17,7 +17,7 @@ export interface PlayerRegistrationData {
   state: string;
   addressPincode: string;
   nationality: string;
-  annualIncome: number;
+  annualIncome: number | string;
   isBPL: boolean;
   schoolName: string;
   grade: string;

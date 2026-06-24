@@ -15,7 +15,7 @@ const SectionHeader = ({ title }: { title: string }) => (
   </div>
 );
 
-const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength }: any) => (
+const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength, min }: any) => (
   <div className="flex flex-col gap-2 w-full">
     <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
       {label} {required && <RequiredSymbol />}
@@ -28,6 +28,7 @@ const InputField = ({ label, name, placeholder, required = false, type = "text",
         value={value}
         onChange={onChange}
         maxLength={maxLength}
+        min={min}
         className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
       />
       {Icon && (
@@ -138,7 +139,7 @@ const DatePickerField = ({ label, name, required = false, value, onChange, place
                 <option key={m} value={idx}>{m}</option>
               ))}
             </select>
-            
+
             <select
               value={currentYear}
               onChange={(e) => setCurrentYear(parseInt(e.target.value))}
@@ -169,9 +170,8 @@ const DatePickerField = ({ label, name, required = false, value, onChange, place
                   key={day}
                   type="button"
                   onClick={() => selectDate(day)}
-                  className={`py-1 rounded transition-colors font-medium hover:bg-orange-50 hover:text-[#FF7400] ${
-                    isSelected ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : 'text-gray-700'
-                  }`}
+                  className={`py-1 rounded transition-colors font-medium hover:bg-orange-50 hover:text-[#FF7400] ${isSelected ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : 'text-gray-700'
+                    }`}
                 >
                   {day}
                 </button>
@@ -188,10 +188,10 @@ const PlayerRegistrationForm = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  const [districts, setDistricts] = useState<{id: string, name: string}[]>([]);
-  const [taluks, setTaluks] = useState<{id: string, name: string}[]>([]);
-  const [clubs, setClubs] = useState<{id: string, name: string}[]>([]);
+
+  const [districts, setDistricts] = useState<{ id: string, name: string }[]>([]);
+  const [taluks, setTaluks] = useState<{ id: string, name: string }[]>([]);
+  const [clubs, setClubs] = useState<{ id: string, name: string }[]>([]);
 
   const [formData, setFormData] = useState<PlayerRegistrationData>({
     districtId: '',
@@ -212,7 +212,7 @@ const PlayerRegistrationForm = () => {
     state: 'Tamil Nadu',
     addressPincode: '',
     nationality: 'Indian',
-    annualIncome: 0,
+    annualIncome: '',
     isBPL: false,
     clubId: '',
     schoolName: '',
@@ -254,8 +254,8 @@ const PlayerRegistrationForm = () => {
           const data = await res.json();
           if (data && data[0] && data[0].Status === "Success") {
             const po = data[0].PostOffice[0];
-            setFormData(prev => ({ 
-              ...prev, 
+            setFormData(prev => ({
+              ...prev,
               city: po.District || po.Block || po.Name,
               state: po.State || prev.state
             }));
@@ -272,7 +272,7 @@ const PlayerRegistrationForm = () => {
     const districtId = e.target.value;
     setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '', pincode: '' }));
     setTaluks([]);
-    
+
     if (districtId) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       try {
@@ -289,13 +289,13 @@ const PlayerRegistrationForm = () => {
   const handleTalukChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const talukId = e.target.value;
     const selectedTaluk = taluks.find(t => t.id === talukId);
-    
+
     if (selectedTaluk) {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         talukId,
-        taluk: selectedTaluk.name, 
-        pincode: (selectedTaluk as any).pincode || '' 
+        taluk: selectedTaluk.name,
+        pincode: (selectedTaluk as any).pincode || ''
       }));
     } else {
       setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '' }));
@@ -308,7 +308,15 @@ const PlayerRegistrationForm = () => {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else if (name === 'annualIncome' || name === 'age') {
-      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+      if (value === '') {
+        setFormData(prev => ({ ...prev, [name]: '' }));
+      } else {
+        let numVal = parseFloat(value);
+        if (!isNaN(numVal)) {
+          if (numVal < 0) numVal = 0;
+          setFormData(prev => ({ ...prev, [name]: numVal }));
+        }
+      }
     } else if (name === 'isBPL') {
       setFormData(prev => ({ ...prev, [name]: value === 'true' }));
     } else if (name === 'dob') {
@@ -341,8 +349,8 @@ const PlayerRegistrationForm = () => {
         }
       }
 
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         dob: formatted,
         age: calculatedAge
       }));
@@ -362,8 +370,8 @@ const PlayerRegistrationForm = () => {
     setError(null);
 
     // Format dob from DD/MM/YYYY to YYYY-MM-DD for backend compatibility
-    const apiDob = formData.dob && formData.dob.includes('/') 
-      ? formData.dob.split('/').reverse().join('-') 
+    const apiDob = formData.dob && formData.dob.includes('/')
+      ? formData.dob.split('/').reverse().join('-')
       : formData.dob;
 
     try {
@@ -404,20 +412,20 @@ const PlayerRegistrationForm = () => {
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Successful!</h2>
         <p className="text-gray-600 mb-8">Your application has been submitted and is waiting for approval.</p>
-        
+
         <div className="bg-[#F8F9FA] p-6 rounded-lg mb-8 border border-[#E9ECEF]">
           <p className="text-sm text-gray-500 uppercase font-bold tracking-wider mb-2">Your Temporary Player ID</p>
           <p className="text-4xl font-mono font-bold text-[#FF7400]">{success.tempId}</p>
         </div>
 
         <p className="text-sm text-gray-600">
-          Your credentials and Temporary Player ID have been sent to <strong>{formData.email}</strong>. 
+          Your credentials and Temporary Player ID have been sent to <strong>{formData.email}</strong>.
           Use the Temporary Player ID to log in and track your status.
         </p>
-        
-        <Button 
-          variant="primary" 
-          className="mt-10" 
+
+        <Button
+          variant="primary"
+          className="mt-10"
           onClick={() => window.location.href = '/'}
         >
           Back to Home
@@ -438,32 +446,36 @@ const PlayerRegistrationForm = () => {
           {/* Select Your Location */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Select Your Location" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8 pt-2">
-              <SelectField 
-                label="Select Your District" 
-                name="districtId" 
-                required 
-                options={districts.map(d => ({ label: d.name, value: d.id }))}
-                value={formData.districtId}
-                onChange={handleDistrictChange}
-              />
-              <SelectField 
-                label="Select Your Taluk" 
-                name="talukId" 
-                required 
-                options={taluks.map(t => ({ label: t.name, value: t.id }))}
-                value={formData.talukId}
-                onChange={handleTalukChange}
-              />
-              <InputField 
-                label="Pincode" 
-                name="pincode" 
-                placeholder="6 Digit Pincode" 
-                required 
-                value={formData.pincode}
-                onChange={handleInputChange}
-                maxLength={6}
-              />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <SelectField
+                  label="Select Your District"
+                  name="districtId"
+                  required
+                  options={districts.map(d => ({ label: d.name, value: d.id }))}
+                  value={formData.districtId}
+                  onChange={handleDistrictChange}
+                />
+                <SelectField
+                  label="Select Your Taluk"
+                  name="talukId"
+                  required
+                  options={taluks.map(t => ({ label: t.name, value: t.id }))}
+                  value={formData.talukId}
+                  onChange={handleTalukChange}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField
+                  label="Pincode"
+                  name="pincode"
+                  placeholder="6 Digit Pincode"
+                  required
+                  value={formData.pincode}
+                  onChange={handleInputChange}
+                  maxLength={6}
+                />
+              </div>
             </div>
           </section>
 
@@ -474,20 +486,20 @@ const PlayerRegistrationForm = () => {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                 {/* Left Column Input Fields */}
                 <div className="md:col-span-8 space-y-8">
-                  <InputField 
-                    label="Full Name" 
-                    name="fullName" 
-                    placeholder="Enter Full Name" 
-                    required 
+                  <InputField
+                    label="Full Name"
+                    name="fullName"
+                    placeholder="Enter Full Name"
+                    required
                     icon={User}
                     value={formData.fullName}
                     onChange={handleInputChange}
                   />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <SelectField 
-                      label="Gender" 
-                      name="gender" 
-                      required 
+                    <SelectField
+                      label="Gender"
+                      name="gender"
+                      required
                       options={[
                         { label: "Male", value: "MALE" },
                         { label: "Female", value: "FEMALE" },
@@ -496,18 +508,18 @@ const PlayerRegistrationForm = () => {
                       value={formData.gender}
                       onChange={handleInputChange}
                     />
-                    <DatePickerField 
-                      label="Date of Birth" 
-                      name="dob" 
-                      required 
+                    <DatePickerField
+                      label="Date of Birth"
+                      name="dob"
+                      required
                       value={formData.dob}
                       onChange={handleInputChange}
                     />
-                    <InputField 
-                      label="Age" 
-                      name="age" 
+                    <InputField
+                      label="Age"
+                      name="age"
                       type="number"
-                      required 
+                      required
                       value={formData.age}
                       onChange={handleInputChange}
                     />
@@ -516,7 +528,7 @@ const PlayerRegistrationForm = () => {
 
                 {/* Right Column Profile Photo Uploader */}
                 <div className="md:col-span-4 h-full animate-in fade-in zoom-in-95 duration-200">
-                  <FileUpload 
+                  <FileUpload
                     label="Photo"
                     value={formData.profilePhoto}
                     onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
@@ -527,19 +539,19 @@ const PlayerRegistrationForm = () => {
 
                 {/* Rest of Personal Information below */}
                 <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <InputField 
-                    label="Blood Group" 
-                    name="bloodGroup" 
-                    placeholder="e.g. O+ve" 
-                    required 
+                  <InputField
+                    label="Blood Group"
+                    name="bloodGroup"
+                    placeholder="e.g. O+ve"
+                    required
                     value={formData.bloodGroup}
                     onChange={handleInputChange}
                   />
-                  <InputField 
-                    label="Aadhaar Number" 
-                    name="aadhaarNumber" 
-                    placeholder="12 Digit Aadhaar" 
-                    required 
+                  <InputField
+                    label="Aadhaar Number"
+                    name="aadhaarNumber"
+                    placeholder="12 Digit Aadhaar"
+                    required
                     maxLength={12}
                     value={formData.aadhaarNumber}
                     onChange={handleInputChange}
@@ -547,7 +559,7 @@ const PlayerRegistrationForm = () => {
                 </div>
 
                 <div className="md:col-span-12">
-                  <FileUpload 
+                  <FileUpload
                     label="Aadhaar Proof"
                     value={formData.aadhaarProof}
                     onChange={(url) => setFormData(prev => ({ ...prev, aadhaarProof: url }))}
@@ -557,20 +569,20 @@ const PlayerRegistrationForm = () => {
                 </div>
 
                 <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <InputField 
-                    label="Mobile Number" 
-                    name="mobileNumber" 
-                    placeholder="10 Digit Mobile" 
-                    required 
+                  <InputField
+                    label="Mobile Number"
+                    name="mobileNumber"
+                    placeholder="10 Digit Mobile"
+                    required
                     icon={Smartphone}
                     maxLength={10}
                     value={formData.mobileNumber}
                     onChange={handleInputChange}
                   />
-                  <InputField 
-                    label="Alternate Mobile" 
-                    name="alternateMobileNumber" 
-                    placeholder="Enter Alternate Mobile" 
+                  <InputField
+                    label="Alternate Mobile"
+                    name="alternateMobileNumber"
+                    placeholder="Enter Alternate Mobile"
                     maxLength={10}
                     value={formData.alternateMobileNumber}
                     onChange={handleInputChange}
@@ -578,12 +590,12 @@ const PlayerRegistrationForm = () => {
                 </div>
 
                 <div className="md:col-span-12">
-                  <InputField 
-                    label="Email Address" 
-                    name="email" 
+                  <InputField
+                    label="Email Address"
+                    name="email"
                     type="email"
-                    placeholder="Enter Email Address" 
-                    required 
+                    placeholder="Enter Email Address"
+                    required
                     icon={Mail}
                     value={formData.email}
                     onChange={handleInputChange}
@@ -597,48 +609,48 @@ const PlayerRegistrationForm = () => {
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Permanent Address Information" />
             <div className="p-8 pt-2 space-y-8">
-              <InputField 
-                label="Address" 
-                name="address" 
-                placeholder="Door No, Street Name" 
-                required 
+              <InputField
+                label="Address"
+                name="address"
+                placeholder="Door No, Street Name"
+                required
                 icon={MapPin}
                 value={formData.address}
                 onChange={handleInputChange}
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="City" 
-                  name="city" 
-                  placeholder="Enter City" 
-                  required 
+                <InputField
+                  label="City"
+                  name="city"
+                  placeholder="Enter City"
+                  required
                   value={formData.city}
                   onChange={handleInputChange}
                 />
-                <InputField 
-                  label="State" 
-                  name="state" 
-                  placeholder="Enter State" 
-                  required 
+                <InputField
+                  label="State"
+                  name="state"
+                  placeholder="Enter State"
+                  required
                   value={formData.state}
                   onChange={handleInputChange}
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Pincode" 
-                  name="addressPincode" 
-                  placeholder="6 Digit Pincode" 
-                  required 
+                <InputField
+                  label="Pincode"
+                  name="addressPincode"
+                  placeholder="6 Digit Pincode"
+                  required
                   value={formData.addressPincode}
                   onChange={handleInputChange}
                   maxLength={6}
                 />
-                <InputField 
-                  label="Nationality" 
-                  name="nationality" 
-                  placeholder="Enter Nationality" 
-                  required 
+                <InputField
+                  label="Nationality"
+                  name="nationality"
+                  placeholder="Enter Nationality"
+                  required
                   value={formData.nationality}
                   onChange={handleInputChange}
                 />
@@ -652,16 +664,17 @@ const PlayerRegistrationForm = () => {
             <div className="p-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 <div className="space-y-8">
-                  <InputField 
-                    label="Family Annual Income" 
-                    name="annualIncome" 
+                  <InputField
+                    label="Family Annual Income"
+                    name="annualIncome"
                     type="number"
-                    placeholder="Enter Annual Income" 
-                    required 
+                    placeholder="Enter Annual Income"
+                    required
+                    min={0}
                     value={formData.annualIncome}
                     onChange={handleInputChange}
                   />
-                  <FileUpload 
+                  <FileUpload
                     label="Income Proof"
                     value={formData.incomeProof}
                     onChange={(url) => setFormData(prev => ({ ...prev, incomeProof: url }))}
@@ -669,12 +682,12 @@ const PlayerRegistrationForm = () => {
                     helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
                   />
                 </div>
-                
+
                 <div className="space-y-8">
-                  <SelectField 
-                    label="Are you classified as a BPL beneficiary?" 
-                    name="isBPL" 
-                    required 
+                  <SelectField
+                    label="Are you classified as a BPL beneficiary?"
+                    name="isBPL"
+                    required
                     options={[
                       { label: "Yes", value: "true" },
                       { label: "No", value: "false" }
@@ -682,10 +695,10 @@ const PlayerRegistrationForm = () => {
                     value={formData.isBPL.toString()}
                     onChange={handleInputChange}
                   />
-                  
+
                   {formData.isBPL && (
                     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                      <FileUpload 
+                      <FileUpload
                         label="Proof for BPL Beneficiary"
                         value={formData.bplProof}
                         onChange={(url) => setFormData(prev => ({ ...prev, bplProof: url }))}
@@ -704,56 +717,56 @@ const PlayerRegistrationForm = () => {
             <SectionHeader title="Academy Information" />
             <div className="p-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <SelectField 
-                  label="Select Your Club / Coach" 
-                  name="clubId" 
-                  required 
+                <SelectField
+                  label="Select Your Club / Coach"
+                  name="clubId"
+                  required
                   options={clubs.map(c => ({ label: c.name, value: c.id }))}
                   value={formData.clubId}
                   onChange={handleInputChange}
                 />
-                <InputField 
-                  label="Enter Current Your School Name" 
-                  name="schoolName" 
-                  placeholder="School Name" 
-                  required 
+                <InputField
+                  label="Enter Current Your School Name"
+                  name="schoolName"
+                  placeholder="School Name"
+                  required
                   icon={GraduationCap}
                   value={formData.schoolName}
                   onChange={handleInputChange}
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Grade" 
-                  name="grade" 
-                  placeholder="Enter Grade" 
-                  required 
+                <InputField
+                  label="Enter Your Grade / Class"
+                  name="grade"
+                  placeholder="Enter Grade"
+                  required
                   value={formData.grade}
                   onChange={handleInputChange}
                 />
-                <InputField 
-                  label="Area of Interest" 
-                  name="areaOfInterest" 
-                  placeholder="e.g. Kata, Kumite" 
-                  required 
+                <InputField
+                  label="Area of Interest In"
+                  name="areaOfInterest"
+                  placeholder="e.g. Kata, Kumite"
+                  required
                   value={formData.areaOfInterest}
                   onChange={handleInputChange}
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Area of Study" 
-                  name="areaOfStudy" 
-                  placeholder="e.g. Science" 
-                  required 
+                <InputField
+                  label="Area of Study"
+                  name="areaOfStudy"
+                  placeholder="e.g. Science"
+                  required
                   value={formData.areaOfStudy}
                   onChange={handleInputChange}
                 />
-                <InputField 
-                  label="Prefer Location" 
-                  name="preferLocation" 
-                  placeholder="Enter Prefer Location" 
-                  required 
+                <InputField
+                  label="Prefer Location For Learning"
+                  name="preferLocation"
+                  placeholder="Enter Prefer Location"
+                  required
                   value={formData.preferLocation}
                   onChange={handleInputChange}
                 />
@@ -764,7 +777,7 @@ const PlayerRegistrationForm = () => {
           {/* Error Message */}
           <AnimatePresence>
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
@@ -779,9 +792,9 @@ const PlayerRegistrationForm = () => {
           <div className="p-4 space-y-8">
             <div className="flex items-center gap-3">
               <div className="relative flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  id="agreedToTerms" 
+                <input
+                  type="checkbox"
+                  id="agreedToTerms"
                   name="agreedToTerms"
                   checked={formData.agreedToTerms}
                   onChange={handleInputChange}
@@ -795,8 +808,8 @@ const PlayerRegistrationForm = () => {
                 I agree to the <span className="text-[#FF7400] hover:underline cursor-pointer">Terms and Privacy policy</span>
               </label>
             </div>
-            
-            <Button 
+
+            <Button
               type="submit"
               variant="primary"
               size="lg"
