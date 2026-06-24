@@ -15,7 +15,7 @@ const SectionHeader = ({ title }: { title: string }) => (
   </div>
 );
 
-const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength }: any) => (
+const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength, disabled = false }: any) => (
   <div className="flex flex-col gap-2 w-full">
     <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
       {label} {required && <RequiredSymbol />}
@@ -28,7 +28,8 @@ const InputField = ({ label, name, placeholder, required = false, type = "text",
         value={value}
         onChange={onChange}
         maxLength={maxLength}
-        className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400`}
+        disabled={disabled}
+        className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400 ${disabled ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
       />
       {Icon && (
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -213,6 +214,12 @@ const MemberRegistrationForm = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
   
   const [districts, setDistricts] = useState<{id: string, name: string}[]>([]);
   const [taluks, setTaluks] = useState<{id: string, name: string}[]>([]);
@@ -236,14 +243,21 @@ const MemberRegistrationForm = () => {
     email: '',
     aadhaarNumber: '',
     profilePhoto: '',
-    aadhaarFront: '',
-    aadhaarBack: '',
     agreedToTerms: false
   });
 
   useEffect(() => {
+    const savedData = sessionStorage.getItem('memberRegistrationData');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.formData) setFormData(parsed.formData);
+        if (parsed.otpVerified) setOtpVerified(true);
+      } catch (err) {}
+    }
+
     const fetchData = async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
         const response = await fetch(`${apiUrl}/districts`);
         if (response.ok) setDistricts(await response.json());
@@ -253,6 +267,13 @@ const MemberRegistrationForm = () => {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('memberRegistrationData', JSON.stringify({
+      formData,
+      otpVerified
+    }));
+  }, [formData, otpVerified]);
 
   // Auto-fill City based on Pincode
   useEffect(() => {
@@ -283,7 +304,7 @@ const MemberRegistrationForm = () => {
     setTaluks([]);
     
     if (districtId) {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
         const response = await fetch(`${apiUrl}/districts/${districtId}/taluks`);
         if (response.ok) {
@@ -308,6 +329,66 @@ const MemberRegistrationForm = () => {
       }));
     } else {
       setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '' }));
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (!formData.aadhaarNumber || formData.aadhaarNumber.length !== 12) {
+      setOtpError("Please enter a valid 12-digit Aadhaar Number.");
+      return;
+    }
+    if (!formData.email) {
+      setOtpError("Please enter your Email Address first to receive the OTP.");
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
+      const res = await fetch(`${apiUrl}/auth/send-aadhaar-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aadhaarNumber: formData.aadhaarNumber, email: formData.email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpSent(true);
+        setOtpError(null);
+      } else {
+        setOtpError(data.error || "Failed to send OTP.");
+      }
+    } catch (err) {
+      setOtpError("Failed to connect to server.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpValue || otpValue.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP.");
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
+      const res = await fetch(`${apiUrl}/auth/verify-aadhaar-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aadhaarNumber: formData.aadhaarNumber, otp: otpValue })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpVerified(true);
+        setOtpError(null);
+      } else {
+        setOtpError(data.error || "Failed to verify OTP.");
+      }
+    } catch (err) {
+      setOtpError("Failed to connect to server.");
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -336,6 +417,10 @@ const MemberRegistrationForm = () => {
       setError("Please agree to the Terms and Privacy policy.");
       return;
     }
+    if (!otpVerified) {
+      setError("Please verify your Aadhaar Number before submitting.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -346,7 +431,7 @@ const MemberRegistrationForm = () => {
       : formData.dob;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       const response = await fetch(`${apiUrl}/register/member`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -360,6 +445,7 @@ const MemberRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
+        sessionStorage.removeItem('memberRegistrationData');
       } else {
         setError(result.error || "Something went wrong");
       }
@@ -409,7 +495,7 @@ const MemberRegistrationForm = () => {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto py-10 px-4 md:px-0">
+    <div className="max-w-[1200px] mx-auto py-10 px-4 lg:px-6">
       <form onSubmit={handleSubmit}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -444,9 +530,9 @@ const MemberRegistrationForm = () => {
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden">
             <SectionHeader title="Personal Information" />
             <div className="p-8 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Left Column Fields */}
-                <div className="md:col-span-8 space-y-8">
+                <div className="lg:col-span-8 space-y-8">
                   <InputField 
                     label="Enter your Name" 
                     name="fullName" 
@@ -475,7 +561,7 @@ const MemberRegistrationForm = () => {
                 </div>
 
                 {/* Right Column Photo Upload */}
-                <div className="md:col-span-4 h-full">
+                <div className="lg:col-span-4 h-full">
                   <FileUpload 
                     label="Photo"
                     value={formData.profilePhoto}
@@ -486,7 +572,7 @@ const MemberRegistrationForm = () => {
                 </div>
 
                 {/* Full Width Fields Below */}
-                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
                   <SelectField 
                     label="Blood Group" 
                     name="bloodGroup" 
@@ -518,7 +604,7 @@ const MemberRegistrationForm = () => {
                   />
                 </div>
 
-                <div className="md:col-span-12 space-y-8">
+                <div className="lg:col-span-12 space-y-8">
                   <InputField 
                     label="Address Line 1" 
                     name="addressLine1" 
@@ -536,7 +622,7 @@ const MemberRegistrationForm = () => {
                   />
                 </div>
 
-                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
                   <InputField 
                     label="Pincode" 
                     name="addressPincode" 
@@ -556,7 +642,7 @@ const MemberRegistrationForm = () => {
                   />
                 </div>
 
-                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
                   <InputField 
                     label="Mobile Number" 
                     name="mobileNumber" 
@@ -577,7 +663,7 @@ const MemberRegistrationForm = () => {
                   />
                 </div>
 
-                <div className="md:col-span-12">
+                <div className="lg:col-span-12">
                   <InputField 
                     label="Email ID" 
                     name="email" 
@@ -587,39 +673,69 @@ const MemberRegistrationForm = () => {
                     icon={Mail}
                     value={formData.email}
                     onChange={handleInputChange}
+                    disabled={otpVerified}
                   />
                 </div>
 
-                <div className="md:col-span-12">
-                  <InputField 
-                    label="Aadhar Number" 
-                    name="aadhaarNumber" 
-                    placeholder="Enter Your Aadhar Number" 
-                    required 
-                    maxLength={12}
-                    value={formData.aadhaarNumber}
-                    onChange={handleInputChange}
-                  />
-                </div>
-
-                {/* Aadhar Uploads */}
-                <div className="md:col-span-6">
-                  <FileUpload 
-                    label="Aadhar - Front"
-                    value={formData.aadhaarFront}
-                    onChange={(url) => setFormData(prev => ({ ...prev, aadhaarFront: url }))}
-                    accept="image/*,application/pdf"
-                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
-                  />
-                </div>
-                <div className="md:col-span-6">
-                  <FileUpload 
-                    label="Aadhar - Back"
-                    value={formData.aadhaarBack}
-                    onChange={(url) => setFormData(prev => ({ ...prev, aadhaarBack: url }))}
-                    accept="image/*,application/pdf"
-                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
-                  />
+                <div className="lg:col-span-12">
+                  <div className="flex flex-col gap-2 w-full">
+                    <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                      Aadhar Number <RequiredSymbol />
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        name="aadhaarNumber"
+                        placeholder="12 Digit Aadhar"
+                        maxLength={12}
+                        value={formData.aadhaarNumber}
+                        onChange={handleInputChange}
+                        disabled={otpVerified}
+                        className={`w-full px-4 py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400 ${otpVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
+                      />
+                      {!otpVerified ? (
+                        <Button 
+                          type="button" 
+                          variant="primary" 
+                          onClick={handleSendOtp} 
+                          disabled={otpLoading || formData.aadhaarNumber.length !== 12 || !formData.email}
+                          className="whitespace-nowrap px-6"
+                        >
+                          {otpLoading && !otpSent ? 'Sending...' : otpSent ? 'Resend OTP' : 'Verify'}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center justify-center px-4 bg-green-50 border border-green-200 text-green-600 rounded whitespace-nowrap font-bold text-sm">
+                          <Check size={16} className="mr-1" /> Verified
+                        </div>
+                      )}
+                    </div>
+                    {otpError && <p className="text-red-500 text-xs font-medium">{otpError}</p>}
+                    
+                    {otpSent && !otpVerified && (
+                      <div className="mt-2 p-4 bg-blue-50 border border-blue-100 rounded flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <p className="text-xs text-blue-800 font-medium">An OTP has been sent to your email <strong>{formData.email}</strong>.</p>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Enter 6-digit OTP" 
+                            maxLength={6}
+                            value={otpValue}
+                            onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                            className="w-full px-3 py-2 bg-white border border-blue-200 rounded text-sm focus:outline-none focus:border-blue-500"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="primary" 
+                            onClick={handleVerifyOtp}
+                            disabled={otpLoading || otpValue.length !== 6}
+                            className="whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                          >
+                            {otpLoading ? 'Verifying...' : 'verify'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

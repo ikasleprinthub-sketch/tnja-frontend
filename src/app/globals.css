@@ -18,12 +18,7 @@
   --color-brand-blue: #00a3ff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Dark mode is disabled so the app stays in light mode regardless of system settings */
 
 body {
   background: var(--background);

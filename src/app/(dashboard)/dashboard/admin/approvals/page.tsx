@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye,
@@ -34,7 +35,7 @@ interface Application {
   rawData: any;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 const TYPE_MAP: Record<ApprovalType, string> = {
   CLUB: "club",
@@ -96,8 +97,10 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
   };
 }
 
-export default function ApprovalsPage() {
-  const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
+function ApprovalsContent() {
+  const searchParams = useSearchParams();
+  const initTab = (searchParams?.get("type") as ApprovalType) || "CLUB";
+  const [activeTab, setActiveTab] = useState<ApprovalType>(initTab);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isRequestChangesModalOpen, setIsRequestChangesModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -141,6 +144,19 @@ export default function ApprovalsPage() {
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  const autoOpened = React.useRef(false);
+  useEffect(() => {
+    const id = searchParams?.get("id");
+    if (id && applications.length > 0 && !autoOpened.current) {
+      const item = applications.find((a) => a.id === id);
+      if (item) {
+        setSelectedItem(item);
+        setIsDetailModalOpen(true);
+        autoOpened.current = true;
+      }
+    }
+  }, [applications, searchParams]);
 
   const handleApprove = async (item: Application) => {
     setActionLoading(item.id);
@@ -605,5 +621,13 @@ export default function ApprovalsPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function ApprovalsPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-slate-500 font-bold">Loading...</div>}>
+      <ApprovalsContent />
+    </Suspense>
   );
 }

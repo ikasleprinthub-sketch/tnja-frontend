@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ShieldCheck, MapPin, Calendar, Loader2, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 function roleLabel(role: string): string {
   return role.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -232,7 +232,7 @@ export default function AdminDashboard() {
                     <p className="text-sm font-black text-slate-800 truncate">{item.name}</p>
                     <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{item.type} · {fmtDate(item.createdAt)}</p>
                   </div>
-                  <Link href="/dashboard/admin/approvals"
+                  <Link href={`/dashboard/admin/approvals?type=${item.type === "Player" ? "STUDENT" : item.type.toUpperCase()}&id=${item.id}`}
                     className="shrink-0 px-4 py-2 bg-[#FF7400] text-white text-[10px] font-black rounded-xl shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
                     Review
                   </Link>

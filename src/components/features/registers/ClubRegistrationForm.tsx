@@ -110,7 +110,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
 
   useEffect(() => {
     const fetchDistricts = async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
         const response = await fetch(`${apiUrl}/districts`);
         if (response.ok) setDistricts(await response.json());
@@ -127,7 +127,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
     setTaluks([]);
     
     if (districtId) {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
         const response = await fetch(`${apiUrl}/districts/${districtId}/taluks`);
         if (response.ok) {
@@ -155,7 +155,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
       }));
 
       // Fetch coaches and members for this taluk
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
         const [coachesRes, membersRes] = await Promise.all([
           fetch(`${apiUrl}/coaches?talukId=${talukId}&districtId=${formData.districtId}`),
@@ -225,7 +225,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
     setError(null);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       const endpoint = isResubmit ? `${API_URL}/auth/resubmit` : `${API_URL}/auth/register`;
       const token = isResubmit ? localStorage.getItem("token") : null;
       

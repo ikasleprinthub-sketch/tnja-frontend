@@ -119,7 +119,7 @@ function ScoreboardInner() {
     const token = localStorage.getItem("token");
 
     try {
-      const getRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/tournaments/${tournamentId}/draws`, {
+      const getRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/draws`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!getRes.ok) throw new Error("Failed to fetch draws");
@@ -161,7 +161,7 @@ function ScoreboardInner() {
 
       if (!targetDraw) return;
 
-      const postRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/tournaments/${tournamentId}/draws`, {
+      const postRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/draws`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ ageGroup: targetDraw.ageGroup, gender: targetDraw.gender, weightCategory: targetDraw.weightCategory, rounds: targetDraw.rounds })
@@ -173,7 +173,7 @@ function ScoreboardInner() {
   useEffect(() => {
     if (!tournamentId || !matchId) return;
     const token = localStorage.getItem("token");
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/tournaments/${tournamentId}/draws`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/draws`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.ok ? r.json() : null).then((draws: any[]) => {
         if (!draws || !Array.isArray(draws)) return;
@@ -676,8 +676,8 @@ function ScoreboardInner() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex justify-center items-center font-sans select-none overflow-hidden text-white print:hidden">
-        <div className="w-full max-w-[1400px] h-full max-h-[900px] flex flex-col bg-[#111111] relative border border-white/10 rounded-lg shadow-2xl overflow-hidden my-auto mx-4">
+      <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex justify-center xl:items-center font-sans select-none overflow-y-auto text-white print:hidden">
+        <div className="w-full max-w-[1400px] min-h-[100dvh] xl:min-h-0 xl:h-full xl:max-h-[900px] flex flex-col bg-[#111111] relative border border-white/10 rounded-none xl:rounded-lg shadow-2xl xl:overflow-hidden m-0 xl:my-auto xl:mx-4">
         
         {/* ══ HEADER ════════════════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-8 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
@@ -718,10 +718,10 @@ function ScoreboardInner() {
       )}
 
       {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
-      <div className="flex-1 p-6 flex gap-6 overflow-hidden">
+      <div className="flex-1 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-2 xl:flex xl:flex-row gap-4 lg:gap-6 overflow-y-auto xl:overflow-hidden">
         
         {/* ── PLAYER 1 (WHITE) ──────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.3)] overflow-hidden p-4 relative">
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.3)] overflow-hidden p-4 relative order-2 xl:order-1 col-span-1">
           <div className="flex justify-between items-start mb-4">
             <span className="bg-white text-black text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 1</span>
             <span className="text-3xl">🇮🇳</span>
@@ -788,8 +788,8 @@ function ScoreboardInner() {
         </div>
 
         {/* ── CENTER PANEL ────────────────────────────────────────────────── */}
-        <div className="w-[380px] shrink-0 flex flex-col gap-6">
-          <div className="bg-[#1a1a1a] rounded-2xl flex flex-col items-center justify-center pt-8 pb-4 relative shadow-lg">
+        <div className="w-full xl:w-[380px] shrink-0 flex flex-col lg:flex-row xl:flex-col gap-4 lg:gap-6 order-1 xl:order-2 lg:col-span-2 xl:col-span-1 items-stretch">
+          <div className="bg-[#1a1a1a] rounded-2xl flex flex-col items-center justify-center pt-8 pb-4 relative shadow-lg lg:w-[380px] xl:w-auto shrink-0">
             
             <div className="relative flex flex-col items-center justify-center">
               <svg className="w-[260px] h-[260px]">
@@ -855,7 +855,8 @@ function ScoreboardInner() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4 lg:gap-6 flex-1 min-w-0">
+            <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold tracking-widest text-white">OSAEKOMI TIMER</span>
               {osaActive && (
@@ -916,7 +917,8 @@ function ScoreboardInner() {
                       <span className="text-[9px] text-gray-500 mt-0.5">{l.text}</span>
                     </div>
                   </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -924,7 +926,7 @@ function ScoreboardInner() {
         </div>
 
         {/* ── PLAYER 2 (BLUE) ────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-blue-500 shadow-[0_0_35px_rgba(37,99,235,0.5)] overflow-hidden p-4 relative">
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-blue-500 shadow-[0_0_35px_rgba(37,99,235,0.5)] overflow-hidden p-4 relative order-3 xl:order-3 col-span-1">
           <div className="flex justify-between items-start mb-4">
             <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 2</span>
             <span className="text-3xl">🇮🇳</span>

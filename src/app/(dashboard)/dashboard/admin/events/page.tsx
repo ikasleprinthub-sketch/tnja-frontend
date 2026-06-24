@@ -19,7 +19,7 @@ import {
   User
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 export default function EventsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -35,7 +35,12 @@ export default function EventsPage() {
   const [eventSections, setEventSections] = useState<string[]>([]);
   const [sectionOpen, setSectionOpen] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any | null>(null);
+  const [editSubmitLoading, setEditSubmitLoading] = useState(false);
 
   const EVENT_COLORS = [
     { label: "Black", value: "#000000", gradient: "from-black via-zinc-800 to-zinc-600" },
@@ -185,6 +190,28 @@ export default function EventsPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    const handleScroll = () => {
+      if (isFilterOpen) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true); // true for capture phase to catch all scrolling
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [isFilterOpen]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -211,6 +238,58 @@ export default function EventsPage() {
       showToast(err.message || "Something went wrong", "error");
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleOpenEdit = (event: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingEvent(event);
+    setFormData({
+      title: event.title || "",
+      date: event.date ? new Date(event.date).toISOString().split('T')[0] : "",
+      location: event.location || "",
+      description: event.description || "",
+      level: event.level || "DISTRICT",
+      participantType: event.participantType || "ALL",
+      districtId: event.districtId || "",
+      zoneId: event.zoneId || "",
+      isPaid: event.isPaid || false,
+      entryFee: event.entryFee ? String(event.entryFee) : "",
+      color: event.color || "#FF7400",
+      eventSection: event.eventSection || "",
+      meetingLink: event.meetingLink || "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+    setEditSubmitLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/events/${editingEvent.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(formData),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update event");
+
+      showToast("Event updated successfully!", "success");
+      setIsEditModalOpen(false);
+      setEditingEvent(null);
+      setFormData({
+        title: "", date: "", location: "", description: "", level: "DISTRICT", participantType: "ALL", districtId: "", zoneId: "", isPaid: false, entryFee: "", color: "#FF7400", eventSection: "", meetingLink: ""
+      });
+      fetchEvents();
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setEditSubmitLoading(false);
     }
   };
 
@@ -245,7 +324,7 @@ export default function EventsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-[#FF7400]">Events</h1>
-          <p className="text-slate-500 text-sm mt-1">Create and Monitor events within your jurisdiction</p>
+          <p className="text-slate-500 text-sm mt-1">Create and Monitor Events within your jurisdiction</p>
         </div>
         <div
           className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
@@ -292,7 +371,7 @@ export default function EventsPage() {
             className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 transition-all font-medium text-sm text-slate-700 shadow-sm"
           />
         </div>
-        <div className="relative">
+        <div className="relative" ref={filterRef}>
           <div
             className="p-[1.5px] rounded-[10px] shrink-0 inline-flex shadow-sm"
             style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
@@ -395,6 +474,15 @@ export default function EventsPage() {
                   {event.status === "APPROVED" ? `Approved by ${event.approvedBy || 'Super Admin'}` :
                     event.status === "PENDING" ? "Pending Approval" :
                       "Rejected"}
+                </div>
+                
+                <div className="absolute top-4 right-4 z-20">
+                  <button
+                    onClick={(e) => handleOpenEdit(event, e)}
+                    className="px-4 py-1.5 bg-white/90 backdrop-blur text-[#FF7400] text-xs font-bold rounded-full shadow-sm hover:bg-white transition-all border border-orange-100"
+                  >
+                    Edit Event
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -506,6 +594,7 @@ export default function EventsPage() {
                     <input
                       type="date"
                       required
+                      min={new Date().toISOString().split('T')[0]}
                       value={formData.date}
                       onChange={e => setFormData({ ...formData, date: e.target.value })}
                       className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
@@ -667,6 +756,252 @@ export default function EventsPage() {
                     className="flex-grow py-5 bg-[#FF7400] text-white font-bold rounded-2xl shadow-xl shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2"
                   >
                     {submitLoading ? <Loader2 size={20} className="animate-spin" /> : "Submit for Approval"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Event Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-2xl bg-white rounded-[2.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-start mb-10">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-800 mb-2">Edit Event</h2>
+                  <p className="text-slate-500">Update the details of the event.</p>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                >
+                  <XCircle size={28} />
+                </button>
+              </div>
+
+              <form className="space-y-6" onSubmit={handleUpdate}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  {/* ── Event Section Dropdown ── */}
+                  <div className="md:col-span-2" ref={sectionRef}>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">
+                      Event Section
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSectionOpen(o => !o)}
+                        className="w-full flex items-center justify-between px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl hover:border-[#FF7400] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 focus:border-[#FF7400] transition-all"
+                      >
+                        <span className={`text-sm font-semibold ${formData.eventSection ? "text-slate-800" : "text-slate-400"}`}>
+                          {formData.eventSection || "Select event section"}
+                        </span>
+                        <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${sectionOpen ? "rotate-180" : ""}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {sectionOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute top-full mt-1 left-0 right-0 z-[150] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+                          >
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {eventSections.map((section) => (
+                                <button
+                                  key={section}
+                                  type="button"
+                                  onClick={() => { setFormData(f => ({ ...f, eventSection: section })); setSectionOpen(false); }}
+                                  className={`w-full text-left px-6 py-3 text-sm font-semibold transition-colors ${formData.eventSection === section
+                                    ? "bg-[#FF7400] text-white"
+                                    : "text-slate-700 hover:bg-orange-50 hover:text-[#FF7400]"
+                                    }`}
+                                >
+                                  {section}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+
+                  {formData.eventSection === "Seminar (Online)" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Meeting Link</label>
+                      <input 
+                        type="url" 
+                        required
+                        value={formData.meetingLink}
+                        onChange={e => setFormData({ ...formData, meetingLink: e.target.value })}
+                        placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Event Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.title}
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
+                      placeholder="Enter a descriptive title"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Date</label>
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().split('T')[0]}
+                      value={formData.date}
+                      onChange={e => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Location</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.location}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g. Nehru Stadium"
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all text-slate-800"
+                    />
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Event Level</label>
+                    <select
+                      value={formData.level}
+                      onChange={e => setFormData({ ...formData, level: e.target.value })}
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                    >
+                      <option value="DISTRICT">District Level</option>
+                      <option value="ZONE">Zone Level</option>
+                      <option value="STATE">State Level</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Target Audience</label>
+                    <select
+                      value={formData.participantType}
+                      onChange={e => setFormData({ ...formData, participantType: e.target.value })}
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                    >
+                      <option value="ALL">Everyone</option>
+                      <option value="STUDENT">Players Only</option>
+                      <option value="COACH">Coaches/Referees Only</option>
+                      <option value="MEMBER">Members Only</option>
+                      <option value="CLUB">Clubs Only</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Entry Type</label>
+                    <select
+                      value={formData.isPaid ? "paid" : "free"}
+                      onChange={e => setFormData({ ...formData, isPaid: e.target.value === "paid", entryFee: e.target.value === "free" ? "" : formData.entryFee })}
+                      className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                    >
+                      <option value="free">Free</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </div>
+
+                  {formData.isPaid && (
+                    <div className="md:col-span-1">
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={formData.entryFee}
+                        onChange={e => setFormData({ ...formData, entryFee: e.target.value })}
+                        placeholder="Enter amount in ₹"
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                      />
+                    </div>
+                  )}
+
+                  {formData.level === "DISTRICT" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Select District</label>
+                      <select
+                        required
+                        value={formData.districtId}
+                        onChange={e => setFormData({ ...formData, districtId: e.target.value })}
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                      >
+                        <option value="">Select District</option>
+                        {getFilteredDistrictsForCreation().map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.level === "ZONE" && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Select Zone</label>
+                      <select
+                        required
+                        value={formData.zoneId}
+                        onChange={e => setFormData({ ...formData, zoneId: e.target.value })}
+                        className="w-full px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all font-semibold text-slate-800"
+                      >
+                        <option value="">Select Zone</option>
+                        {getFilteredZonesForCreation().map(z => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Description</label>
+                    <textarea
+                      required
+                      value={formData.description}
+                      onChange={e => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Detailed description of the event..."
+                      className="w-full h-32 px-6 py-4 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 focus:border-[#FF7400] transition-all resize-none text-slate-800"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-grow py-5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitLoading}
+                    className="flex-grow py-5 bg-[#FF7400] text-white font-bold rounded-2xl shadow-xl shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {editSubmitLoading ? <Loader2 size={20} className="animate-spin" /> : "Save Changes"}
                   </button>
                 </div>
               </form>

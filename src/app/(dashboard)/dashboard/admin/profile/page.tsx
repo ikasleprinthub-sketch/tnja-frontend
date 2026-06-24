@@ -38,7 +38,7 @@ export default function AdminProfilePage() {
   const [saving, setSaving] = useState(false);
   const [userRole, setUserRole] = useState("");
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
   useEffect(() => {
     setUserRole(localStorage.getItem("userRole") || "");

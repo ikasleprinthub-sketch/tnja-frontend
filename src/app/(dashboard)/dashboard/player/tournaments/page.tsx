@@ -23,7 +23,7 @@ import {
   Medal,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 type Tab = "club" | "district" | "zonal" | "stateNational";
 
@@ -612,7 +612,6 @@ export default function PlayerTournamentsPage() {
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
         <AlertCircle size={18} className="shrink-0 mt-0.5" />
         <span>
-          After payment, your registration is sent for approval. You will be notified once approved.{" "}
           District matches are shown based on your registered district.
         </span>
       </div>

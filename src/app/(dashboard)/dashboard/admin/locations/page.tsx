@@ -13,7 +13,7 @@ import {
   Loader2
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 export default function LocationsPage() {
   const [searchTerm, setSearchTerm] = useState("");

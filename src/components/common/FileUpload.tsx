@@ -42,7 +42,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       const formData = new FormData();
       formData.append("file", file);
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
       const res = await fetch(`${API_URL}/upload`, {
         method: "POST",
         body: formData,
