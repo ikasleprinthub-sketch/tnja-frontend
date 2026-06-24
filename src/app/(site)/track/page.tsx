@@ -16,7 +16,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 
-type Status = "PENDING" | "APPROVED" | "REJECTED";
+type Status = "PENDING" | "APPROVED" | "REJECTED" | "REPLAY";
 
 interface TrackResult {
   fullName: string;
@@ -57,6 +57,14 @@ const statusConfig: Record<
     icon: <XCircle size={22} className="text-red-500" />,
     desc: "Your application was not approved. Please contact the association for more details.",
   },
+  REPLAY: {
+    label: "Changes Requested",
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+    border: "border-purple-200",
+    icon: <Clock size={22} className="text-purple-500" />,
+    desc: "The admin has requested changes to your application. Please login to review the remarks and resubmit.",
+  },
 };
 
 const steps = [
@@ -67,7 +75,7 @@ const steps = [
 
 function getStepState(status: Status, stepKey: string) {
   if (stepKey === "submitted") return "done";
-  if (stepKey === "review") return status === "PENDING" ? "active" : "done";
+  if (stepKey === "review") return (status === "PENDING" || status === "REPLAY") ? "active" : "done";
   if (stepKey === "decision") {
     if (status === "APPROVED") return "approved";
     if (status === "REJECTED") return "rejected";
@@ -350,7 +358,7 @@ export default function TrackPage() {
                 })}
               </div>
 
-              {result.status === "APPROVED" && (
+              {(result.status === "APPROVED" || result.status === "REPLAY") && (
                 <Link
                   href="/login"
                   style={{ backgroundColor: "#FF7400" }}

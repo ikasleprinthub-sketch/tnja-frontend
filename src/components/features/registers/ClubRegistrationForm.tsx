@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from '@/components/common/Button';
 import { Search, Upload, Check, Asterisk } from 'lucide-react';
 import { ClubRegistrationData } from '@/types/registration';
+import FileUpload from '@/components/common/FileUpload';
 
 const RequiredSymbol = () => <Asterisk size={10} className="text-red-500 stroke-[4px]" />;
 
@@ -70,7 +71,7 @@ const SelectField = ({ label, name, options, required = false, value, onChange }
   </div>
 );
 
-const ClubRegistrationForm = () => {
+const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { initialData?: any, isResubmit?: boolean }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +103,9 @@ const ClubRegistrationForm = () => {
     age12to18Female: '',
     age16AboveMale: '',
     age16AboveFemale: '',
-    agreedToTerms: false
+    agreedToTerms: false,
+    profilePhoto: '',
+    ...initialData
   });
 
   useEffect(() => {
@@ -222,11 +225,21 @@ const ClubRegistrationForm = () => {
     setError(null);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      const response = await fetch(`${apiUrl}/register/club`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const endpoint = isResubmit ? `${API_URL}/auth/resubmit` : `${API_URL}/auth/register`;
+      const token = isResubmit ? localStorage.getItem("token") : null;
+      
+      const headers: any = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(endpoint, {
+        method: isResubmit ? "PUT" : "POST",
+        headers,
+        body: JSON.stringify({ role: "CLUB", ...formData }),
       });
 
       const result = await response.json();
@@ -254,7 +267,7 @@ const ClubRegistrationForm = () => {
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <Check className="text-green-600" size={40} />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">Registration Submitted!</h2>
+        <h2 className="text-3xl font-bold text-gray-900 mb-4">{isResubmit ? "Resubmission Successful!" : "Registration Submitted!"}</h2>
         <p className="text-gray-600 mb-8">Your club application has been submitted and is currently <strong>awaiting admin approval</strong>.</p>
         
         <div className="bg-[#F8F9FA] p-6 rounded-lg mb-8 border border-[#E9ECEF]">
@@ -381,17 +394,13 @@ const ClubRegistrationForm = () => {
 
               {/* Logo Upload */}
               <div className="w-full lg:w-72 flex flex-col gap-3">
-                <label className="text-xs font-bold text-gray-800">
-                  Upload Club Logo <span className="text-red-500">*</span>
-                </label>
-                <div className="aspect-square border-2 border-dashed border-[#DEE2E6] rounded flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-[#FF7400] hover:bg-orange-50/30 transition-all group bg-[#F8F9FA]">
-                  <div className="w-12 h-12 rounded-full bg-white border border-[#DEE2E6] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-sm">
-                    <Upload size={20} className="text-gray-400 group-hover:text-[#FF7400]" />
-                  </div>
-                  <p className="text-[13px] text-gray-600 font-semibold mb-1">Drag & Drop</p>
-                  <p className="text-[11px] text-gray-400 uppercase tracking-tight">or Click</p>
-                  <p className="text-[10px] text-gray-400 mt-3 font-medium">7 x 7 inch</p>
-                </div>
+                <FileUpload 
+                  label="Upload Club Logo *"
+                  value={(formData as any).profilePhoto}
+                  onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
+                  accept="image/*"
+                  helperText="Drag & Drop or Click (7 x 7 inch)"
+                />
               </div>
             </div>
           </section>
@@ -580,7 +589,7 @@ const ClubRegistrationForm = () => {
               className="w-44 shadow-lg"
               disabled={loading}
             >
-              {loading ? "Submitting..." : "Submit"}
+              {loading ? (isResubmit ? "Submitting..." : "Submitting...") : (isResubmit ? "Resubmit Application" : "Submit")}
             </Button>
           </div>
         </motion.div>

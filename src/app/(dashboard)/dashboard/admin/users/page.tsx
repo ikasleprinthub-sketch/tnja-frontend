@@ -373,22 +373,22 @@ export default function UserManagementPage() {
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800">User Management</h1>
           <p className="text-slate-500 text-sm mt-1">Manage passwords, IDs and roles for all registered users.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#FF7400] text-white rounded-xl font-semibold hover:bg-blue-700 transition-all text-sm shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-[#FF7400] text-white rounded-xl font-semibold hover:bg-orange-600 transition-all text-sm shadow-sm"
           >
             <Plus size={16} />
             Create New
           </button>
           <button
             onClick={fetchUsers}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-all text-sm shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-all text-sm shadow-sm"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             Refresh

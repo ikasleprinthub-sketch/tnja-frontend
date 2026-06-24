@@ -55,6 +55,7 @@ export interface ClubRegistrationData {
   age16AboveMale: string;
   age16AboveFemale: string;
   agreedToTerms: boolean;
+  profilePhoto?: string;
 }
 
 export interface CoachRegistrationData {

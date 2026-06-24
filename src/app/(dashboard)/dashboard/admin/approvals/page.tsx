@@ -99,6 +99,7 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
 export default function ApprovalsPage() {
   const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isRequestChangesModalOpen, setIsRequestChangesModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Application | null>(null);
   const [remark, setRemark] = useState("");
@@ -187,6 +188,39 @@ export default function ApprovalsPage() {
       if (!res.ok) throw new Error(json.error || "Rejection failed");
       showToast(`${selectedItem.name} rejected.`, "success");
       setIsRejectModalOpen(false);
+      fetchApplications();
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRequestChangesModal = (item: Application) => {
+    setSelectedItem(item);
+    setRemark("");
+    setIsRequestChangesModalOpen(true);
+  };
+
+  const handleRequestChanges = async () => {
+    if (!remark.trim()) return showToast("Please enter the required changes", "error");
+    if (!selectedItem) return;
+    setActionLoading(selectedItem.id);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/admin/request-changes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          id: selectedItem.id,
+          type: TYPE_MAP[activeTab],
+          remark,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to request changes");
+      showToast(`${selectedItem.name} asked for changes.`, "success");
+      setIsRequestChangesModalOpen(false);
       fetchApplications();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -353,6 +387,13 @@ export default function ApprovalsPage() {
                               {actionLoading === item.id ? <Loader2 size={13} className="animate-spin" /> : null}
                               Approve
                             </button>
+                            <button 
+                              onClick={() => openRequestChangesModal(item)}
+                              disabled={actionLoading === item.id}
+                              className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 shrink-0"
+                            >
+                              Request Changes
+                            </button>
                             <div 
                               className={`p-[1px] rounded-lg shrink-0 inline-flex ${actionLoading === item.id ? 'opacity-50' : ''}`}
                               style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
@@ -507,6 +548,56 @@ export default function ApprovalsPage() {
                 >
                   {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <X size={18} />}
                   Deny & Notify
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Request Changes Modal */}
+      <AnimatePresence>
+        {isRequestChangesModalOpen && selectedItem && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-lg bg-white rounded-3xl p-8 shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+                  <RefreshCw size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">Request Changes</h3>
+                  <p className="text-slate-500 text-sm">
+                    Ask <strong>{selectedItem.name}</strong> to modify their application
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                placeholder="Detail what needs to be changed..."
+                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all resize-none mb-6 text-sm"
+              />
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setIsRequestChangesModalOpen(false)}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRequestChanges}
+                  disabled={!!actionLoading}
+                  className="flex-1 py-4 bg-amber-500 text-white font-bold rounded-2xl shadow-lg hover:bg-amber-600 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                  Send Request
                 </button>
               </div>
             </motion.div>

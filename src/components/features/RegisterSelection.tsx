@@ -71,7 +71,7 @@ const RegisterSelection = () => {
           ))}
           
           {/* Second Row - Centered */}
-          <div className="md:col-start-1 flex justify-center">
+          <div className="md:col-start-2 flex justify-center">
             <motion.a
               href={registrationRoles[3].href}
               initial={{ opacity: 0, y: 20 }}

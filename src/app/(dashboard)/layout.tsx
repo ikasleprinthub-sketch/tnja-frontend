@@ -34,6 +34,7 @@ export default function DashboardLayout({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("User");
+  const [userStatus, setUserStatus] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -97,6 +98,7 @@ export default function DashboardLayout({
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("userRole");
     const name = localStorage.getItem("userName");
+    const status = localStorage.getItem("userStatus");
 
     if (!token) {
       startTransition(() => router.push("/login"));
@@ -105,6 +107,7 @@ export default function DashboardLayout({
 
     if (role) setUserRole(role);
     if (name) setUserName(name);
+    if (status) setUserStatus(status);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -260,6 +263,12 @@ export default function DashboardLayout({
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ];
 
+  const replayNavItems = [
+    { name: "Resubmit Application", href: "/dashboard/resubmit", icon: FileCheck2 },
+  ];
+
+  const currentNavItems = userStatus === "REPLAY" ? replayNavItems : navItems;
+
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
       {/* Global Toast */}
@@ -276,11 +285,20 @@ export default function DashboardLayout({
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Mobile Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${
-          isSidebarOpen ? "w-64" : "w-[72px]"
-        } transition-all duration-300 bg-white border-r border-slate-200 flex flex-col z-50 shadow-sm`}
+        className={`
+          fixed md:relative z-50 h-screen transition-all duration-300 bg-white border-r border-slate-200 flex flex-col shadow-sm
+          ${isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full md:translate-x-0 w-64 md:w-[72px]"}
+        `}
       >
         {/* Logo Header */}
         <div className={`flex items-center border-b border-slate-100 ${isSidebarOpen ? "px-4 py-4 gap-3" : "px-0 py-4 justify-center"}`}>
@@ -338,7 +356,7 @@ export default function DashboardLayout({
             <p className="text-sm font-bold text-slate-800 px-2 pb-3">Dashboard</p>
           )}
           <div className="space-y-1">
-            {navItems
+            {currentNavItems
               .map((item) => {
               const hasChildren = !!(item as any).children?.length;
               const children = (item as any).children as { name: string; href: string }[] | undefined;
@@ -460,16 +478,24 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <div className="flex-grow flex flex-col h-screen overflow-hidden">
+      <div className="flex-grow flex flex-col h-screen overflow-hidden min-w-0">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-40">
-          <h2 className="text-xl font-semibold text-slate-800">
-            {navItems.find(i => i.href === pathname)?.name || "Dashboard"}
-          </h2>
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-500 shrink-0"
+            >
+              <Menu size={20} />
+            </button>
+            <h2 className="text-lg md:text-xl font-semibold text-slate-800 truncate">
+              {currentNavItems.find(i => i.href === pathname)?.name || "Dashboard"}
+            </h2>
+          </div>
           
           <div className="flex items-center space-x-6">
             <div className="relative">
-              <button 
+              {/* <button 
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
                 className="p-2 text-slate-400 hover:text-[#FF7400] relative focus:outline-none transition-colors"
               >
@@ -529,18 +555,18 @@ export default function DashboardLayout({
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence>
+              </AnimatePresence> */}
             </div>
-            <div className="relative border-l pl-6 border-slate-200">
+            <div className="relative border-l pl-4 md:pl-6 border-slate-200 shrink-0">
               <button 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center space-x-3 focus:outline-none hover:opacity-85 transition-opacity"
+                className="flex items-center space-x-2 md:space-x-3 focus:outline-none hover:opacity-85 transition-opacity"
               >
-                <div className="text-right hidden sm:block text-left">
+                <div className="hidden sm:block text-right">
                   <p className="text-sm font-bold text-slate-800">{userName}</p>
                   <p className="text-xs text-slate-400 capitalize">{userRole?.replace("_", " ").toLowerCase()}</p>
                 </div>
-                <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center text-[#FF7400] font-bold border-2 border-white shadow-sm">
+                <div className="w-9 h-9 md:w-10 md:h-10 bg-orange-50 rounded-full flex items-center justify-center text-[#FF7400] font-bold border-2 border-white shadow-sm shrink-0">
                   {userName.charAt(0)}
                 </div>
               </button>
