@@ -19,12 +19,15 @@ export interface PlayerRegistrationData {
   nationality: string;
   annualIncome: number | string;
   isBPL: boolean;
+  institutionType: string;
+  degreeDepartment: string;
   schoolName: string;
   grade: string;
   areaOfInterest: string;
   areaOfStudy: string;
   preferLocation: string;
   clubId?: string;
+  coachId?: string;
   profilePhoto?: string;
   incomeProof?: string;
   bplProof?: string;
@@ -77,9 +80,12 @@ export interface CoachRegistrationData {
   presentGradeInJudo: string;
   coachName?: string;
   refereeName?: string;
-  deptName: string;
-  contactPersonDept: string;
-  addressDept: string;
+  deptName?: string;
+  contactPersonDept?: string;
+  addressDept?: string;
+  employmentType?: string;
+  companyName?: string;
+  designation?: string;
   clubId?: string;
   profilePhoto?: string;
   agreedToTerms: boolean;
@@ -103,6 +109,9 @@ export interface MemberRegistrationData {
   alternateMobileNumber: string;
   email: string;
   aadhaarNumber: string;
+  employmentType?: string;
+  companyName?: string;
+  designation?: string;
   profilePhoto?: string;
   agreedToTerms: boolean;
 }

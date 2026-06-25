@@ -242,6 +242,9 @@ const MemberRegistrationForm = () => {
     alternateMobileNumber: '',
     email: '',
     aadhaarNumber: '',
+    employmentType: '',
+    companyName: '',
+    designation: '',
     profilePhoto: '',
     agreedToTerms: false
   });
@@ -738,6 +741,81 @@ const MemberRegistrationForm = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* Professional Information */}
+          <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden">
+            <SectionHeader title="Professional Information (Optional)" />
+            <div className="p-8 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <SelectField 
+                  label="Sector" 
+                  name="employmentType" 
+                  options={[
+                    { label: "Government", value: "GOVERNMENT" },
+                    { label: "Private", value: "PRIVATE" },
+                    { label: "Self Employment", value: "SELF_EMPLOYED" }
+                  ]}
+                  value={formData.employmentType}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              {formData.employmentType === 'GOVERNMENT' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Department Name" 
+                    name="companyName" 
+                    placeholder="Enter Department Name" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Designation" 
+                    name="designation" 
+                    placeholder="Enter Designation" 
+                    required 
+                    value={formData.designation}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+
+              {formData.employmentType === 'PRIVATE' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Company Name" 
+                    name="companyName" 
+                    placeholder="Enter Company Name" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Designation" 
+                    name="designation" 
+                    placeholder="Enter Designation" 
+                    required 
+                    value={formData.designation}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+
+              {formData.employmentType === 'SELF_EMPLOYED' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Nature of Business" 
+                    name="companyName" 
+                    placeholder="Enter Nature of Business" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
             </div>
           </section>
 

@@ -198,7 +198,9 @@ const PlayerRegistrationForm = () => {
 
   const [districts, setDistricts] = useState<{ id: string, name: string }[]>([]);
   const [taluks, setTaluks] = useState<{ id: string, name: string }[]>([]);
-  const [clubs, setClubs] = useState<{ id: string, name: string }[]>([]);
+  const [clubs, setClubs] = useState<{ id: string, name: string, email: string, mobileNumber: string }[]>([]);
+  const [coaches, setCoaches] = useState<{ id: string, fullName: string, email: string, mobileNumber: string }[]>([]);
+  const [academyType, setAcademyType] = useState<"CLUB" | "COACH" | "NONE">("NONE");
 
   const [formData, setFormData] = useState<PlayerRegistrationData>({
     districtId: '',
@@ -221,7 +223,10 @@ const PlayerRegistrationForm = () => {
     nationality: 'Indian',
     annualIncome: '',
     isBPL: false,
+    institutionType: 'SCHOOL',
+    degreeDepartment: '',
     clubId: '',
+    coachId: '',
     schoolName: '',
     grade: '',
     areaOfInterest: '',
@@ -246,12 +251,14 @@ const PlayerRegistrationForm = () => {
     const fetchData = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
-        const [distRes, clubRes] = await Promise.all([
+        const [distRes, clubRes, coachRes] = await Promise.all([
           fetch(`${apiUrl}/districts`),
-          fetch(`${apiUrl}/clubs`)
+          fetch(`${apiUrl}/clubs`),
+          fetch(`${apiUrl}/coaches`)
         ]);
         if (distRes.ok) setDistricts(await distRes.json());
         if (clubRes.ok) setClubs(await clubRes.json());
+        if (coachRes.ok) setCoaches(await coachRes.json());
       } catch (err) {
         console.error("Failed to fetch initial data:", err);
       }
@@ -844,65 +851,140 @@ const PlayerRegistrationForm = () => {
             </div>
           </section>
 
-          {/* Academy Information */}
+          {/* Educational Information */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Academy Information" />
+            <SectionHeader title="Educational Information" />
             <div className="p-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <SelectField
-                  label="Select Your Club / Coach"
-                  name="clubId"
+                  label="Institution Type"
+                  name="institutionType"
                   required
-                  options={clubs.map(c => ({ label: c.name, value: c.id }))}
-                  value={formData.clubId}
+                  options={[
+                    { label: "School", value: "SCHOOL" },
+                    { label: "College", value: "COLLEGE" }
+                  ]}
+                  value={formData.institutionType}
                   onChange={handleInputChange}
                 />
                 <InputField
-                  label="Enter Current Your School Name"
+                  label={formData.institutionType === "COLLEGE" ? "College Name" : "School Name"}
                   name="schoolName"
-                  placeholder="School Name"
+                  placeholder={formData.institutionType === "COLLEGE" ? "Enter College Name" : "Enter School Name"}
                   required
                   icon={GraduationCap}
                   value={formData.schoolName}
                   onChange={handleInputChange}
                 />
               </div>
-              {/*<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField
-                  label="Enter Your Grade / Class"
-                  name="grade"
-                  placeholder="Enter Grade"
-                  required
-                  value={formData.grade}
-                  onChange={handleInputChange}
-                />
-                 <InputField
-                  label="Area of Interest In"
-                  name="areaOfInterest"
-                  placeholder="e.g. Kata, Kumite"
-                  required
-                  value={formData.areaOfInterest}
-                  onChange={handleInputChange}
-                />
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField
-                  label="Area of Study"
-                  name="areaOfStudy"
-                  placeholder="e.g. Science"
-                  required
-                  value={formData.areaOfStudy}
-                  onChange={handleInputChange}
-                />
-                <InputField
-                  label="Prefer Location For Learning"
-                  name="preferLocation"
-                  placeholder="Enter Prefer Location"
-                  required
-                  value={formData.preferLocation}
-                  onChange={handleInputChange}
-                />
-              </div> */}
+                {formData.institutionType === "SCHOOL" ? (
+                  <SelectField
+                    label="Standard"
+                    name="grade"
+                    required
+                    options={[
+                      { label: "1st Standard", value: "1st Standard" },
+                      { label: "2nd Standard", value: "2nd Standard" },
+                      { label: "3rd Standard", value: "3rd Standard" },
+                      { label: "4th Standard", value: "4th Standard" },
+                      { label: "5th Standard", value: "5th Standard" },
+                      { label: "6th Standard", value: "6th Standard" },
+                      { label: "7th Standard", value: "7th Standard" },
+                      { label: "8th Standard", value: "8th Standard" },
+                      { label: "9th Standard", value: "9th Standard" },
+                      { label: "10th Standard", value: "10th Standard" },
+                      { label: "11th Standard", value: "11th Standard" },
+                      { label: "12th Standard", value: "12th Standard" }
+                    ]}
+                    value={formData.grade}
+                    onChange={handleInputChange}
+                  />
+                ) : (
+                  <>
+                    <SelectField
+                      label="Year"
+                      name="grade"
+                      required
+                      options={[
+                        { label: "1st Year", value: "1st Year" },
+                        { label: "2nd Year", value: "2nd Year" },
+                        { label: "3rd Year", value: "3rd Year" },
+                        { label: "4th Year", value: "4th Year" },
+                        { label: "5th Year", value: "5th Year" }
+                      ]}
+                      value={formData.grade}
+                      onChange={handleInputChange}
+                    />
+                    <InputField
+                      label="Degree Department"
+                      name="degreeDepartment"
+                      placeholder="e.g., B.Sc Computer Science"
+                      value={formData.degreeDepartment}
+                      onChange={handleInputChange}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Academy Information */}
+          <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
+            <SectionHeader title="Academy Information" />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="flex flex-col gap-4">
+                <label className="text-xs font-bold text-gray-800">Register under (Optional)</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    <input type="radio" name="academyType" value="NONE" checked={academyType === "NONE"} onChange={(e) => { setAcademyType("NONE"); setFormData(prev => ({...prev, clubId: '', coachId: ''})); }} className="accent-[#FF7400]" /> None
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    <input type="radio" name="academyType" value="CLUB" checked={academyType === "CLUB"} onChange={(e) => { setAcademyType("CLUB"); setFormData(prev => ({...prev, coachId: ''})); }} className="accent-[#FF7400]" /> Club
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    <input type="radio" name="academyType" value="COACH" checked={academyType === "COACH"} onChange={(e) => { setAcademyType("COACH"); setFormData(prev => ({...prev, clubId: ''})); }} className="accent-[#FF7400]" /> Coach
+                  </label>
+                </div>
+              </div>
+
+              {academyType === "CLUB" && (
+                <div className="space-y-4">
+                  <SelectField
+                    label="Select Your Club"
+                    name="clubId"
+                    options={clubs.map(c => ({ label: c.name, value: c.id }))}
+                    value={formData.clubId}
+                    onChange={handleInputChange}
+                  />
+                  {formData.clubId && clubs.find(c => c.id === formData.clubId) && (
+                    <div className="p-4 bg-orange-50 border border-orange-100 rounded text-sm text-gray-700 flex flex-col gap-2">
+                      <p><strong>Club Contact:</strong></p>
+                      <p className="flex items-center gap-2"><Mail size={16} /> {clubs.find(c => c.id === formData.clubId)?.email}</p>
+                      <p className="flex items-center gap-2"><Smartphone size={16} /> {clubs.find(c => c.id === formData.clubId)?.mobileNumber}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {academyType === "COACH" && (
+                <div className="space-y-4">
+                  <SelectField
+                    label="Select Your Coach"
+                    name="coachId"
+                    options={coaches.map(c => ({ label: c.fullName, value: c.id }))}
+                    value={formData.coachId}
+                    onChange={handleInputChange}
+                  />
+                  {formData.coachId && coaches.find(c => c.id === formData.coachId) && (
+                    <div className="p-4 bg-orange-50 border border-orange-100 rounded text-sm text-gray-700 flex flex-col gap-2">
+                      <p><strong>Coach Contact:</strong></p>
+                      <p className="flex items-center gap-2"><Mail size={16} /> {coaches.find(c => c.id === formData.coachId)?.email}</p>
+                      <p className="flex items-center gap-2"><Smartphone size={16} /> {coaches.find(c => c.id === formData.coachId)?.mobileNumber}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 

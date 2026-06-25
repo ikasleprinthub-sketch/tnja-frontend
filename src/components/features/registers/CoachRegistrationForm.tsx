@@ -223,6 +223,9 @@ const CoachRegistrationForm = () => {
     deptName: '',
     contactPersonDept: '',
     addressDept: '',
+    employmentType: '',
+    companyName: '',
+    designation: '',
     clubId: '',
     profilePhoto: '',
     agreedToTerms: false
@@ -708,20 +711,20 @@ const CoachRegistrationForm = () => {
 
           {/* History Section */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Previous History in JUDO / Any Other Martial Arts" />
+            <SectionHeader title="Highest Achivement in Judo /any other sport" />
             <div className="p-8 pt-2 space-y-8">
               <InputField 
-                label="Previous History in JUDO" 
+                label="Highest Achivement in Judo" 
                 name="historyInJudo" 
-                placeholder="Enter your history in Judo" 
+                placeholder="Enter your Achivement in Judo" 
                 required 
                 value={formData.historyInJudo}
                 onChange={handleInputChange}
               />
               <InputField 
-                label="Previous History in Any Other Martial Arts" 
+                label="Highest Achivement in Any Other Martial Art" 
                 name="historyInOtherMartial" 
-                placeholder="Enter your history in other martial arts" 
+                placeholder="Enter your Achivement in other martial arts" 
                 required 
                 value={formData.historyInOtherMartial}
                 onChange={handleInputChange}
@@ -759,34 +762,82 @@ const CoachRegistrationForm = () => {
                   onChange={handleInputChange}
                 />
               </div>
-              {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField 
-                  label="Enter Name of Dept" 
-                  name="deptName" 
-                  placeholder="Department Name" 
-                  required 
-                  icon={Briefcase}
-                  value={formData.deptName}
-                  onChange={handleInputChange}
-                />
-                <InputField 
-                  label="Enter your contact person in the department" 
-                  name="contactPersonDept" 
-                  placeholder="Contact Person Name" 
-                  required 
-                  value={formData.contactPersonDept}
+
+            </div>
+          </section>
+
+          {/* Professional Information */}
+          <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
+            <SectionHeader title="Professional Information (Optional)" />
+            <div className="p-8 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <SelectField 
+                  label="Sector" 
+                  name="employmentType" 
+                  options={[
+                    { label: "Government", value: "GOVERNMENT" },
+                    { label: "Private", value: "PRIVATE" },
+                    { label: "Self Employment", value: "SELF_EMPLOYED" }
+                  ]}
+                  value={formData.employmentType}
                   onChange={handleInputChange}
                 />
               </div>
-              <InputField 
-                label="Enter Address of Department" 
-                name="addressDept" 
-                placeholder="Full Address" 
-                required 
-                icon={MapPin}
-                value={formData.addressDept}
-                onChange={handleInputChange}
-              /> */}
+
+              {formData.employmentType === 'GOVERNMENT' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Department Name" 
+                    name="companyName" 
+                    placeholder="Enter Department Name" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Designation" 
+                    name="designation" 
+                    placeholder="Enter Designation" 
+                    required 
+                    value={formData.designation}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+
+              {formData.employmentType === 'PRIVATE' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Company Name" 
+                    name="companyName" 
+                    placeholder="Enter Company Name" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                  <InputField 
+                    label="Designation" 
+                    name="designation" 
+                    placeholder="Enter Designation" 
+                    required 
+                    value={formData.designation}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+
+              {formData.employmentType === 'SELF_EMPLOYED' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <InputField 
+                    label="Nature of Business" 
+                    name="companyName" 
+                    placeholder="Enter Nature of Business" 
+                    required 
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
