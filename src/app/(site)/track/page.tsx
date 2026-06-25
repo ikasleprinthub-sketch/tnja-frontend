@@ -107,7 +107,7 @@ function TrackPageContent() {
   const [resubmitSuccess, setResubmitSuccess] = useState(false);
   const [resubmitError, setResubmitError] = useState<string | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
   useEffect(() => {
     if (result) {
@@ -229,7 +229,7 @@ function TrackPageContent() {
           password: password.trim(),
         }),
       });
-      
+
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         if (!res.ok) {
@@ -471,17 +471,16 @@ function TrackPageContent() {
                     <React.Fragment key={step.key}>
                       <div className="flex flex-col items-center gap-1.5">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                            isRejected
+                          className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${isRejected
                               ? "bg-red-500 border-red-500"
                               : isApproved
-                              ? "bg-emerald-500 border-emerald-500"
-                              : isDone
-                              ? "border-[#FF7400]"
-                              : isActive
-                              ? "border-amber-400 bg-amber-50"
-                              : "border-slate-200 bg-white"
-                          }`}
+                                ? "bg-emerald-500 border-emerald-500"
+                                : isDone
+                                  ? "border-[#FF7400]"
+                                  : isActive
+                                    ? "border-amber-400 bg-amber-50"
+                                    : "border-slate-200 bg-white"
+                            }`}
                           style={
                             isDone && !isApproved && !isRejected
                               ? { backgroundColor: "#FF7400" }
@@ -504,11 +503,10 @@ function TrackPageContent() {
                       </div>
                       {idx < steps.length - 1 && (
                         <div
-                          className={`flex-grow h-0.5 mx-2 mb-4 rounded-full ${
-                            getStepState(result.status as Status, steps[idx + 1].key) !== "pending"
+                          className={`flex-grow h-0.5 mx-2 mb-4 rounded-full ${getStepState(result.status as Status, steps[idx + 1].key) !== "pending"
                               ? "bg-[#FF7400]"
                               : "bg-slate-200"
-                          }`}
+                            }`}
                         />
                       )}
                     </React.Fragment>
@@ -555,71 +553,71 @@ function TrackPageContent() {
                           "draws"
                         ].includes(key))
                         .map((key) => {
-                        const val = formData[key] || "";
-                        const isUploadField =
-                          ["proof", "photo", "certificate", "document", "front", "back", "file", "upload"].some((k) =>
-                            key.toLowerCase().includes(k)
-                          ) ||
-                          (typeof val === "string" && (val.startsWith("http") || val.includes("/uploads/")));
-                        const isBoolean = typeof val === "boolean";
-                        
-                        // Human-readable labels
-                        const label = key
-                          .replace(/([A-Z])/g, " $1")
-                          .replace(/^./, (str) => str.toUpperCase())
-                          .replace("Dob", "Date of Birth")
-                          .replace("Aadhaar", "Aadhaar")
-                          .replace("Bpl", "BPL")
-                          .trim();
+                          const val = formData[key] || "";
+                          const isUploadField =
+                            ["proof", "photo", "certificate", "document", "front", "back", "file", "upload"].some((k) =>
+                              key.toLowerCase().includes(k)
+                            ) ||
+                            (typeof val === "string" && (val.startsWith("http") || val.includes("/uploads/")));
+                          const isBoolean = typeof val === "boolean";
 
-                        if (isUploadField) {
+                          // Human-readable labels
+                          const label = key
+                            .replace(/([A-Z])/g, " $1")
+                            .replace(/^./, (str) => str.toUpperCase())
+                            .replace("Dob", "Date of Birth")
+                            .replace("Aadhaar", "Aadhaar")
+                            .replace("Bpl", "BPL")
+                            .trim();
+
+                          if (isUploadField) {
+                            return (
+                              <div key={key} className="sm:col-span-2">
+                                <FileUpload
+                                  label={label}
+                                  value={val}
+                                  onChange={(url) => handleInputChange(key, url)}
+                                />
+                              </div>
+                            );
+                          }
+
+                          if (isBoolean) {
+                            return (
+                              <div key={key} className="sm:col-span-2 flex items-center gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                                <div className="relative flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    id={key}
+                                    checked={val}
+                                    onChange={(e) => handleInputChange(key, e.target.checked)}
+                                    className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-200 bg-white transition-all checked:bg-[#FF7400] checked:border-[#FF7400]"
+                                  />
+                                  <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                    <CheckCircle2 size={12} className="stroke-[4px]" />
+                                  </span>
+                                </div>
+                                <label htmlFor={key} className="text-xs font-bold text-slate-700 cursor-pointer">
+                                  {label}
+                                </label>
+                              </div>
+                            );
+                          }
+
                           return (
-                            <div key={key} className="sm:col-span-2">
-                              <FileUpload
-                                label={label}
+                            <div key={key} className="flex flex-col gap-1.5">
+                              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                {label}
+                              </label>
+                              <input
+                                type="text"
                                 value={val}
-                                onChange={(url) => handleInputChange(key, url)}
+                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all placeholder:text-slate-400"
                               />
                             </div>
                           );
-                        }
-
-                        if (isBoolean) {
-                          return (
-                            <div key={key} className="sm:col-span-2 flex items-center gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                              <div className="relative flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  id={key}
-                                  checked={val}
-                                  onChange={(e) => handleInputChange(key, e.target.checked)}
-                                  className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-200 bg-white transition-all checked:bg-[#FF7400] checked:border-[#FF7400]"
-                                />
-                                <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
-                                  <CheckCircle2 size={12} className="stroke-[4px]" />
-                                </span>
-                              </div>
-                              <label htmlFor={key} className="text-xs font-bold text-slate-700 cursor-pointer">
-                                {label}
-                              </label>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={key} className="flex flex-col gap-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                              {label}
-                            </label>
-                            <input
-                              type="text"
-                              value={val}
-                              onChange={(e) => handleInputChange(key, e.target.value)}
-                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all placeholder:text-slate-400"
-                            />
-                          </div>
-                        );
-                      })}
+                        })}
                     </div>
 
                     {resubmitError && (
