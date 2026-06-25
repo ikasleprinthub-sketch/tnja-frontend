@@ -423,13 +423,20 @@ const PlayerRegistrationForm = () => {
           Use the Temporary Player ID to log in and track your status.
         </p>
 
-        <Button
-          variant="primary"
-          className="mt-10"
-          onClick={() => window.location.href = '/'}
-        >
-          Back to Home
-        </Button>
+        <div className="flex gap-4 justify-center mt-10">
+          <Button
+            variant="outline"
+            href="/"
+          >
+            Back to Home
+          </Button>
+          <Button
+            variant="primary"
+            href={`/track?tempId=${success.tempId}`}
+          >
+            Track Status & Login
+          </Button>
+        </div>
       </div>
     );
   }

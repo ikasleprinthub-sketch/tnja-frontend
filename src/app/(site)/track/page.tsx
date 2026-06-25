@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -14,7 +15,9 @@ import {
   Hash,
   Loader2,
   ClipboardCheck,
+  Lock,
 } from "lucide-react";
+import FileUpload from "@/components/common/FileUpload";
 
 type Status = "PENDING" | "APPROVED" | "REJECTED" | "REPLAY";
 
@@ -84,25 +87,148 @@ function getStepState(status: Status, stepKey: string) {
   return "pending";
 }
 
-export default function TrackPage() {
+function TrackPageContent() {
+  const searchParams = useSearchParams();
   const [tempId, setTempId] = useState("");
-  const [result, setResult] = useState<TrackResult | null>(null);
+
+  useEffect(() => {
+    const paramId = searchParams.get("tempId");
+    if (paramId) {
+      setTempId(paramId);
+    }
+  }, [searchParams]);
+  const [password, setPassword] = useState("");
+  const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [formData, setFormData] = useState<any>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resubmitSuccess, setResubmitSuccess] = useState(false);
+  const [resubmitError, setResubmitError] = useState<string | null>(null);
+
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+  useEffect(() => {
+    if (result) {
+      const initialForm: any = {};
+      Object.keys(result).forEach((key) => {
+        const val = result[key];
+        // Exclude specific system/relation keys
+        if (
+          [
+            "id",
+            "password",
+            "createdAt",
+            "updatedAt",
+            "status",
+            "rejectionRemark",
+            "role",
+            "tempId",
+            "permanentId",
+            "districtId",
+            "talukId",
+            "zoneId",
+            "clubId",
+            "coachId",
+            "district",
+            "taluk",
+            "zone",
+            "club",
+            "coach",
+            "students",
+            "tournaments",
+            "members",
+            "payments",
+            "grievances",
+            "matches",
+            "logs",
+            "approvedBy",
+            "approvedAt",
+            "mustChangePassword",
+            "resetPasswordToken",
+            "resetPasswordExpires",
+            "isPaid",
+            "validUntil",
+            "wins",
+            "losses",
+            "draws"
+          ].includes(key)
+        ) {
+          return;
+        }
+
+        // Include if it's not an object (primitive) OR if it is null (empty primitive)
+        if (val === null || typeof val !== "object") {
+          initialForm[key] = val || "";
+        }
+      });
+      setFormData(initialForm);
+      setResubmitSuccess(false);
+      setResubmitError(null);
+    } else {
+      setFormData({});
+    }
+  }, [result]);
+
+  const handleInputChange = (key: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const handleResubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setResubmitError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/resubmit-application`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to resubmit application");
+
+      setResubmitSuccess(true);
+      // Update result state to PENDING so the UI updates to show pending status
+      setResult((prev: any) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          status: "PENDING",
+          rejectionRemark: null,
+        };
+      });
+    } catch (err: any) {
+      setResubmitError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tempId.trim()) return;
+    if (!tempId.trim() || !password.trim()) return;
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE}/auth/track-status/${encodeURIComponent(tempId.trim())}`
-      );
+      const res = await fetch(`${API_BASE}/auth/track-status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tempId: tempId.trim(),
+          password: password.trim(),
+        }),
+      });
       
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
@@ -114,12 +240,15 @@ export default function TrackPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "Record not found.");
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
       setResult(data.user || data);
     } catch (err: any) {
       if (err.name === 'TypeError') {
         setError("Network error. Please check if the server is running.");
       } else {
-        setError(err.message || "Could not find registration. Please check your Temporary ID.");
+        setError(err.message || "Could not find registration. Please check your Temporary ID and Password.");
       }
     } finally {
       setLoading(false);
@@ -151,14 +280,14 @@ export default function TrackPage() {
         </div>
         <h1 className="text-2xl font-black text-slate-800">Track Registration</h1>
         <p className="text-sm text-slate-500 mt-1 font-medium">
-          Enter your Temporary ID to check your application status
+          Enter your Temporary ID and Password to check your application status
         </p>
       </div>
 
       {/* Search card */}
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl shadow-orange-100/60 border border-orange-100 p-6">
-        <form onSubmit={handleTrack} className="flex gap-3">
-          <div className="flex-grow relative">
+        <form onSubmit={handleTrack} className="space-y-4">
+          <div className="relative">
             <Hash
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -167,22 +296,37 @@ export default function TrackPage() {
               type="text"
               value={tempId}
               onChange={(e) => setTempId(e.target.value)}
-              placeholder="e.g. MEM-TEMP-2026"
+              placeholder="Temporary ID (e.g. TEMP-STU-XXXXXX)"
+              required
+              className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all"
+            />
+          </div>
+          <div className="relative">
+            <Lock
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Temporary Password (sent to your email)"
+              required
               className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all"
             />
           </div>
           <button
             type="submit"
-            disabled={loading || !tempId.trim()}
+            disabled={loading || !tempId.trim() || !password.trim()}
             style={{ backgroundColor: "#FF7400" }}
-            className="px-5 py-3 text-white rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-60 hover:opacity-90 transition-all shadow-md shadow-orange-200"
+            className="w-full py-3 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 hover:opacity-90 transition-all shadow-md shadow-orange-200"
           >
             {loading ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <Search size={16} />
             )}
-            {loading ? "Checking…" : "Track"}
+            {loading ? "Checking…" : "Track Application"}
           </button>
         </form>
 
@@ -211,17 +355,31 @@ export default function TrackPage() {
             >
               {/* Status banner */}
               <div
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${cfg.bg} ${cfg.border}`}
+                className={`flex flex-col gap-2.5 px-4 py-3.5 rounded-2xl border ${cfg.bg} ${cfg.border}`}
               >
-                {cfg.icon}
-                <div>
-                  <p className={`text-sm font-black ${cfg.color}`}>
-                    {cfg.label}
-                  </p>
-                  <p className="text-xs text-slate-500 font-medium leading-snug mt-0.5">
-                    {cfg.desc}
-                  </p>
+                <div className="flex items-center gap-3">
+                  {cfg.icon}
+                  <div>
+                    <p className={`text-sm font-black ${cfg.color}`}>
+                      {cfg.label}
+                    </p>
+                    <p className="text-xs text-slate-500 font-medium leading-snug mt-0.5">
+                      {result.status === "REPLAY"
+                        ? "The admin has requested changes to your application. Please review the remarks below and update your details."
+                        : cfg.desc}
+                    </p>
+                  </div>
                 </div>
+                {result.status === "REPLAY" && result.rejectionRemark && (
+                  <div className="ml-9 p-3 bg-white border border-purple-100 rounded-xl shadow-sm">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Admin Remarks
+                    </p>
+                    <p className="text-xs font-bold text-purple-700 mt-0.5 whitespace-pre-line">
+                      {result.rejectionRemark}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Info card */}
@@ -358,7 +516,7 @@ export default function TrackPage() {
                 })}
               </div>
 
-              {(result.status === "APPROVED" || result.status === "REPLAY") && (
+              {result.status === "APPROVED" && (
                 <Link
                   href="/login"
                   style={{ backgroundColor: "#FF7400" }}
@@ -367,10 +525,144 @@ export default function TrackPage() {
                   Login to Dashboard →
                 </Link>
               )}
+
+              {/* Resubmission Section for REPLAY status */}
+              {result.status === "REPLAY" && !resubmitSuccess && (
+                <div className="mt-8 pt-6 border-t border-slate-100 text-left">
+                  <div className="bg-amber-50/50 border border-amber-200/60 rounded-2xl p-5 mb-6">
+                    <h3 className="text-sm font-bold text-amber-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      Edit & Resubmit Details
+                    </h3>
+                    <p className="text-xs text-amber-700/80 mt-1 font-medium leading-relaxed">
+                      Please correct the values requested by the admin below and click Resubmit.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleResubmit} className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {Object.keys(formData)
+                        .filter((key) => ![
+                          "approvedBy",
+                          "approvedAt",
+                          "mustChangePassword",
+                          "resetPasswordToken",
+                          "resetPasswordExpires",
+                          "isPaid",
+                          "validUntil",
+                          "wins",
+                          "losses",
+                          "draws"
+                        ].includes(key))
+                        .map((key) => {
+                        const val = formData[key] || "";
+                        const isUploadField =
+                          ["proof", "photo", "certificate", "document", "front", "back", "file", "upload"].some((k) =>
+                            key.toLowerCase().includes(k)
+                          ) ||
+                          (typeof val === "string" && (val.startsWith("http") || val.includes("/uploads/")));
+                        const isBoolean = typeof val === "boolean";
+                        
+                        // Human-readable labels
+                        const label = key
+                          .replace(/([A-Z])/g, " $1")
+                          .replace(/^./, (str) => str.toUpperCase())
+                          .replace("Dob", "Date of Birth")
+                          .replace("Aadhaar", "Aadhaar")
+                          .replace("Bpl", "BPL")
+                          .trim();
+
+                        if (isUploadField) {
+                          return (
+                            <div key={key} className="sm:col-span-2">
+                              <FileUpload
+                                label={label}
+                                value={val}
+                                onChange={(url) => handleInputChange(key, url)}
+                              />
+                            </div>
+                          );
+                        }
+
+                        if (isBoolean) {
+                          return (
+                            <div key={key} className="sm:col-span-2 flex items-center gap-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                              <div className="relative flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  id={key}
+                                  checked={val}
+                                  onChange={(e) => handleInputChange(key, e.target.checked)}
+                                  className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-200 bg-white transition-all checked:bg-[#FF7400] checked:border-[#FF7400]"
+                                />
+                                <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                  <CheckCircle2 size={12} className="stroke-[4px]" />
+                                </span>
+                              </div>
+                              <label htmlFor={key} className="text-xs font-bold text-slate-700 cursor-pointer">
+                                {label}
+                              </label>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={key} className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              {label}
+                            </label>
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => handleInputChange(key, e.target.value)}
+                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all placeholder:text-slate-400"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {resubmitError && (
+                      <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                        <XCircle size={16} />
+                        {resubmitError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      style={{ backgroundColor: "#FF7400" }}
+                      className="w-full py-3.5 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-60 transition-all shadow-md shadow-orange-200 mt-2"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Resubmitting...
+                        </>
+                      ) : (
+                        "Resubmit Application"
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
     </main>
+  );
+}
+
+export default function TrackPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex flex-col items-center justify-center px-4 py-12">
+        <Loader2 className="animate-spin text-[#FF7400]" size={40} />
+      </main>
+    }>
+      <TrackPageContent />
+    </Suspense>
   );
 }

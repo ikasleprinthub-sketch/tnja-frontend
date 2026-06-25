@@ -397,13 +397,20 @@ const MemberRegistrationForm = () => {
           A confirmation email has been sent to <strong>{formData.email}</strong>. Use your Temporary Member ID to track your application status.
         </p>
 
-        <Button 
-          variant="primary" 
-          className="mt-10"
-          onClick={() => window.location.href = '/'}
-        >
-          Back to Home
-        </Button>
+        <div className="flex gap-4 justify-center mt-10">
+          <Button
+            variant="outline"
+            href="/"
+          >
+            Back to Home
+          </Button>
+          <Button
+            variant="primary"
+            href={`/track?tempId=${success.tempId}`}
+          >
+            Track Status & Login
+          </Button>
+        </div>
       </div>
     );
   }

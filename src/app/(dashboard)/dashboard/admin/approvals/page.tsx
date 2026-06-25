@@ -16,7 +16,12 @@ import {
   X,
   MapPin,
   MoreHorizontal,
-  ChevronDown
+  ChevronDown,
+  Shield,
+  Users,
+  UserCheck,
+  Award,
+  Calendar
 } from "lucide-react";
 
 type ApprovalType = "CLUB" | "STUDENT" | "COACH" | "MEMBER" | "EVENT";
@@ -97,7 +102,10 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
 }
 
 export default function ApprovalsPage() {
+  type StatusType = "PENDING" | "APPROVED" | "REJECTED" | "REPLAY";
+
   const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
+  const [activeStatus, setActiveStatus] = useState<StatusType>("PENDING");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isRequestChangesModalOpen, setIsRequestChangesModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -108,12 +116,19 @@ export default function ApprovalsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const tabs: { id: ApprovalType; label: string }[] = [
-    { id: "CLUB", label: "Clubs" },
-    { id: "STUDENT", label: "Players" },
-    { id: "COACH", label: "Coaches" },
-    { id: "MEMBER", label: "Members" },
-    { id: "EVENT", label: "Events" },
+  const tabs: { id: ApprovalType; label: string; icon: React.ComponentType<any> }[] = [
+    { id: "CLUB", label: "Clubs", icon: Shield },
+    { id: "STUDENT", label: "Players", icon: Users },
+    { id: "COACH", label: "Coaches", icon: UserCheck },
+    { id: "MEMBER", label: "Members", icon: Award },
+    { id: "EVENT", label: "Events", icon: Calendar },
+  ];
+
+  const statusTabs: { id: StatusType; label: string }[] = [
+    { id: "PENDING", label: "Pending Approval" },
+    { id: "APPROVED", label: "Approved" },
+    { id: "REJECTED", label: "Denied" },
+    { id: "REPLAY", label: "Replay" },
   ];
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -125,7 +140,7 @@ export default function ApprovalsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/applications/pending?type=${activeTab}`, {
+      const res = await fetch(`${API_BASE}/applications/pending?type=${activeTab}&status=${activeStatus}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
@@ -136,7 +151,7 @@ export default function ApprovalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, activeStatus]);
 
   useEffect(() => {
     fetchApplications();
@@ -234,6 +249,7 @@ export default function ApprovalsPage() {
     ACTIVE:   { label: "ACTIVE",   dot: "bg-red-600",   text: "text-red-600" },
     APPROVED: { label: "APPROVED", dot: "bg-emerald-500",  text: "text-emerald-600" },
     REJECTED: { label: "REJECTED", dot: "bg-red-500",      text: "text-red-600" },
+    REPLAY:   { label: "REPLAY",   dot: "bg-amber-500",  text: "text-amber-600" },
   };
 
   return (
@@ -272,162 +288,199 @@ export default function ApprovalsPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 mb-8 w-full overflow-x-auto pb-6 px-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 px-6 rounded-[14px] font-bold text-[16px] transition-all text-center border whitespace-nowrap min-w-[140px] ${
-              activeTab === tab.id
-                ? "bg-gradient-to-r from-white via-[#FFE27B] to-[#FFC300] text-slate-900 border-[#FF7400] shadow-[0_12px_24px_-8px_rgba(255,116,0,0.6)]"
-                : "bg-[#FAFAFA] text-slate-700 border-[#FFB28B] hover:bg-white"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* List Headers */}
-      <div className="mt-4">
-        <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 px-8 text-[#FF7400] font-black text-[15px] mb-4">
-          <div>Applicant</div>
-          <div>Contact</div>
-          <div>Location</div>
-          <div>Status</div>
-          <div className="w-[220px] text-center">Actions</div>
+      {/* Categories Sidebar & Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        {/* Sidebar */}
+        <div className="lg:col-span-1 bg-white rounded-[24px] border border-slate-100 p-4 space-y-2 shadow-sm">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+            Categories
+          </p>
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all text-left ${
+                  isActive
+                    ? "bg-[#FF7400]/10 text-[#FF7400] shadow-[0_2px_8px_-2px_rgba(255,116,0,0.15)]"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Icon size={18} className={isActive ? "text-[#FF7400]" : "text-slate-400"} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {loading ? (
-          <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
-            <Loader2 size={40} className="animate-spin text-[#FF7400]" />
-            <p className="text-slate-400 font-medium">Fetching pending approvals...</p>
+        {/* Content Area */}
+        <div className="lg:col-span-3">
+          {/* Status Segmented Control */}
+          <div className="flex gap-2 mb-6 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 w-fit">
+            {statusTabs.map((st) => {
+              const isActive = activeStatus === st.id;
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setActiveStatus(st.id)}
+                  className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                    isActive
+                      ? "bg-[#FF7400] text-white shadow-md shadow-[#FF7400]/20"
+                      : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
+                  }`}
+                >
+                  {st.label}
+                </button>
+              );
+            })}
           </div>
-        ) : applications.length === 0 ? (
-          <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
-              <MessageSquare size={28} />
+
+          {/* List Headers */}
+          <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 px-8 text-[#FF7400] font-black text-[15px] mb-4">
+            <div>Applicant</div>
+            <div>Contact</div>
+            <div>Location</div>
+            <div>Status</div>
+            <div className="w-[220px] text-center">Actions</div>
+          </div>
+
+          {loading ? (
+            <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
+              <Loader2 size={40} className="animate-spin text-[#FF7400]" />
+              <p className="text-slate-400 font-medium">Fetching pending approvals...</p>
             </div>
-            <h3 className="text-lg font-bold text-slate-400">No pending applications</h3>
-            <p className="text-slate-400 text-sm mt-1">Check back later for new applications.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <AnimatePresence mode="popLayout">
-              {applications.map((item) => {
-                const sc = statusConfig[item.status] || statusConfig["PENDING"];
-                return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="bg-white rounded-[20px] shadow-sm border border-slate-100 py-5 px-8 flex items-center hover:shadow-md transition-all"
-                  >
-                    <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 w-full items-center">
-                      {/* Applicant */}
-                      <div className="flex items-center gap-3">
-                        {item.avatar ? (
-                          <img
-                            src={item.avatar}
-                            alt={item.name}
-                            className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0"
-                          />
-                        ) : (
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FF7400] to-[#E56900] text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
-                            {item.name.charAt(0)}
+          ) : applications.length === 0 ? (
+            <div className="p-20 text-center flex flex-col items-center gap-4 bg-white rounded-[20px] border border-slate-100 shadow-sm">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2 text-slate-300">
+                <MessageSquare size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-400">No pending applications</h3>
+              <p className="text-slate-400 text-sm mt-1">Check back later for new applications.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <AnimatePresence mode="popLayout">
+                {applications.map((item) => {
+                  const sc = statusConfig[item.status] || statusConfig["PENDING"];
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="bg-white rounded-[20px] shadow-sm border border-slate-100 py-5 px-8 flex items-center hover:shadow-md transition-all"
+                    >
+                      <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 w-full items-center">
+                        {/* Applicant */}
+                        <div className="flex items-center gap-3">
+                          {item.avatar ? (
+                            <img
+                              src={item.avatar}
+                              alt={item.name}
+                              className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shadow-sm shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FF7400] to-[#E56900] text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
+                              {item.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="flex flex-col justify-center">
+                            <p className="font-bold text-slate-800 text-[15px] truncate">{item.name}</p>
+                            {item.subtitle && item.subtitle !== "No Club" && item.subtitle !== "Member" && item.subtitle !== "Coach" && (
+                              <p className="text-[11px] text-slate-400 mt-0.5 truncate">{item.subtitle}</p>
+                            )}
+                            {item.rawData?.rejectionRemark && (
+                              <p className="text-[11px] text-red-500 font-bold mt-1 bg-red-50 px-2 py-0.5 rounded border border-red-100 max-w-[200px] truncate" title={item.rawData.rejectionRemark}>
+                                Remark: {item.rawData.rejectionRemark}
+                              </p>
+                            )}
                           </div>
-                        )}
-                        <div className="flex flex-col justify-center">
-                          <p className="font-bold text-slate-800 text-[15px] truncate">{item.name}</p>
-                          {item.subtitle && item.subtitle !== "No Club" && item.subtitle !== "Member" && item.subtitle !== "Coach" && (
-                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{item.subtitle}</p>
+                        </div>
+                        
+                        {/* Contact */}
+                        <div className="flex flex-col gap-1.5">
+                          {item.phone && item.phone !== "—" && (
+                            <div className="flex items-center gap-3 text-[13px] text-slate-600">
+                              <Phone size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.phone}</span>
+                            </div>
+                          )}
+                          {item.email && item.email !== "—" && (
+                            <div className="flex items-center gap-3 text-[13px] text-slate-600">
+                              <Mail size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.email}</span>
+                            </div>
+                          )}
+                          {(!item.phone || item.phone === "—") && (!item.email || item.email === "—") && (
+                             <span className="text-[13px] text-slate-400 italic">No contact provided</span>
                           )}
                         </div>
-                      </div>
-                      
-                      {/* Contact */}
-                      <div className="flex flex-col gap-1.5">
-                        {item.phone && item.phone !== "—" && (
-                          <div className="flex items-center gap-3 text-[13px] text-slate-600">
-                            <Phone size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.phone}</span>
-                          </div>
-                        )}
-                        {item.email && item.email !== "—" && (
-                          <div className="flex items-center gap-3 text-[13px] text-slate-600">
-                            <Mail size={16} className="text-[#FF7400] shrink-0" /> <span className="truncate">{item.email}</span>
-                          </div>
-                        )}
-                        {(!item.phone || item.phone === "—") && (!item.email || item.email === "—") && (
-                           <span className="text-[13px] text-slate-400 italic">No contact provided</span>
-                        )}
-                      </div>
 
-                      {/* Location */}
-                      <div className="text-[14px] text-slate-700 truncate">
-                        {item.location}
-                      </div>
+                        {/* Location */}
+                        <div className="text-[14px] text-slate-700 truncate">
+                          {item.location}
+                        </div>
 
-                      {/* Status */}
-                      <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                        <span className={`${sc.text} font-black uppercase text-[13px] tracking-widest truncate`}>{sc.label}</span>
-                      </div>
+                        {/* Status */}
+                        <div className="flex items-center gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                          <span className={`${sc.text} font-black uppercase text-[13px] tracking-widest truncate`}>{sc.label}</span>
+                        </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center justify-start gap-4">
-                        {item.status === "PENDING" ? (
-                          <>
-                            <button 
-                              onClick={() => handleApprove(item)}
-                              disabled={actionLoading === item.id}
-                              className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
-                            >
-                              {actionLoading === item.id ? <Loader2 size={13} className="animate-spin" /> : null}
-                              Approve
-                            </button>
-                            <button 
-                              onClick={() => openRequestChangesModal(item)}
-                              disabled={actionLoading === item.id}
-                              className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 shrink-0"
-                            >
-                              Request Changes
-                            </button>
-                            <div 
-                              className={`p-[1px] rounded-lg shrink-0 inline-flex ${actionLoading === item.id ? 'opacity-50' : ''}`}
-                              style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
-                            >
+                        {/* Actions */}
+                        <div className="flex items-center justify-start gap-4">
+                          {item.status === "PENDING" ? (
+                            <>
                               <button 
-                                onClick={() => openRejectModal(item)}
+                                onClick={() => handleApprove(item)}
                                 disabled={actionLoading === item.id}
-                                className="text-slate-800 hover:bg-orange-50 transition-colors px-6 py-2 rounded-[7px] font-bold text-sm bg-white flex items-center justify-center"
+                                className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
                               >
-                                Deny
+                                {actionLoading === item.id ? <Loader2 size={13} className="animate-spin" /> : null}
+                                Approve
                               </button>
+                               <button 
+                                onClick={() => openRequestChangesModal(item)}
+                                disabled={actionLoading === item.id}
+                                className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 shrink-0"
+                              >
+                                Replay
+                              </button>
+                              <div 
+                                className={`p-[1px] rounded-lg shrink-0 inline-flex ${actionLoading === item.id ? 'opacity-50' : ''}`}
+                                style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+                              >
+                                <button 
+                                  onClick={() => openRejectModal(item)}
+                                  disabled={actionLoading === item.id}
+                                  className="text-slate-800 hover:bg-orange-50 transition-colors px-6 py-2 rounded-[7px] font-bold text-sm bg-white flex items-center justify-center"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="px-5 py-2 flex items-center gap-1.5">
+                               <span className={`text-sm font-bold ${sc.text}`}>{sc.label}</span>
                             </div>
-                          </>
-                        ) : (
-                          <div className="px-5 py-2 flex items-center gap-1.5">
-                             <span className={`text-sm font-bold ${sc.text}`}>{sc.label}</span>
-                          </div>
-                        )}
-                        
-                        <button 
-                           onClick={() => { setSelectedItem(item); setIsDetailModalOpen(true); }}
-                           className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0"
-                           title="View Details"
-                        >
-                          <MoreHorizontal size={18} className="stroke-[3]" />
-                        </button>
+                          )}
+                          
+                          <button 
+                             onClick={() => { setSelectedItem(item); setIsDetailModalOpen(true); }}
+                             className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0"
+                             title="View Details"
+                          >
+                            <MoreHorizontal size={18} className="stroke-[3]" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Detail Modal */}
@@ -531,7 +584,7 @@ export default function ApprovalsPage() {
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="Enter rejection reason…"
-                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-red-400 transition-all resize-none mb-6 text-sm"
+                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-400 transition-all resize-none mb-6 text-sm"
               />
 
               <div className="flex gap-4">
@@ -570,7 +623,7 @@ export default function ApprovalsPage() {
                   <RefreshCw size={22} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">Request Changes</h3>
+                  <h3 className="text-xl font-bold text-slate-800">Replay</h3>
                   <p className="text-slate-500 text-sm">
                     Ask <strong>{selectedItem.name}</strong> to modify their application
                   </p>
@@ -581,7 +634,7 @@ export default function ApprovalsPage() {
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="Detail what needs to be changed..."
-                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all resize-none mb-6 text-sm"
+                className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all resize-none mb-6 text-sm"
               />
 
               <div className="flex gap-4">
@@ -597,7 +650,7 @@ export default function ApprovalsPage() {
                   className="flex-1 py-4 bg-amber-500 text-white font-bold rounded-2xl shadow-lg hover:bg-amber-600 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-                  Send Request
+                  Send Replay
                 </button>
               </div>
             </motion.div>
