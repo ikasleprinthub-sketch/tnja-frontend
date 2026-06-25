@@ -45,7 +45,7 @@ export default function DashboardLayout({
   const [profileData, setProfileData] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
   const fetchFullProfile = async () => {
     setLoadingProfile(true);

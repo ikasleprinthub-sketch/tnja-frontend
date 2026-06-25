@@ -26,7 +26,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 export default function ClubTournamentsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -916,12 +916,12 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
-                    <input type="date" required value={formData.dateFrom} onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
+                    <input type="date" required min={new Date().toISOString().split('T')[0]} value={formData.dateFrom} onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
-                    <input type="date" value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
+                    <input type="date" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
@@ -1052,12 +1052,12 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
-                    <input type="date" required value={editData.dateFrom} onChange={(e) => setEditData({ ...editData, dateFrom: e.target.value })}
+                    <input type="date" required min={new Date().toISOString().split('T')[0]} value={editData.dateFrom} onChange={(e) => setEditData({ ...editData, dateFrom: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
-                    <input type="date" value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
+                    <input type="date" min={editData.dateFrom || new Date().toISOString().split('T')[0]} value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>

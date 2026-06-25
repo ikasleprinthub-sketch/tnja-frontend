@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -24,7 +24,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "NOT_REQUIRED";
@@ -192,6 +192,7 @@ export default function AdminTournamentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   // Create modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -266,6 +267,28 @@ export default function AdminTournamentsPage() {
     if (!userRole || !activeTab) return;
     fetchTabData(activeTab, userRole);
   }, [activeTab, userRole, fetchTabData]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    const handleScroll = () => {
+      if (isFilterOpen) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("scroll", handleScroll, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [isFilterOpen]);
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const approvalLevel = APPROVAL_LEVEL_MAP[userRole] ?? null;
@@ -523,9 +546,9 @@ export default function AdminTournamentsPage() {
 
         {/* Status filter only for "My Tournaments" tab */}
         {activeTab === "mine" && (
-          <div className="relative">
+          <div className="relative" ref={filterRef}>
             <div
-              className="p-[1.5px] rounded-[10px] inline-flex shadow-sm"
+              className="p-[1.5px] rounded-[10px] shrink-0 inline-flex shadow-sm"
               style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}
             >
               <button
@@ -974,7 +997,7 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
                     <input
-                      required type="date" value={formData.dateFrom}
+                      required type="date" min={new Date().toISOString().split('T')[0]} value={formData.dateFrom}
                       onChange={e => setFormData({ ...formData, dateFrom: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
@@ -983,7 +1006,7 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (optional)</label>
                     <input
-                      type="date" value={formData.dateTo}
+                      type="date" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo}
                       onChange={e => setFormData({ ...formData, dateTo: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />

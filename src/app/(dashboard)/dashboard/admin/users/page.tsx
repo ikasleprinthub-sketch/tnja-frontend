@@ -48,7 +48,7 @@ interface TNJAUser {
   coachId?: string | null;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 const PROMOTABLE_ROLES = [
   { id: "MEMBER", label: "General Member" },

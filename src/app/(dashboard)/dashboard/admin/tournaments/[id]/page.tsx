@@ -10,7 +10,7 @@ import {
   AlertCircle, Clock, Download, BarChart3,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Tab = "overview" | "players" | "draws" | "matches" | "results";

@@ -26,7 +26,6 @@ export interface PlayerRegistrationData {
   preferLocation: string;
   clubId?: string;
   profilePhoto?: string;
-  aadhaarProof?: string;
   incomeProof?: string;
   bplProof?: string;
   agreedToTerms: boolean;
@@ -105,7 +104,5 @@ export interface MemberRegistrationData {
   email: string;
   aadhaarNumber: string;
   profilePhoto?: string;
-  aadhaarFront?: string;
-  aadhaarBack?: string;
   agreedToTerms: boolean;
 }
