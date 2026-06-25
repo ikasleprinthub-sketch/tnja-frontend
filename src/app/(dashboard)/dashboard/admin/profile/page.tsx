@@ -172,14 +172,16 @@ export default function AdminProfilePage() {
           </div>
 
           {/* Edit Profile button */}
-          <div className="absolute top-4 right-4">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-4 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:border-[#FF7400] hover:text-[#FF7400] transition-all"
-            >
-              Edit Profile
-            </button>
-          </div>
+          {userRole !== "SUPER_ADMIN" && (
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:border-[#FF7400] hover:text-[#FF7400] transition-all"
+              >
+                Edit Profile
+              </button>
+            </div>
+          )}
 
           {/* Avatar + name */}
           <div className="flex flex-col items-center pt-6 pb-4">

@@ -75,6 +75,60 @@ export default function MembersListPage() {
     return matchesSearch && matchesGender;
   });
 
+  const handleExportCSV = () => {
+    try {
+      if (!filteredMembers || filteredMembers.length === 0) {
+        alert("No data to export");
+        return;
+      }
+
+      const headers = [
+        "Full Name",
+        "Role",
+        "Gender",
+        "Email",
+        "Mobile Number",
+        "District",
+        "Taluk",
+        "Permanent ID",
+        "Joined Date"
+      ];
+
+      const rows = filteredMembers.map(m => {
+        let createdDate = "-";
+        try { createdDate = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "-"; } catch (e) {}
+
+        return [
+          m.fullName || "-",
+          m.role || "-",
+          m.gender || "-",
+          m.email || "-",
+          m.mobileNumber || "-",
+          m.districtName || "-",
+          m.talukName || "-",
+          m.permanentId || "-",
+          createdDate
+        ];
+      });
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `members_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert("Export failed: " + err.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -87,7 +141,10 @@ export default function MembersListPage() {
           className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
           style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
         >
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm"
+          >
             <FileText size={18} className="stroke-[2.5]" />
             Export CSV
           </button>

@@ -31,7 +31,7 @@ interface Tournament {
 interface RegisteredPlayer {
   id: string; name: string; club: string; district: string;
   weight: number; weightLabel?: string; ageGroup: string; exactAge?: number; gender: string; belt: string;
-  seedNumber?: number; coachName?: string;
+  seedNumber?: number; coachName?: string; placement?: string;
 }
 
 interface BracketSlot {
@@ -645,6 +645,7 @@ export default function TournamentDetailPage() {
               exactAge: Number(r.player?.age || 0),
               gender: r.gender || r.player?.gender || "MALE",
               belt: r.belt || r.player?.belt || "",
+              placement: r.placement || "PARTICIPATION",
             };
           }
         );
@@ -1887,11 +1888,67 @@ export default function TournamentDetailPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-4 px-6 py-4 bg-emerald-900/30 border border-emerald-500/40 rounded-2xl">
-              <Check size={24} className="text-emerald-400 shrink-0" />
-              <div>
-                <p className="text-emerald-300 font-black">Tournament Concluded</p>
-                <p className="text-emerald-400/70 text-xs mt-0.5">All participants can now download their certificates from their dashboard.</p>
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 px-6 py-4 bg-emerald-900/30 border border-emerald-500/40 rounded-2xl">
+                <Check size={24} className="text-emerald-400 shrink-0" />
+                <div>
+                  <p className="text-emerald-300 font-black">Tournament Concluded</p>
+                  <p className="text-emerald-400/70 text-xs mt-0.5">All participants can now download their certificates from their dashboard.</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
+                <div className="flex items-start gap-4 mb-6">
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-2xl flex items-center justify-center shrink-0">
+                    <Trophy size={24} className="text-yellow-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">Category Winners</h3>
+                    <p className="text-slate-400 text-sm mt-1">Podium placements for the selected category filters.</p>
+                  </div>
+                </div>
+
+                {filteredPlayers.filter(p => p.placement && p.placement !== "PARTICIPATION").length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 font-semibold">No winners found for this category.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                    {filteredPlayers
+                      .filter(p => p.placement && p.placement !== "PARTICIPATION")
+                      .sort((a, b) => {
+                        const order: Record<string, number> = { FIRST: 1, SECOND: 2, THIRD: 3 };
+                        return (order[a.placement || ""] || 99) - (order[b.placement || ""] || 99);
+                      })
+                      .map((player) => {
+                        const placement = player.placement as string;
+                        const placementColors: Record<string, string> = {
+                          FIRST: "border-yellow-400 bg-yellow-500/10 text-yellow-500",
+                          SECOND: "border-slate-400 bg-slate-400/10 text-slate-300",
+                          THIRD: "border-orange-500 bg-orange-500/10 text-orange-500",
+                        };
+                        const placementLabels: Record<string, string> = {
+                          FIRST: "1st Place",
+                          SECOND: "2nd Place",
+                          THIRD: "3rd Place",
+                        };
+                        return (
+                          <div key={player.id} className={`flex items-center gap-3 p-4 rounded-2xl border ${placementColors[placement].split(' ').slice(0,2).join(' ')}`}>
+                            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center shrink-0 border border-white/10">
+                              <Trophy size={20} className={placementColors[placement].split(' ')[2]} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-base font-black text-white truncate">{player.name}</p>
+                              <p className="text-xs text-slate-400 truncate">{player.club || player.district}</p>
+                            </div>
+                            <div className="relative shrink-0 flex flex-col items-end pr-2">
+                              <span className={`text-sm font-black ${placementColors[placement].split(' ')[2]} uppercase tracking-widest`}>
+                                {placementLabels[placement]}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
           )}

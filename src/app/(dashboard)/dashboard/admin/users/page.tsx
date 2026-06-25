@@ -27,6 +27,7 @@ import {
   Plus,
   ChevronDown,
   Trash2,
+  Download,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -250,10 +251,8 @@ export default function UserManagementPage() {
       fetchUsers();
     } catch (err: any) {
       showToast(err.message, "error");
-      setDeleteModalOpen(false);
     } finally {
       setActionLoading(false);
-      setUserToDelete(null);
     }
   };
 
@@ -387,6 +386,67 @@ export default function UserManagementPage() {
     );
   });
 
+  const handleExportCSV = () => {
+    try {
+      if (!filteredUsers || filteredUsers.length === 0) {
+        showToast("No data to export", "error");
+        return;
+      }
+
+      const headers = [
+        "ID",
+        "Full Name",
+        "Role",
+        "Email",
+        "Mobile Number",
+        "District",
+        "Temporary ID",
+        "Permanent ID",
+        "Status",
+        "Joined Date",
+        "Valid Until"
+      ];
+
+      const rows = filteredUsers.map(u => {
+        let createdDate = "-";
+        try { createdDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"; } catch (e) {}
+
+        let validDate = "-";
+        try { validDate = u.validUntil ? new Date(u.validUntil).toLocaleDateString() : "-"; } catch (e) {}
+
+        return [
+          u.id,
+          u.fullName || "-",
+          u.role || "-",
+          u.email || "-",
+          u.mobileNumber || "-",
+          u.districtName || "-",
+          u.tempId || "-",
+          u.permanentId || "-",
+          u.status || "-",
+          createdDate,
+          validDate
+        ];
+      });
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `users_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      showToast("Export failed: " + err.message, "error");
+    }
+  };
+
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
       case "CLUB": return <Building2 size={16} />;
@@ -450,6 +510,13 @@ export default function UserManagementPage() {
           >
             <Plus size={16} />
             Create New
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all text-sm shadow-sm cursor-pointer"
+          >
+            <Download size={16} />
+            Export CSV
           </button>
           <button
             onClick={fetchUsers}

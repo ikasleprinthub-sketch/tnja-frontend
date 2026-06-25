@@ -54,12 +54,12 @@ export default function LocationsPage() {
           <h1 className="text-3xl font-bold text-slate-800">Location Analytics</h1>
           <p className="text-slate-500">Member distribution across district taluks</p>
         </div>
-        <div className="flex gap-4">
+        {/* <div className="flex gap-4">
           <button className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold hover:bg-slate-50 transition-all">
             <MapIcon size={20} />
             Map View
           </button>
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

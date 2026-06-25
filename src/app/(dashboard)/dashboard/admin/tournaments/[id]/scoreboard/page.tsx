@@ -680,17 +680,17 @@ function ScoreboardInner() {
         <div className="w-full max-w-[1400px] min-h-[100dvh] xl:min-h-0 xl:h-full xl:max-h-[900px] flex flex-col bg-[#111111] relative border border-white/10 rounded-none xl:rounded-lg shadow-2xl xl:overflow-hidden m-0 xl:my-auto xl:mx-4">
         
         {/* ══ HEADER ════════════════════════════════════════════════════════ */}
-        <div className="flex items-center justify-between px-8 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 lg:px-8 py-4 border-b border-[#333] bg-[#1a1a1a] shadow-md shrink-0">
         <div className="flex items-center">
-          <img src="/navbar/Logo.png" alt="TNJA Logo" className="h-16 w-auto object-contain" />
+          <img src="/navbar/Logo.png" alt="TNJA Logo" className="h-10 lg:h-16 w-auto object-contain" />
         </div>
         <div className="flex flex-col items-center">
-          <h1 className="text-[#f97316] text-xl font-black tracking-wide uppercase">{tournamentTitle}</h1>
-          <p className="text-gray-400 text-sm font-medium tracking-wide">
+          <h1 className="text-[#f97316] text-lg lg:text-xl font-black tracking-wide uppercase text-center">{tournamentTitle}</h1>
+          <p className="text-gray-400 text-xs lg:text-sm font-medium tracking-wide text-center">
             {weightCategory} <span className="text-[#f97316]">●</span> Match {matchNumber} <span className="text-[#f97316]">●</span> Mat {matNumber}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-4">
           {winner ? (
             <div className="bg-green-600 text-white px-4 py-1.5 rounded-md font-bold text-sm shadow-[0_0_10px_rgba(22,163,74,0.6)] flex items-center gap-2 tracking-widest uppercase">
               <Trophy size={14} /> MATCH FINISHED • WINNER: {winner === "A" ? fighterAName : fighterBName}
@@ -718,28 +718,28 @@ function ScoreboardInner() {
       )}
 
       {/* ══ MAIN CONTENT ══════════════════════════════════════════════════════ */}
-      <div className="flex-1 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-2 xl:flex xl:flex-row gap-4 lg:gap-6 overflow-y-auto xl:overflow-hidden">
+      <div className="flex-1 p-4 lg:p-6 flex flex-col xl:flex-row gap-4 lg:gap-6 overflow-y-auto xl:overflow-hidden">
         
         {/* ── PLAYER 1 (WHITE) ──────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.3)] overflow-hidden p-4 relative order-2 xl:order-1 col-span-1">
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.3)] overflow-hidden p-4 relative order-2 xl:order-1">
           <div className="flex justify-between items-start mb-4">
             <span className="bg-white text-black text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 1</span>
-            <span className="text-3xl">🇮🇳</span>
+            <span className="text-2xl lg:text-3xl">🇮🇳</span>
           </div>
           
-          <div className="flex items-center gap-6 mb-4">
-            <div className="w-20 h-20 rounded-full border border-gray-400 overflow-hidden bg-gray-200 flex items-center justify-center shadow-lg">
-              <span className="text-black text-2xl font-black">{fighterAName.substring(0, 2).toUpperCase()}</span>
+          <div className="flex items-center gap-4 lg:gap-6 mb-4">
+            <div className="w-16 h-16 lg:w-20 lg:h-20 shrink-0 rounded-full border border-gray-400 overflow-hidden bg-gray-200 flex items-center justify-center shadow-lg">
+              <span className="text-black text-xl lg:text-2xl font-black">{fighterAName.substring(0, 2).toUpperCase()}</span>
             </div>
-            <div className="flex flex-col">
-              <h2 className="text-2xl font-bold text-white mb-1">{fighterAName}</h2>
-              <p className="text-sm text-gray-400 mb-2">{fighterAClub}</p>
-              {fighterACoach && <div className="text-gray-500 text-xs font-semibold tracking-wider mb-2">Coach: {fighterACoach}</div>}
-              <div className="text-xl font-bold text-white">Score : {totalScore(scoreA)}</div>
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-xl lg:text-2xl font-bold text-white mb-1 truncate">{fighterAName}</h2>
+              <p className="text-xs lg:text-sm text-gray-400 mb-2 truncate">{fighterAClub}</p>
+              {fighterACoach && <div className="text-gray-500 text-xs font-semibold tracking-wider mb-2 truncate">Coach: {fighterACoach}</div>}
+              <div className="text-lg lg:text-xl font-bold text-white">Score : {totalScore(scoreA)}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:gap-4 mb-4">
             <ScoreBox label="IPPON" value={scoreA.ippon} theme="white" onUndo={() => undoScore("A", "ippon")} />
             <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="white" onUndo={() => undoScore("A", "wazaAri")} />
             <ScoreBox label="YUKO" value={scoreA.yuko} theme="white" onUndo={() => undoScore("A", "yuko")} />
@@ -749,12 +749,12 @@ function ScoreboardInner() {
           <div className="flex flex-col flex-grow">
             <span className="text-xs font-bold tracking-widest text-white mb-2">ACTIONS</span>
             
-            <div className="grid grid-cols-5 gap-3 mb-4">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 lg:gap-3 mb-4">
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="IPPON" onClick={() => addScore("A", "ippon")} />
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="WAZA-ARI" onClick={() => addScore("A", "wazaAri")} />
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="YUKO" onClick={() => addScore("A", "yuko")} />
               <ActionBtn icon={<div className="w-3 h-4 bg-yellow-400 rounded-sm shadow-sm" />} label="SHIDO" onClick={() => addScore("A", "shido")} />
-              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU-MAKE" onClick={() => applyPenalty("A", "Hansoku-make", "")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU" onClick={() => applyPenalty("A", "Hansoku-make", "")} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -926,24 +926,24 @@ function ScoreboardInner() {
         </div>
 
         {/* ── PLAYER 2 (BLUE) ────────────────────────────────────────── */}
-        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-blue-500 shadow-[0_0_35px_rgba(37,99,235,0.5)] overflow-hidden p-4 relative order-3 xl:order-3 col-span-1">
+        <div className="flex-[1.2] flex flex-col bg-[#161616] rounded-2xl border-2 border-blue-500 shadow-[0_0_35px_rgba(37,99,235,0.5)] overflow-hidden p-4 relative order-3 xl:order-3">
           <div className="flex justify-between items-start mb-4">
             <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-wider shadow-lg">PLAYER 2</span>
-            <span className="text-3xl">🇮🇳</span>
+            <span className="text-2xl lg:text-3xl">🇮🇳</span>
           </div>
           
-          <div className="flex items-center gap-6 mb-4">
-            <div className="w-20 h-20 rounded-full border border-gray-600 overflow-hidden bg-blue-800 flex items-center justify-center shadow-lg">
-              <span className="text-white text-2xl font-black">{fighterBName.substring(0, 2).toUpperCase()}</span>
+          <div className="flex items-center gap-4 lg:gap-6 mb-4">
+            <div className="w-16 h-16 lg:w-20 lg:h-20 shrink-0 rounded-full border border-gray-600 overflow-hidden bg-blue-800 flex items-center justify-center shadow-lg">
+              <span className="text-white text-xl lg:text-2xl font-black">{fighterBName.substring(0, 2).toUpperCase()}</span>
             </div>
-            <div className="flex flex-col">
-              <h2 className="text-2xl font-bold text-white mb-1">{fighterBName}</h2>
-              <p className="text-sm text-gray-400 mb-2">{fighterBClub}</p>
-              <div className="text-xl font-bold text-white">Score : {totalScore(scoreB)}</div>
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-xl lg:text-2xl font-bold text-white mb-1 truncate">{fighterBName}</h2>
+              <p className="text-xs lg:text-sm text-gray-400 mb-2 truncate">{fighterBClub}</p>
+              <div className="text-lg lg:text-xl font-bold text-white">Score : {totalScore(scoreB)}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:gap-4 mb-4">
             <ScoreBox label="IPPON" value={scoreB.ippon} theme="blue" onUndo={() => undoScore("B", "ippon")} />
             <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="blue" onUndo={() => undoScore("B", "wazaAri")} />
             <ScoreBox label="YUKO" value={scoreB.yuko} theme="blue" onUndo={() => undoScore("B", "yuko")} />
@@ -953,12 +953,12 @@ function ScoreboardInner() {
           <div className="flex flex-col flex-grow">
             <span className="text-xs font-bold tracking-widest text-white mb-2">ACTIONS</span>
             
-            <div className="grid grid-cols-5 gap-3 mb-4">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 lg:gap-3 mb-4">
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="IPPON" onClick={() => addScore("B", "ippon")} />
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="WAZA-ARI" onClick={() => addScore("B", "wazaAri")} />
               <ActionBtn icon={<span className="text-[14px]">🥋</span>} label="YUKO" onClick={() => addScore("B", "yuko")} />
               <ActionBtn icon={<div className="w-3 h-4 bg-yellow-400 rounded-sm shadow-sm" />} label="SHIDO" onClick={() => addScore("B", "shido")} />
-              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU-MAKE" onClick={() => applyPenalty("B", "Hansoku-make", "")} />
+              <ActionBtn icon={<div className="w-3 h-4 bg-red-600 rounded-sm shadow-sm" />} label="HANSOKU" onClick={() => applyPenalty("B", "Hansoku-make", "")} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -994,10 +994,10 @@ function ScoreboardInner() {
       </div>
 
       {/* ══ EXPORT SECTION ════════════════════════════════════════════════════ */}
-      <div className="pb-6 flex justify-center shrink-0">
-        <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-8 py-4 flex items-center gap-8 shadow-xl">
+      <div className="pb-6 flex justify-center shrink-0 px-4">
+        <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-4 lg:px-8 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-8 shadow-xl w-full md:w-auto">
           <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap justify-center gap-2 lg:gap-4">
             <button onClick={handlePrint} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
               <Download size={16} /> Save PDF
             </button>
@@ -1023,32 +1023,32 @@ function ScoreboardInner() {
             <motion.div 
               initial={{ scale: 0.8, opacity: 0, y: 30 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
-              className="bg-[#1a1a1a] border-2 border-[#333] p-12 rounded-[2rem] shadow-2xl flex flex-col items-center max-w-2xl w-full text-center relative overflow-hidden"
+              className="bg-[#1a1a1a] border-2 border-[#333] px-6 sm:px-12 py-8 sm:py-12 mx-4 rounded-[2rem] shadow-2xl flex flex-col items-center max-w-2xl w-full text-center relative overflow-hidden"
             >
               <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-green-400 to-green-600" />
               
-              <div className="w-24 h-24 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-6 ring-4 ring-green-500/20">
-                <Trophy size={48} />
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4 sm:mb-6 ring-4 ring-green-500/20 shrink-0">
+                <Trophy size={40} className="sm:w-12 sm:h-12" />
               </div>
-              <h2 className="text-xl font-black tracking-[0.3em] text-gray-500 mb-2">WINNER DECLARED</h2>
-              <h1 className="text-6xl font-black text-white mb-3 leading-tight drop-shadow-lg">
+              <h2 className="text-lg sm:text-xl font-black tracking-[0.3em] text-gray-500 mb-2">WINNER DECLARED</h2>
+              <h1 className="text-4xl sm:text-6xl font-black text-white mb-2 sm:mb-3 leading-tight drop-shadow-lg break-words">
                 {winner === "A" ? fighterAName : fighterBName}
               </h1>
-              <h3 className="text-2xl font-bold text-gray-400 mb-10">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-400 mb-6 sm:mb-10">
                 {winner === "A" ? fighterAClub : fighterBClub}
               </h3>
               
-              <div className="bg-[#111] px-8 py-4 rounded-2xl border border-[#333] mb-10 w-full shadow-inner">
-                <span className="text-xs font-bold text-gray-500 tracking-[0.2em] uppercase block mb-2">Method of Victory</span>
-                <span className="text-2xl font-black text-[#FF7400] uppercase tracking-wider">{winMethod || "Decision"}</span>
+              <div className="bg-[#111] px-6 py-4 rounded-2xl border border-[#333] mb-8 sm:mb-10 w-full shadow-inner">
+                <span className="text-xs font-bold text-gray-500 tracking-[0.2em] uppercase block mb-1">Method of Victory</span>
+                <span className="text-xl sm:text-2xl font-black text-[#FF7400] uppercase tracking-wider">{winMethod || "Decision"}</span>
               </div>
 
-              <div className="flex gap-4 w-full">
+              <div className="flex flex-col sm:flex-row gap-4 w-full">
                 <button 
                   onClick={handlePrint} 
-                  className="flex-1 bg-white hover:bg-gray-200 text-black font-black py-4 rounded-xl transition-all shadow-xl shadow-white/10 flex items-center justify-center gap-3 text-lg"
+                  className="flex-1 bg-white hover:bg-gray-200 text-black font-black py-4 rounded-xl transition-all shadow-xl shadow-white/10 flex items-center justify-center gap-2 sm:gap-3 text-base sm:text-lg"
                 >
-                  <Download size={24} /> Print Report
+                  <Download size={20} className="sm:w-6 sm:h-6" /> Download PDF
                 </button>
                 <button 
                   onClick={() => setWinner(null)} 
@@ -1089,14 +1089,14 @@ function ScoreboardInner() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-[#1a1a1a] border-2 border-[#333] p-8 rounded-2xl max-w-md w-full text-center shadow-2xl relative overflow-hidden"
+              className="bg-[#1a1a1a] border-2 border-[#333] p-6 sm:p-8 mx-4 rounded-2xl max-w-md w-full text-center shadow-2xl relative overflow-hidden"
             >
               <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
-              <h2 className="text-2xl font-black text-white mb-2">Confirm Winner?</h2>
-              <p className="text-gray-400 mb-8 font-semibold text-sm">
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2">Confirm Winner?</h2>
+              <p className="text-gray-400 mb-6 sm:mb-8 font-semibold text-xs sm:text-sm">
                 Are you sure you want to declare <span className="text-white font-bold">{confirmWinner === "A" ? fighterAName : fighterBName}</span> as the final winner? This will end the match immediately.
               </p>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button onClick={() => setConfirmWinner(null)} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
                   Cancel
                 </button>
@@ -1124,11 +1124,11 @@ function ScoreboardInner() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-[#1a1a1a] border-2 border-[#333] p-8 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden"
+              className="bg-[#1a1a1a] border-2 border-[#333] p-6 sm:p-8 mx-4 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden"
             >
               <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
-              <h2 className="text-2xl font-black text-white mb-2 text-center">Undo Score</h2>
-              <p className="text-gray-400 mb-6 font-semibold text-sm text-center">
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2 text-center">Undo Score</h2>
+              <p className="text-gray-400 mb-6 font-semibold text-xs sm:text-sm text-center">
                 Please provide a reason for undoing this score.
               </p>
               
@@ -1142,7 +1142,7 @@ function ScoreboardInner() {
                 onKeyDown={(e) => { if (e.key === "Enter") confirmUndo(); }}
               />
 
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button onClick={() => { setUndoPrompt(null); setUndoComment(""); }} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
                   Cancel
                 </button>

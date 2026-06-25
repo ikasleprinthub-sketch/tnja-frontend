@@ -78,17 +78,17 @@ export default function GlobalSettingsPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+        <Loader2 className="w-10 h-10 text-[#FF7400] animate-spin" />
         <p className="text-slate-500 font-medium">Loading settings...</p>
       </div>
     );
   }
 
   const feeItems = [
-    { key: "playerFee", label: "Player Registration Fee", icon: User, color: "blue" },
-    { key: "coachFee", label: "Coach/Referee Registration Fee", icon: BadgeCheck, color: "orange" },
-    { key: "memberFee", label: "Member Registration Fee", icon: Users, color: "green" },
-    { key: "clubFee", label: "Club Registration Fee", icon: Building2, color: "purple" },
+    { key: "playerFee", label: "Player Registration Fee", icon: User },
+    { key: "coachFee", label: "Coach/Referee Registration Fee", icon: BadgeCheck },
+    { key: "memberFee", label: "Member Registration Fee", icon: Users },
+    { key: "clubFee", label: "Club Registration Fee", icon: Building2 },
   ];
 
   return (
@@ -104,7 +104,7 @@ export default function GlobalSettingsPage() {
         className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200"
       >
         <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-100">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+          <div className="p-2 bg-[#FF7400]/10 text-[#FF7400] rounded-lg">
             <CreditCard size={20} />
           </div>
           <h2 className="text-xl font-bold text-slate-800">Registration Fees (INR)</h2>
@@ -129,7 +129,7 @@ export default function GlobalSettingsPage() {
             {feeItems.map((item) => (
               <div key={item.key} className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <item.icon size={16} className={`text-${item.color}-500`} />
+                  <item.icon size={16} className="text-[#FF7400]" />
                   {item.label}
                 </label>
                 <div className="relative">
@@ -138,7 +138,7 @@ export default function GlobalSettingsPage() {
                     type="number"
                     value={(settings as any)[item.key]}
                     onChange={(e) => setSettings({ ...settings, [item.key]: parseFloat(e.target.value) })}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold text-slate-800"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 focus:border-[#FF7400] transition-all font-bold text-slate-800"
                     placeholder="0.00"
                     required
                     min="0"
@@ -152,7 +152,7 @@ export default function GlobalSettingsPage() {
             <button 
               type="submit"
               disabled={saving}
-              className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2 disabled:opacity-70 shadow-lg shadow-blue-600/20"
+              className="px-8 py-3 bg-[#FF7400] text-white rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center gap-2 disabled:opacity-70 shadow-lg shadow-orange-500/20 cursor-pointer"
             >
               {saving ? (
                 <>
@@ -170,14 +170,14 @@ export default function GlobalSettingsPage() {
         </form>
       </motion.div>
 
-      <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
+      <div className="bg-orange-50 rounded-2xl p-6 border border-orange-100">
         <div className="flex gap-4">
-          <div className="p-2 bg-blue-100 text-blue-600 rounded-lg h-fit">
+          <div className="p-2 bg-orange-100 text-[#FF7400] rounded-lg h-fit">
             <AlertCircle size={20} />
           </div>
           <div>
-            <h3 className="font-bold text-blue-800 mb-1">Important Notice</h3>
-            <p className="text-blue-700 text-sm leading-relaxed">
+            <h3 className="font-bold text-orange-800 mb-1">Important Notice</h3>
+            <p className="text-orange-700 text-sm leading-relaxed">
               Updating these fees will immediately affect all new payment orders. Existing orders created but not yet paid will maintain the previous fee amount.
             </p>
           </div>
