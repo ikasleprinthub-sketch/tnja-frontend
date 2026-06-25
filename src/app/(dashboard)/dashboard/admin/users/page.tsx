@@ -98,6 +98,10 @@ export default function UserManagementPage() {
   const [userToDelete, setUserToDelete] = useState<TNJAUser | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [fullUserDetails, setFullUserDetails] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
   // Match stats and coach state
   const [wins, setWins] = useState<number>(0);
   const [losses, setLosses] = useState<number>(0);
@@ -203,9 +207,30 @@ export default function UserManagementPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const confirmDelete = (user: TNJAUser) => {
-    setUserToDelete(user);
+  const confirmDelete = (u: TNJAUser) => {
+    setUserToDelete(u);
     setDeleteModalOpen(true);
+  };
+
+  const handleViewDetails = async (u: TNJAUser) => {
+    setSelectedUser(u);
+    setViewModalOpen(true);
+    setDetailsLoading(true);
+    setFullUserDetails(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/users/${u.role}/${u.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch details");
+      setFullUserDetails(data.data);
+    } catch (err: any) {
+      showToast(err.message, "error");
+      setViewModalOpen(false);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -569,6 +594,13 @@ export default function UserManagementPage() {
                         <Shield size={12} /> Promote
                       </button>
                     )}
+                    <button
+                      onClick={() => handleViewDetails(u)}
+                      className="px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-600 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                      title="View Details"
+                    >
+                      <Eye size={12} /> View
+                    </button>
                     <button
                       onClick={() => handleEdit(u)}
                       className="px-3 py-1.5 text-[10px] font-bold text-[#FF7400] bg-orange-50 border border-orange-100 hover:bg-[#FF7400] hover:text-white rounded-lg transition-all flex items-center gap-1"
@@ -1163,6 +1195,160 @@ export default function UserManagementPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <ViewDetailsModal
+        isOpen={viewModalOpen}
+        onClose={() => setViewModalOpen(false)}
+        user={fullUserDetails}
+        loading={detailsLoading}
+      />
     </div>
+  );
+}
+
+function ViewDetailsModal({ 
+  isOpen, 
+  onClose, 
+  user, 
+  loading 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  user: any; 
+  loading: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex justify-between items-center px-8 py-6 border-b border-slate-100 bg-slate-50/50">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                <IdCard className="text-[#FF7400]" size={28} />
+                User Details
+              </h2>
+              {user && (
+                <p className="text-sm font-bold text-slate-500 mt-1">
+                  {user.fullName || user.clubName || "Unknown User"} • {user.role}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-all"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-8 overflow-y-auto">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <Loader2 size={40} className="animate-spin mb-4 text-[#FF7400]" />
+                <p className="font-bold">Fetching user details...</p>
+              </div>
+            ) : !user ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                <XCircle size={40} className="mb-4 text-slate-300" />
+                <p className="font-bold">User details not found.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(user)
+                  .filter(([key]) => ![
+                    "id", "password", "resetPasswordToken", "resetPasswordExpires",
+                  ].includes(key))
+                  .map(([key, val]) => {
+                    if (val === null || val === undefined || val === "") return null;
+                    
+                    const isUploadField =
+                      ["proof", "photo", "certificate", "document", "front", "back", "file", "upload"].some((k) =>
+                        key.toLowerCase().includes(k)
+                      ) ||
+                      (typeof val === "string" && (val.startsWith("http") || val.includes("/uploads/")));
+
+                    const isBoolean = typeof val === "boolean";
+                    const isDate = typeof val === "string" && /^\d{4}-\d{2}-\d{2}T/.test(val);
+
+                    const label = key
+                      .replace(/([A-Z])/g, " $1")
+                      .replace(/^./, (str) => str.toUpperCase())
+                      .trim();
+
+                    let displayValue: React.ReactNode = String(val);
+
+                    if (isBoolean) {
+                      displayValue = val ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded">
+                          <CheckCircle2 size={14} /> Yes
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded">
+                          <XCircle size={14} /> No
+                        </span>
+                      );
+                    } else if (isDate) {
+                      displayValue = new Date(val as string).toLocaleString();
+                    }
+
+                    return (
+                      <div
+                        key={key}
+                        className={`bg-slate-50 rounded-2xl p-4 border border-slate-100 ${
+                          isUploadField ? "md:col-span-2" : ""
+                        }`}
+                      >
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                          {label}
+                        </span>
+                        {isUploadField ? (
+                          <div className="mt-2">
+                            {typeof val === "string" && val.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                              <a href={val} target="_blank" rel="noopener noreferrer" className="block max-w-[200px] border border-slate-200 rounded-xl overflow-hidden hover:opacity-80 transition-opacity">
+                                <img src={val} alt={label} className="w-full h-auto object-cover" />
+                              </a>
+                            ) : (
+                              <a
+                                href={val as string}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors"
+                              >
+                                View Document ↗
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm font-bold text-slate-800 break-words">
+                            {displayValue}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+          
+          <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm"
+            >
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }

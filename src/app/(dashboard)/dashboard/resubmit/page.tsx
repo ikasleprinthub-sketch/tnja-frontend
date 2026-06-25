@@ -52,7 +52,7 @@ export default function ResubmitPage() {
         
         // Include if it's not an object (primitive) OR if it is null (empty primitive)
         if (val === null || typeof val !== "object") {
-          initialForm[key] = val || "";
+          initialForm[key] = val === null ? "" : val;
         }
       });
       setFormData(initialForm);
