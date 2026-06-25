@@ -250,14 +250,6 @@ const MemberRegistrationForm = () => {
   });
 
   useEffect(() => {
-    const savedData = sessionStorage.getItem('memberRegistrationData');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.formData) setFormData(parsed.formData);
-        if (parsed.otpVerified) setOtpVerified(true);
-      } catch (err) {}
-    }
 
     const fetchData = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
@@ -271,35 +263,9 @@ const MemberRegistrationForm = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    sessionStorage.setItem('memberRegistrationData', JSON.stringify({
-      formData,
-      otpVerified
-    }));
-  }, [formData, otpVerified]);
 
-  // Auto-fill City based on Pincode
-  useEffect(() => {
-    const fetchLocation = async () => {
-      if (formData.addressPincode && formData.addressPincode.length === 6) {
-        try {
-          const res = await fetch(`/api/pincode/${formData.addressPincode}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data && data[0] && data[0].Status === "Success") {
-            const po = data[0].PostOffice[0];
-            setFormData(prev => ({ 
-              ...prev, 
-              city: po.District || po.Block || po.Name
-            }));
-          }
-        } catch (err) {
-          console.error("Failed to fetch location details:", err);
-        }
-      }
-    };
-    fetchLocation();
-  }, [formData.addressPincode]);
+
+
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
@@ -448,7 +414,6 @@ const MemberRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
-        sessionStorage.removeItem('memberRegistrationData');
       } else {
         setError(result.error || "Something went wrong");
       }

@@ -26,6 +26,7 @@ import {
   Phone,
   Plus,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -92,6 +93,10 @@ export default function UserManagementPage() {
   const [promoteDistrictId, setPromoteDistrictId] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<TNJAUser | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   // Match stats and coach state
   const [wins, setWins] = useState<number>(0);
@@ -170,6 +175,12 @@ export default function UserManagementPage() {
   useEffect(() => {
     fetchCoaches();
     fetchDistricts();
+    
+    // Decode basic role from localStorage token if available, or just get the role
+    const role = localStorage.getItem("userRole");
+    if (role) {
+      setCurrentUserRole(role);
+    }
   }, []);
 
   useEffect(() => {
@@ -190,6 +201,35 @@ export default function UserManagementPage() {
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const confirmDelete = (user: TNJAUser) => {
+    setUserToDelete(user);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!userToDelete) return;
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/users/${userToDelete.role}/${userToDelete.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete user");
+      
+      showToast("User deleted successfully", "success");
+      setDeleteModalOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.message, "error");
+      setDeleteModalOpen(false);
+    } finally {
+      setActionLoading(false);
+      setUserToDelete(null);
+    }
   };
 
   const handleEdit = (user: TNJAUser) => {
@@ -536,6 +576,15 @@ export default function UserManagementPage() {
                     >
                       <Edit size={12} /> Edit
                     </button>
+                    {(currentUserRole === "SUPER_ADMIN" || currentUserRole === "CEO") && (
+                      <button
+                        onClick={() => confirmDelete(u)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 hover:bg-red-600 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                        title="Delete User"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1069,6 +1118,45 @@ export default function UserManagementPage() {
                 >
                   {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                   Create {createType === "STUDENT" ? "Player" : createType === "CLUB" ? "Club" : "Member"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+    </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteModalOpen && userToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl text-center"
+            >
+              <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-2">Delete User?</h3>
+              <p className="text-slate-500 mb-8">
+                Are you sure you want to delete <strong className="text-slate-800">{userToDelete.fullName}</strong>? This action cannot be undone. 
+                <br /><br />
+                <span className="text-xs text-red-500">Note: Deletion will fail if the user is linked to active matches, students, or other critical data.</span>
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setDeleteModalOpen(false)}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={actionLoading}
+                  className="flex-1 py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : "Delete"}
                 </button>
               </div>
             </motion.div>

@@ -232,14 +232,6 @@ const CoachRegistrationForm = () => {
   });
 
   useEffect(() => {
-    const savedData = sessionStorage.getItem('coachRegistrationData');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.formData) setFormData(parsed.formData);
-        if (parsed.otpVerified) setOtpVerified(true);
-      } catch (err) {}
-    }
 
     const fetchData = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
@@ -257,12 +249,7 @@ const CoachRegistrationForm = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    sessionStorage.setItem('coachRegistrationData', JSON.stringify({
-      formData,
-      otpVerified
-    }));
-  }, [formData, otpVerified]);
+
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
@@ -439,7 +426,6 @@ const CoachRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
-        sessionStorage.removeItem('coachRegistrationData');
       } else {
         if (result.errors && Array.isArray(result.errors)) {
           const errorMsgs = result.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');

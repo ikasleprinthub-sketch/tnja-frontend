@@ -16,6 +16,8 @@ import {
   Loader2,
   ClipboardCheck,
   Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import FileUpload from "@/components/common/FileUpload";
 
@@ -90,6 +92,7 @@ function getStepState(status: Status, stepKey: string) {
 function TrackPageContent() {
   const searchParams = useSearchParams();
   const [tempId, setTempId] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const paramId = searchParams.get("tempId");
@@ -307,13 +310,20 @@ function TrackPageContent() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Temporary Password (sent to your email)"
               required
-              className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all"
+              className="w-full pl-9 pr-12 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-[#FF7400] focus:ring-2 focus:ring-[#FF7400]/10 transition-all"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+            >
+              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+            </button>
           </div>
           <button
             type="submit"

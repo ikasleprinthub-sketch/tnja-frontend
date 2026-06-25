@@ -102,7 +102,7 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
   };
 }
 
-export default function ApprovalsPage() {
+function ApprovalsContent() {
   type StatusType = "PENDING" | "APPROVED" | "REJECTED" | "REPLAY";
 
   const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
@@ -116,6 +116,8 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  
+  const searchParams = useSearchParams();
 
   const tabs: { id: ApprovalType; label: string; icon: React.ComponentType<any> }[] = [
     { id: "CLUB", label: "Clubs", icon: Shield },

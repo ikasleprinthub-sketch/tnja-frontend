@@ -239,14 +239,6 @@ const PlayerRegistrationForm = () => {
   });
 
   useEffect(() => {
-    const savedData = sessionStorage.getItem('playerRegistrationData');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.formData) setFormData(parsed.formData);
-        if (parsed.otpVerified) setOtpVerified(true);
-      } catch (err) {}
-    }
 
     const fetchData = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
@@ -266,36 +258,9 @@ const PlayerRegistrationForm = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    sessionStorage.setItem('playerRegistrationData', JSON.stringify({
-      formData,
-      otpVerified
-    }));
-  }, [formData, otpVerified]);
 
-  // Auto-fill City and State based on Pincode
-  useEffect(() => {
-    const fetchLocation = async () => {
-      if (formData.addressPincode && formData.addressPincode.length === 6) {
-        try {
-          const res = await fetch(`/api/pincode/${formData.addressPincode}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data && data[0] && data[0].Status === "Success") {
-            const po = data[0].PostOffice[0];
-            setFormData(prev => ({
-              ...prev,
-              city: po.District || po.Block || po.Name,
-              state: po.State || prev.state
-            }));
-          }
-        } catch (err) {
-          console.error("Failed to fetch location details:", err);
-        }
-      }
-    };
-    fetchLocation();
-  }, [formData.addressPincode]);
+
+
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
@@ -483,7 +448,6 @@ const PlayerRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
-        sessionStorage.removeItem('playerRegistrationData');
       } else {
         if (result.errors && Array.isArray(result.errors)) {
           const errorMsgs = result.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
