@@ -105,7 +105,10 @@ function resolveApplication(raw: any, type: ApprovalType): Application {
 function ApprovalsContent() {
   type StatusType = "PENDING" | "APPROVED" | "REJECTED" | "REPLAY";
 
-  const [activeTab, setActiveTab] = useState<ApprovalType>("CLUB");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams?.get("type") as ApprovalType) || "CLUB";
+
+  const [activeTab, setActiveTab] = useState<ApprovalType>(initialTab);
   const [activeStatus, setActiveStatus] = useState<StatusType>("PENDING");
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isRequestChangesModalOpen, setIsRequestChangesModalOpen] = useState(false);
@@ -116,8 +119,6 @@ function ApprovalsContent() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  
-  const searchParams = useSearchParams();
 
   const tabs: { id: ApprovalType; label: string; icon: React.ComponentType<any> }[] = [
     { id: "CLUB", label: "Clubs", icon: Shield },

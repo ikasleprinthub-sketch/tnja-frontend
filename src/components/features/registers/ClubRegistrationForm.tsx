@@ -123,7 +123,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
-    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '', pincode: '' }));
+    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '' }));
     setTaluks([]);
     
     if (districtId) {
@@ -148,7 +148,6 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
         ...prev, 
         talukId,
         taluk: selectedTaluk.name, 
-        pincode: (selectedTaluk as any).pincode || '',
         president: '',
         secretary: '',
         coach: ''
@@ -167,7 +166,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
         console.error("Failed to fetch coaches/members:", err);
       }
     } else {
-      setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '', president: '', secretary: '', coach: '' }));
+      setFormData(prev => ({ ...prev, talukId: '', taluk: '', president: '', secretary: '', coach: '' }));
       setCoaches([]);
       setMembers([]);
     }

@@ -1098,6 +1098,7 @@ export default function UserManagementPage() {
                         </label>
                         <input
                           type="date"
+                          max={new Date(new Date().setFullYear(new Date().getFullYear() - (createType === 'STUDENT' ? 3 : 18))).toISOString().split('T')[0]}
                           value={createForm.dob}
                           onChange={(e) => setCreateForm({ ...createForm, dob: e.target.value })}
                           className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"

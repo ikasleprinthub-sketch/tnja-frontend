@@ -15,7 +15,7 @@ const SectionHeader = ({ title }: { title: string }) => (
   </div>
 );
 
-const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength, disabled = false }: any) => (
+const InputField = ({ label, name, placeholder, required = false, type = "text", icon: Icon, value, onChange, maxLength, disabled = false, autoComplete }: any) => (
   <div className="flex flex-col gap-2 w-full">
     <label className="text-xs font-bold text-gray-800 flex items-center gap-1">
       {label} {required && <RequiredSymbol />}
@@ -29,6 +29,7 @@ const InputField = ({ label, name, placeholder, required = false, type = "text",
         onChange={onChange}
         maxLength={maxLength}
         disabled={disabled}
+        autoComplete={autoComplete}
         className={`w-full ${Icon ? 'pl-10' : 'px-4'} py-3 bg-white border border-[#DEE2E6] rounded text-sm text-gray-900 focus:outline-none focus:border-[#FF7400] focus:ring-1 focus:ring-[#FF7400]/20 transition-all placeholder:text-gray-400 ${disabled ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
       />
       {Icon && (
@@ -84,7 +85,7 @@ const FileUploadField = ({ label, required = false, description, icon: Icon }: a
   </div>
 );
 
-const DatePickerField = ({ label, name, required = false, value, onChange, placeholder = "DD/MM/YYYY" }: any) => {
+const DatePickerField = ({ label, name, required = false, value, onChange, placeholder = "DD/MM/YYYY", maxDate: maxDateProp }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
@@ -189,15 +190,25 @@ const DatePickerField = ({ label, name, required = false, value, onChange, place
               const formattedDay = day.toString().padStart(2, '0');
               const formattedMonth = (currentMonth + 1).toString().padStart(2, '0');
               const isSelected = value === `${formattedDay}/${formattedMonth}/${currentYear}`;
+              const currentDate = new Date(currentYear, currentMonth, day);
+              
+              // We'll set maxDate to restrict future dates, using maxDateProp if provided
+              const maxDate = maxDateProp || new Date();
+              maxDate.setHours(23, 59, 59, 999);
+              
+              const isDisabled = currentDate > maxDate;
 
               return (
                 <button
                   key={day}
                   type="button"
-                  onClick={() => selectDate(day)}
-                  className={`py-1 rounded transition-colors font-medium hover:bg-orange-50 hover:text-[#FF7400] ${
-                    isSelected ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : 'text-gray-700'
-                  }`}
+                  onClick={() => !isDisabled && selectDate(day)}
+                  disabled={isDisabled}
+                  className={`py-1 rounded transition-colors font-medium ${
+                    isDisabled 
+                      ? 'opacity-30 cursor-not-allowed text-gray-400' 
+                      : 'hover:bg-orange-50 hover:text-[#FF7400] text-gray-700'
+                  } ${isSelected && !isDisabled ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : ''}`}
                 >
                   {day}
                 </button>
@@ -269,7 +280,7 @@ const MemberRegistrationForm = () => {
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
-    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '', pincode: '' }));
+    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '' }));
     setTaluks([]);
     
     if (districtId) {
@@ -293,11 +304,10 @@ const MemberRegistrationForm = () => {
       setFormData(prev => ({ 
         ...prev, 
         talukId,
-        taluk: selectedTaluk.name, 
-        pincode: (selectedTaluk as any).pincode || '' 
+        taluk: selectedTaluk.name
       }));
     } else {
-      setFormData(prev => ({ ...prev, talukId: '', taluk: '', pincode: '' }));
+      setFormData(prev => ({ ...prev, talukId: '', taluk: '' }));
     }
   };
 
@@ -529,8 +539,9 @@ const MemberRegistrationForm = () => {
                       label="Date of Birth" 
                       name="dob" 
                       required 
-                      value={formData.dob}
-                      onChange={handleInputChange}
+                      value={formData.dob} 
+                      onChange={handleInputChange} 
+                      maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 18))}
                     />
                   </div>
                 </div>
@@ -606,6 +617,7 @@ const MemberRegistrationForm = () => {
                     maxLength={6}
                     value={formData.addressPincode}
                     onChange={handleInputChange}
+                    autoComplete="off"
                   />
                   <InputField 
                     label="City" 
