@@ -470,9 +470,9 @@ const PlayerRegistrationForm = () => {
         setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
       } else if (name === 'email') {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
-      } else if (['fullName', 'fatherName', 'city', 'state'].includes(name)) {
+      } else if (['fullName', 'fatherName', 'city', 'state', 'schoolName', 'degreeDepartment'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
-      } else if (['address', 'schoolName'].includes(name)) {
+      } else if (['address'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
       } else {
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -494,6 +494,11 @@ const PlayerRegistrationForm = () => {
     }
     if (!otpVerified) {
       setError("Please verify your Aadhaar Number before submitting.");
+      return;
+    }
+
+    if (formData.isBPL && !formData.bplProof) {
+      setError("Please upload proof for BPL Beneficiary.");
       return;
     }
 
