@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -91,8 +91,13 @@ function getStepState(status: Status, stepKey: string) {
 
 function TrackPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [tempId, setTempId] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [result, setResult] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const paramId = searchParams.get("tempId");
@@ -100,10 +105,6 @@ function TrackPageContent() {
       setTempId(paramId);
     }
   }, [searchParams]);
-  const [password, setPassword] = useState("");
-  const [result, setResult] = useState<any | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const [formData, setFormData] = useState<any>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -176,6 +177,38 @@ function TrackPageContent() {
 
   const handleInputChange = (key: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const handleDirectLogin = () => {
+    if (!result) return;
+
+    localStorage.setItem("userRole", result.role);
+    localStorage.setItem("userName", result.fullName || "");
+    localStorage.setItem("userStatus", result.status || "APPROVED");
+    localStorage.setItem("userEmail", result.email || "");
+
+    if (result.mustChangePassword) {
+      router.push("/dashboard/change-password");
+      return;
+    }
+
+    if (result.status === "PENDING") {
+      alert("Your application is pending approval.");
+      return;
+    }
+    
+    if (result.status === "REJECTED" || result.status === "REPLAY") {
+      router.push("/dashboard/resubmit");
+      return;
+    }
+
+    if (["SUPER_ADMIN", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(result.role)) {
+      router.push("/dashboard/admin");
+    } else if (result.role === "PLAYER") {
+      router.push("/dashboard/player");
+    } else {
+      router.push("/dashboard/member");
+    }
   };
 
   const handleResubmit = async (e: React.FormEvent) => {
@@ -524,15 +557,15 @@ function TrackPageContent() {
                 })}
               </div>
 
-              {result.status === "APPROVED" && (
-                <Link
-                  href="/login"
+              <div className="pt-6 border-t border-slate-100 mt-4">
+                <button
+                  onClick={handleDirectLogin}
                   style={{ backgroundColor: "#FF7400" }}
-                  className="block w-full py-3 text-center text-white font-bold text-sm rounded-xl shadow-md shadow-orange-200 hover:opacity-90 transition-all"
+                  className="flex justify-center items-center w-full py-3 text-white font-bold text-sm rounded-xl shadow-md shadow-orange-200 hover:opacity-90 transition-all"
                 >
                   Login to Dashboard →
-                </Link>
-              )}
+                </button>
+              </div>
 
               
             </motion.div>

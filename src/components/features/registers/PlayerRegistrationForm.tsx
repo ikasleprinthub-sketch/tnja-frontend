@@ -665,11 +665,20 @@ const PlayerRegistrationForm = () => {
 
                 {/* Rest of Personal Information below */}
                 <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                  <InputField
+                  <SelectField
                     label="Blood Group"
                     name="bloodGroup"
-                    placeholder="e.g. O+ve"
                     required
+                    options={[
+                      { label: "O+ve", value: "O+ve" },
+                      { label: "O-ve", value: "O-ve" },
+                      { label: "A+ve", value: "A+ve" },
+                      { label: "A-ve", value: "A-ve" },
+                      { label: "B+ve", value: "B+ve" },
+                      { label: "B-ve", value: "B-ve" },
+                      { label: "AB+ve", value: "AB+ve" },
+                      { label: "AB-ve", value: "AB-ve" }
+                    ]}
                     value={formData.bloodGroup}
                     onChange={handleInputChange}
                   />

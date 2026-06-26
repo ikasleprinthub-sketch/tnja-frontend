@@ -225,7 +225,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
-      const endpoint = isResubmit ? `${API_URL}/auth/resubmit` : `${API_URL}/auth/register`;
+      const endpoint = isResubmit ? `${API_URL}/resubmit-application` : `${API_URL}/register/club`;
       const token = isResubmit ? localStorage.getItem("token") : null;
       
       const headers: any = {
@@ -236,7 +236,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
       }
 
       const response = await fetch(endpoint, {
-        method: isResubmit ? "PUT" : "POST",
+        method: "POST",
         headers,
         body: JSON.stringify({ role: "CLUB", ...formData }),
       });
