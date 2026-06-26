@@ -60,9 +60,23 @@ const SelectField = ({ label, name, options, required = false, value, onChange }
 );
 
 const DatePickerField = ({ label, name, required = false, value, onChange, placeholder = "DD/MM/YYYY", maxDate: maxDateProp }: any) => {
+  let defaultMonth = new Date().getMonth();
+  let defaultYear = new Date().getFullYear();
+  if (value && value.includes('/')) {
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      defaultMonth = parseInt(parts[1]) - 1;
+      defaultYear = parseInt(parts[2]);
+    }
+  } else if (maxDateProp) {
+    defaultMonth = new Date(maxDateProp).getMonth();
+    defaultYear = new Date(maxDateProp).getFullYear();
+  }
+
   const [isOpen, setIsOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(defaultMonth);
+  const [currentYear, setCurrentYear] = useState(defaultYear);
+  const [viewMode, setViewMode] = useState<'date' | 'year'>('date');
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,67 +142,97 @@ const DatePickerField = ({ label, name, required = false, value, onChange, place
       </div>
 
       {isOpen && (
-        <div className="absolute top-[100%] left-0 z-50 mt-2 p-4 bg-white border border-[#DEE2E6] rounded shadow-xl w-[280px] animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex justify-between items-center gap-1 mb-3">
+        <div className="absolute top-[100%] left-0 z-50 mt-2 p-4 bg-white text-gray-900 border border-[#DEE2E6] rounded-xl shadow-xl w-[300px] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex justify-between items-center gap-2 mb-4">
             <select
               value={currentMonth}
               onChange={(e) => setCurrentMonth(parseInt(e.target.value))}
-              className="px-1.5 py-1 bg-white border border-[#DEE2E6] rounded text-xs focus:outline-none focus:border-[#FF7400] flex-grow text-gray-700"
+              className="px-3 py-1.5 bg-white border border-[#DEE2E6] rounded-lg text-sm font-medium focus:outline-none focus:ring-1 focus:ring-[#FF7400] flex-grow text-gray-700 cursor-pointer"
             >
               {months.map((m, idx) => (
                 <option key={m} value={idx}>{m}</option>
               ))}
             </select>
-            
-            <select
-              value={currentYear}
-              onChange={(e) => setCurrentYear(parseInt(e.target.value))}
-              className="px-1.5 py-1 bg-white border border-[#DEE2E6] rounded text-xs focus:outline-none focus:border-[#FF7400] text-gray-700"
+
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'date' ? 'year' : 'date')}
+              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 transition-colors rounded-lg text-sm font-bold text-gray-800 flex items-center gap-2"
             >
-              {years.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+              {currentYear} 
+              <span className="text-[10px]">{viewMode === 'year' ? '▲' : '▼'}</span>
+            </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 mb-1">
-            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
-          </div>
+          {viewMode === 'date' ? (
+            <>
+              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+              </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-xs">
-            {Array.from({ length: firstDayIndex }).map((_, idx) => (
-              <div key={`empty-${idx}`} />
-            ))}
-            {Array.from({ length: daysInMonth }).map((_, idx) => {
-              const day = idx + 1;
-              const formattedDay = day.toString().padStart(2, '0');
-              const formattedMonth = (currentMonth + 1).toString().padStart(2, '0');
-              const isSelected = value === `${formattedDay}/${formattedMonth}/${currentYear}`;
-              const currentDate = new Date(currentYear, currentMonth, day);
-              
-              // We'll set maxDate to restrict future dates, using maxDateProp if provided
-              const maxDate = maxDateProp || new Date();
-              maxDate.setHours(23, 59, 59, 999);
-              
-              const isDisabled = currentDate > maxDate;
+              <div className="grid grid-cols-7 gap-1 text-center text-sm">
+                {Array.from({ length: firstDayIndex }).map((_, idx) => (
+                  <div key={`empty-${idx}`} />
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, idx) => {
+                  const day = idx + 1;
+                  const formattedDay = day.toString().padStart(2, '0');
+                  const formattedMonth = (currentMonth + 1).toString().padStart(2, '0');
+                  const isSelected = value === `${formattedDay}/${formattedMonth}/${currentYear}`;
+                  const currentDate = new Date(currentYear, currentMonth, day);
+                  
+                  // We'll set maxDate to restrict future dates, using maxDateProp if provided
+                  const maxDate = maxDateProp || new Date();
+                  maxDate.setHours(23, 59, 59, 999);
+                  
+                  const isDisabled = currentDate > maxDate;
 
-              return (
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => !isDisabled && selectDate(day)}
+                      disabled={isDisabled}
+                      className={`py-2 rounded-full transition-colors font-medium ${
+                        isDisabled 
+                          ? 'opacity-30 cursor-not-allowed text-gray-400' 
+                          : 'hover:bg-orange-50 hover:text-[#FF7400] text-gray-700'
+                      } ${isSelected && !isDisabled ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : ''}`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-4 gap-2 h-[220px] overflow-y-auto pr-2 custom-scrollbar scroll-smooth">
+              <style dangerouslySetInnerHTML={{__html: `
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #f9fafb; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+              `}} />
+              {/* Reverse to show chronological order (2016, 2017, ...) */}
+              {[...years].reverse().map(y => (
                 <button
-                  key={day}
+                  key={y}
                   type="button"
-                  onClick={() => !isDisabled && selectDate(day)}
-                  disabled={isDisabled}
-                  className={`py-1 rounded transition-colors font-medium ${
-                    isDisabled 
-                      ? 'opacity-30 cursor-not-allowed text-gray-400' 
-                      : 'hover:bg-orange-50 hover:text-[#FF7400] text-gray-700'
-                  } ${isSelected && !isDisabled ? 'bg-[#FF7400] text-white hover:bg-[#FF7400] hover:text-white font-bold' : ''}`}
+                  onClick={() => {
+                    setCurrentYear(y);
+                    setViewMode('date');
+                  }}
+                  className={`py-2 text-sm rounded-full transition-all ${
+                    y === currentYear 
+                      ? 'bg-[#FF7400] text-white font-black shadow-lg shadow-[#FF7400]/30' 
+                      : 'text-gray-700 hover:bg-gray-100 font-medium'
+                  }`}
                 >
-                  {day}
+                  {y}
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -535,6 +579,7 @@ const CoachRegistrationForm = () => {
                   value={formData.pincode}
                   onChange={handleInputChange}
                   maxLength={6}
+                  autoComplete="off"
                 />
               </div>
             </div>

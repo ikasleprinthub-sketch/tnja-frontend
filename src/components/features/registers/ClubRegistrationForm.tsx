@@ -377,6 +377,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
                     maxLength={6}
                     value={formData.pincode}
                     onChange={handleInputChange}
+                    autoComplete="off"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
