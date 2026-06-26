@@ -178,7 +178,22 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      const numberFields = [
+        'mobileNumber', 'pincode', 'noOfStudents', 'maleStudents', 'femaleStudents',
+        'age6to11Male', 'age6to11Female', 'age12to18Male', 'age12to18Female',
+        'age16AboveMale', 'age16AboveFemale'
+      ];
+      if (numberFields.includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
+      } else if (name === 'email') {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
+      } else if (['name', 'president', 'secretary'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
+      } else if (['address1', 'address2'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -186,6 +201,12 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
     e.preventDefault();
     if (!formData.agreedToTerms) {
       setError("Please agree to the Terms and Privacy policy.");
+      return;
+    }
+    
+    const emailRegex = /^(?=.{1,254}$)(?=.{1,64}@)[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address (e.g., max 64 characters before @).");
       return;
     }
 

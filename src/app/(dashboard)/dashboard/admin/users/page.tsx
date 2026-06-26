@@ -139,6 +139,7 @@ export default function UserManagementPage() {
       if (debouncedSearchQuery) params.append("search", debouncedSearchQuery);
       if (roleFilter !== "ALL") params.append("role", roleFilter);
       if (genderFilter !== "ALL") params.append("gender", genderFilter);
+      params.append("status", "APPROVED");
 
       const res = await fetch(`${API_BASE}/users/all?${params.toString()}`, {
         headers: {
@@ -528,9 +529,9 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-        <div className="flex w-full lg:w-auto gap-4 shrink-0 items-center">
-          <div className="relative w-full lg:w-96">
+      <div className="flex flex-col 2xl:flex-row gap-6 items-start 2xl:items-center justify-between">
+        <div className="flex flex-col sm:flex-row w-full 2xl:w-auto gap-4 shrink-0 items-start sm:items-center">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input
               type="text"
@@ -540,7 +541,7 @@ export default function UserManagementPage() {
               className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] transition-all text-black"
             />
           </div>
-          <div className="relative shrink-0">
+          <div className="relative shrink-0 w-full sm:w-auto">
             <select
               value={genderFilter}
               onChange={(e) => setGenderFilter(e.target.value)}
@@ -554,7 +555,7 @@ export default function UserManagementPage() {
           </div>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto pb-2 w-full lg:w-auto lg:justify-end scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-2 w-full 2xl:w-auto 2xl:justify-end scrollbar-hide">
           {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER"].map((r) => {
             const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : "Members";
             return (

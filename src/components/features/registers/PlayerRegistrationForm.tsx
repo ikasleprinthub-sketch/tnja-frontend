@@ -299,14 +299,8 @@ const PlayerRegistrationForm = () => {
     const fetchData = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
-        const [distRes, clubRes, coachRes] = await Promise.all([
-          fetch(`${apiUrl}/districts`),
-          fetch(`${apiUrl}/clubs`),
-          fetch(`${apiUrl}/coaches`)
-        ]);
-        if (distRes.ok) setDistricts(await distRes.json());
-        if (clubRes.ok) setClubs(await clubRes.json());
-        if (coachRes.ok) setCoaches(await coachRes.json());
+        const response = await fetch(`${apiUrl}/districts`);
+        if (response.ok) setDistricts(await response.json());
       } catch (err) {
         console.error("Failed to fetch initial data:", err);
       }
@@ -320,18 +314,24 @@ const PlayerRegistrationForm = () => {
 
   const handleDistrictChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const districtId = e.target.value;
-    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '' }));
+    setFormData(prev => ({ ...prev, districtId, talukId: '', taluk: '', coachId: '', clubId: '' }));
     setTaluks([]);
+    setCoaches([]);
+    setClubs([]);
 
     if (districtId) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api';
       try {
-        const response = await fetch(`${apiUrl}/districts/${districtId}/taluks`);
-        if (response.ok) {
-          setTaluks(await response.json());
-        }
+        const [talukRes, coachRes, clubRes] = await Promise.all([
+          fetch(`${apiUrl}/districts/${districtId}/taluks`),
+          fetch(`${apiUrl}/coaches?districtId=${districtId}`),
+          fetch(`${apiUrl}/clubs?districtId=${districtId}`)
+        ]);
+        if (talukRes.ok) setTaluks(await talukRes.json());
+        if (coachRes.ok) setCoaches(await coachRes.json());
+        if (clubRes.ok) setClubs(await clubRes.json());
       } catch (err) {
-        console.error("Failed to fetch taluks:", err);
+        console.error("Failed to fetch taluks or coaches:", err);
       }
     }
   };
@@ -465,7 +465,18 @@ const PlayerRegistrationForm = () => {
         age: calculatedAge
       }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      const numberFields = ['mobileNumber', 'alternateMobileNumber', 'pincode', 'addressPincode', 'aadhaarNumber', 'whatsappNumber', 'annualIncome'];
+      if (numberFields.includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
+      } else if (name === 'email') {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
+      } else if (['fullName', 'fatherName', 'city', 'state'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
+      } else if (['address', 'schoolName'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -473,6 +484,12 @@ const PlayerRegistrationForm = () => {
     e.preventDefault();
     if (!formData.agreedToTerms) {
       setError("Please agree to the Terms and Privacy policy.");
+      return;
+    }
+
+    const emailRegex = /^(?=.{1,254}$)(?=.{1,64}@)[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address (e.g., max 64 characters before @).");
       return;
     }
     if (!otpVerified) {
@@ -844,19 +861,13 @@ const PlayerRegistrationForm = () => {
                   <InputField
                     label="Family Annual Income"
                     name="annualIncome"
-                    type="number"
+                    type="text"
+                    maxLength={10}
                     placeholder="Enter Annual Income"
                     required
                     min={0}
                     value={formData.annualIncome}
                     onChange={handleInputChange}
-                  />
-                  <FileUpload
-                    label="Income Proof"
-                    value={formData.incomeProof}
-                    onChange={(url) => setFormData(prev => ({ ...prev, incomeProof: url }))}
-                    accept="image/*,application/pdf"
-                    helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
                   />
                 </div>
 

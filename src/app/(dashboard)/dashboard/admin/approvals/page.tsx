@@ -449,6 +449,17 @@ function ApprovalsContent() {
                           {item.status === "PENDING" ? (
                             <>
                               <button 
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setIsDetailModalOpen(true);
+                                }}
+                                disabled={actionLoading === item.id}
+                                className="bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors px-4 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+                              >
+                                <Eye size={13} />
+                                Review
+                              </button>
+                              <button 
                                 onClick={() => handleApprove(item)}
                                 disabled={actionLoading === item.id}
                                 className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"

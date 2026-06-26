@@ -430,7 +430,18 @@ const MemberRegistrationForm = () => {
       }
       setFormData(prev => ({ ...prev, dob: formatted }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      const numberFields = ['mobileNumber', 'alternateMobileNumber', 'pincode', 'addressPincode', 'aadhaarNumber', 'whatsappNumber'];
+      if (numberFields.includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
+      } else if (name === 'email') {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
+      } else if (['fullName', 'fatherName', 'city', 'state'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
+      } else if (['address'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -438,6 +449,12 @@ const MemberRegistrationForm = () => {
     e.preventDefault();
     if (!formData.agreedToTerms) {
       setError("Please agree to the Terms and Privacy policy.");
+      return;
+    }
+
+    const emailRegex = /^(?=.{1,254}$)(?=.{1,64}@)[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address (e.g., max 64 characters before @).");
       return;
     }
     if (!otpVerified) {

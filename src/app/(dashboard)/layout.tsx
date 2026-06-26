@@ -170,7 +170,11 @@ export default function DashboardLayout({
   if (!isMounted) return null;
 
   const handleLogout = () => {
+    const rememberedIdentifier = localStorage.getItem("rememberedIdentifier");
     localStorage.clear();
+    if (rememberedIdentifier) {
+      localStorage.setItem("rememberedIdentifier", rememberedIdentifier);
+    }
     startTransition(() => router.push("/login"));
   };
 
@@ -339,6 +343,7 @@ export default function DashboardLayout({
                   ? "/dashboard/player/profile"
                   : "/dashboard/member"
               }
+              onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
               className={`block text-sm font-bold pb-2 border-b-2 transition-opacity hover:opacity-75 ${
                 pathname === "/dashboard/admin/profile" || pathname === "/dashboard/player/profile" || pathname === "/dashboard/member"
                   ? "text-[#FF7400] border-[#FF7400]"
@@ -351,7 +356,7 @@ export default function DashboardLayout({
         )}
 
         {/* Nav section */}
-        <nav className="flex-grow px-3 pt-2">
+        <nav className="flex-grow px-3 pt-2 overflow-y-auto pb-24 scrollbar-hide">
           {isSidebarOpen && (
             <p className="text-sm font-bold text-slate-800 px-2 pb-3">Dashboard</p>
           )}
@@ -369,7 +374,11 @@ export default function DashboardLayout({
                 return (
                   <div key={item.name}>
                     <button
-                      onClick={() => setOpenDropdown(isDropdownOpen ? `${item.name}_closed` : item.name)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpenDropdown(isDropdownOpen ? `${item.name}_closed` : item.name);
+                      }}
                       className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-all ${
                         isParentHighlighted ? "bg-orange-50" : "hover:bg-slate-50"
                       }`}
@@ -402,6 +411,7 @@ export default function DashboardLayout({
                           <Link
                             key={child.name}
                             href={child.href}
+                            onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-[#FF7400] hover:bg-orange-50 transition-all"
                           >
                             <div className="w-1.5 h-1.5 rounded-full bg-[#FFA726] shrink-0" />
@@ -418,6 +428,7 @@ export default function DashboardLayout({
                 <Link
                   key={item.name}
                   href={item.href}
+                  onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
                   className={`flex items-center gap-3 px-2 py-2 rounded-xl transition-all ${
                     isParentHighlighted
                       ? "bg-orange-50"

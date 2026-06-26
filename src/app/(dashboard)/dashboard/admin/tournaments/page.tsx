@@ -1015,8 +1015,8 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
                     <input
-                      required type="number" min="0" value={formData.ageFrom}
-                      onChange={e => setFormData({ ...formData, ageFrom: e.target.value })}
+                      required type="text" maxLength={2} value={formData.ageFrom}
+                      onChange={e => setFormData({ ...formData, ageFrom: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
@@ -1024,8 +1024,8 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
                     <input
-                      required type="number" min="0" value={formData.ageTo}
-                      onChange={e => setFormData({ ...formData, ageTo: e.target.value })}
+                      required type="text" maxLength={2} value={formData.ageTo}
+                      onChange={e => setFormData({ ...formData, ageTo: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
@@ -1034,7 +1034,7 @@ export default function AdminTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location *</label>
                     <input
                       required type="text" value={formData.location}
-                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      onChange={e => setFormData({ ...formData, location: e.target.value.replace(/[^a-zA-Z0-9\s,.'-]/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
@@ -1052,8 +1052,8 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
                     <input
-                      required type="number" min="0" value={formData.entryFee}
-                      onChange={e => setFormData({ ...formData, entryFee: e.target.value })}
+                      required type="text" maxLength={5} value={formData.entryFee}
+                      onChange={e => setFormData({ ...formData, entryFee: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
@@ -1061,8 +1061,8 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
                     <input
-                      required type="number" min="2" value={formData.totalSlots}
-                      onChange={e => setFormData({ ...formData, totalSlots: e.target.value })}
+                      required type="text" maxLength={4} value={formData.totalSlots}
+                      onChange={e => setFormData({ ...formData, totalSlots: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
@@ -1070,8 +1070,8 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
                     <input
-                      required type="number" min="1" value={formData.numberOfMats}
-                      onChange={e => setFormData({ ...formData, numberOfMats: e.target.value })}
+                      required type="text" maxLength={2} value={formData.numberOfMats}
+                      onChange={e => setFormData({ ...formData, numberOfMats: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>

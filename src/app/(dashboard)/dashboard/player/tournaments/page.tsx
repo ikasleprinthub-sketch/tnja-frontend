@@ -73,7 +73,7 @@ export default function PlayerTournamentsPage() {
   const [playerData, setPlayerData] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [registerModal, setRegisterModal] = useState<any | null>(null);
-  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "", coachId: "" });
+  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "" });
   const [coaches, setCoaches] = useState<any[]>([]);
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -171,13 +171,12 @@ export default function PlayerTournamentsPage() {
 
 
 
-  const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string, directCoachId?: string) => {
+  const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
     const height = directHeight || physicalDetails.height;
     const weight = directWeight || physicalDetails.weight;
-    const coachId = directCoachId || physicalDetails.coachId;
 
-    if (!height || !weight || !coachId) {
-      showToast("Height, weight, and coach selection are required.", "error");
+    if (!height || !weight) {
+      showToast("Height and weight are required.", "error");
       return;
     }
     if (!playerData?.isPaid && !playerData?.isBPL) {
@@ -213,7 +212,6 @@ export default function PlayerTournamentsPage() {
           tournamentId: tournament.id,
           height,
           weight,
-          coachId,
         }),
       });
 
@@ -243,7 +241,6 @@ export default function PlayerTournamentsPage() {
                 tournamentId: tournament.id,
                 height,
                 weight,
-                coachId,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
@@ -273,7 +270,7 @@ export default function PlayerTournamentsPage() {
     } finally {
       setPaying(null);
       setRegisterModal(null);
-      setPhysicalDetails({ height: "", weight: "", coachId: "" });
+      setPhysicalDetails({ height: "", weight: "" });
     }
   };
 
@@ -576,14 +573,13 @@ export default function PlayerTournamentsPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            if (playerData?.height && playerData?.weight && playerData?.coachId) {
-                              handleRegister(tournament, playerData.height, playerData.weight, playerData.coachId);
+                            if (playerData?.height && playerData?.weight) {
+                              handleRegister(tournament, playerData.height, playerData.weight);
                             } else {
                               setRegisterModal(tournament);
                               setPhysicalDetails({
                                 height: playerData?.height || "",
                                 weight: playerData?.weight || "",
-                                coachId: playerData?.coachId || "",
                               });
                             }
                           }}
@@ -638,10 +634,11 @@ export default function PlayerTournamentsPage() {
                     Height (cm)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     required
+                    maxLength={3}
                     value={physicalDetails.height}
-                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, height: e.target.value })}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, height: e.target.value.replace(/\D/g, '') })}
                     placeholder="e.g. 175"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                   />
@@ -651,31 +648,14 @@ export default function PlayerTournamentsPage() {
                     Weight (kg)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     required
+                    maxLength={5}
                     value={physicalDetails.weight}
-                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, weight: e.target.value })}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, weight: e.target.value.replace(/[^0-9.]/g, '') })}
                     placeholder="e.g. 68"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    Select Coach
-                  </label>
-                  <select
-                    required
-                    value={physicalDetails.coachId}
-                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, coachId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all"
-                  >
-                    <option value="">Select a coach</option>
-                    {coaches.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -683,7 +663,7 @@ export default function PlayerTournamentsPage() {
                 <button
                   onClick={() => {
                     setRegisterModal(null);
-                    setPhysicalDetails({ height: "", weight: "", coachId: "" });
+                    setPhysicalDetails({ height: "", weight: "" });
                   }}
                   className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
                 >
@@ -691,7 +671,7 @@ export default function PlayerTournamentsPage() {
                 </button>
                 <button
                   onClick={() => handleRegister(registerModal)}
-                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight || !physicalDetails.coachId}
+                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight}
                   className="flex-1 py-3 bg-[#FF7400] hover:bg-[#e66a00] text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {paying === registerModal.id ? <Loader2 size={16} className="animate-spin" /> : "Proceed"}

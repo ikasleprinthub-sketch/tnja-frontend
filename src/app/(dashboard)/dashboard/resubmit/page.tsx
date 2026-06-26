@@ -46,7 +46,7 @@ export default function ResubmitPage() {
       Object.keys(data.user).forEach(key => {
         const val = data.user[key];
         // Exclude specific system/relation keys
-        if (["id", "password", "createdAt", "updatedAt", "status", "rejectionRemark", "role", "tempId", "permanentId", "districtId", "talukId", "zoneId", "clubId", "coachId", "district", "taluk", "zone", "club", "coach", "students", "tournaments", "members", "payments", "grievances", "matches", "logs"].includes(key)) {
+        if (["id", "password", "createdAt", "updatedAt", "status", "rejectionRemark", "role", "tempId", "permanentId", "districtId", "talukId", "zoneId", "clubId", "coachId", "district", "taluk", "zone", "club", "coach", "students", "tournaments", "members", "payments", "grievances", "matches", "logs", "approvedBy", "approvedAt", "mustChangePassword", "resetPasswordToken", "resetPasswordExpires", "isPaid", "validUntil", "wins", "losses", "draws"].includes(key)) {
           return;
         }
         

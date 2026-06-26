@@ -441,7 +441,18 @@ const CoachRegistrationForm = () => {
         age: calculatedAge
       }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      const numberFields = ['mobileNumber', 'alternateMobileNumber', 'pincode', 'aadhaarNumber', 'whatsappNumber'];
+      if (numberFields.includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
+      } else if (name === 'email') {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
+      } else if (['fullName', 'fatherName'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
+      } else if (['address'].includes(name)) {
+        setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -449,6 +460,12 @@ const CoachRegistrationForm = () => {
     e.preventDefault();
     if (!formData.agreedToTerms) {
       setError("Please agree to the Terms and Privacy policy.");
+      return;
+    }
+
+    const emailRegex = /^(?=.{1,254}$)(?=.{1,64}@)[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Please enter a valid email address (e.g., max 64 characters before @).");
       return;
     }
     if (!otpVerified) {
@@ -768,7 +785,7 @@ const CoachRegistrationForm = () => {
 
           {/* History Section */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Highest Achivement in Judo /any other sport" />
+            <SectionHeader title="Highest Achivement in Judo / Any Other Sport" />
             <div className="p-8 pt-2 space-y-8">
               <InputField 
                 label="Highest Achivement in Judo" 

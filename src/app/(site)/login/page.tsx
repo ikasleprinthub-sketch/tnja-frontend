@@ -16,10 +16,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
+      const savedIdentifier = localStorage.getItem("rememberedIdentifier");
+      if (savedIdentifier) {
+        setFormData((prev) => ({ ...prev, identifier: savedIdentifier }));
+        setRememberMe(true);
+      }
+
       const params = new URLSearchParams(window.location.search);
       const identifier = params.get("identifier");
       if (identifier) {
@@ -56,6 +63,13 @@ export default function LoginPage() {
       localStorage.setItem("userName", data.user.fullName);
       localStorage.setItem("userStatus", data.user.status || "APPROVED");
       localStorage.setItem("userEmail", data.user.email);
+
+      // Remember Me Logic
+      if (rememberMe) {
+        localStorage.setItem("rememberedIdentifier", formData.identifier);
+      } else {
+        localStorage.removeItem("rememberedIdentifier");
+      }
 
       // Check if password change is required
       if (data.user.mustChangePassword) {
@@ -187,7 +201,9 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between px-1">
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input 
-                      type="checkbox" 
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded border border-[#FFDAB9] text-[#FF7400] focus:ring-[#FF7400]/20 cursor-pointer" 
                     />
                     <span className="text-xs text-gray-500 font-semibold group-hover:text-gray-700 transition-colors">Remember Me</span>
