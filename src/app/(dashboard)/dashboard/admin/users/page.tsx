@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { adminStudentSchema, adminClubSchema, adminMemberSchema } from "@/validation/adminEntitySchema";
 import {
   Search,
   Filter,
@@ -123,6 +124,7 @@ export default function UserManagementPage() {
     fatherName: "", addressLine1: "", addressLine2: ""
   });
   const [taluksList, setTaluksList] = useState<any[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -339,6 +341,29 @@ export default function UserManagementPage() {
   };
 
   const handleCreate = async () => {
+    try {
+      setFormErrors({});
+      let schema;
+      if (createType === "STUDENT") schema = adminStudentSchema;
+      else if (createType === "CLUB") schema = adminClubSchema;
+      else if (createType === "MEMBER") schema = adminMemberSchema;
+
+      if (schema) {
+        schema.parse(createForm);
+      }
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        const errors: any = {};
+        error.errors.forEach((err: any) => {
+          if (err.path[0]) errors[err.path[0]] = err.message;
+        });
+        setFormErrors(errors);
+        const firstErrorKey = Object.keys(errors)[0];
+        showToast(errors[firstErrorKey] || "Please fill all required fields correctly.", "error");
+        return;
+      }
+    }
+
     setActionLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -945,7 +970,7 @@ export default function UserManagementPage() {
                     <p className="text-slate-500 text-sm">Force create an approved Player, Club, or Member.</p>
                   </div>
                 </div>
-                <button onClick={() => setCreateModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <button onClick={() => { setCreateModalOpen(false); setFormErrors({}); }} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
                   <X size={20} className="text-slate-400" />
                 </button>
               </div>
@@ -976,34 +1001,34 @@ export default function UserManagementPage() {
                         <input
                           type="text"
                           value={createForm.name}
-                          onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                          onChange={(e) => { setCreateForm({ ...createForm, name: e.target.value }); if (formErrors.name) setFormErrors(prev => ({ ...prev, name: '' })); }}
                           placeholder="Enter Club Name"
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                          className="` w-full px-4 py-3 bg-white border ${formErrors.name ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
                         />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 1</label>
-                        <input type="text" value={createForm.address1} onChange={(e) => setCreateForm({ ...createForm, address1: e.target.value })} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.address1} onChange={(e) => { setCreateForm({ ...createForm, address1: e.target.value }); if (formErrors.address1) setFormErrors(prev => ({ ...prev, address1: '' })); }} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 2 (Optional)</label>
-                        <input type="text" value={createForm.address2} onChange={(e) => setCreateForm({ ...createForm, address2: e.target.value })} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.address2} onChange={(e) => { setCreateForm({ ...createForm, address2: e.target.value }); if (formErrors.address2) setFormErrors(prev => ({ ...prev, address2: '' })); }} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
-                        <input type="text" value={createForm.pincode} onChange={(e) => setCreateForm({ ...createForm, pincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.pincode} onChange={(e) => { setCreateForm({ ...createForm, pincode: e.target.value.replace(/\D/g, '') }); if (formErrors.pincode) setFormErrors(prev => ({ ...prev, pincode: '' })); }} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">President Name</label>
-                        <input type="text" value={createForm.president} onChange={(e) => setCreateForm({ ...createForm, president: e.target.value })} placeholder="President Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.president} onChange={(e) => { setCreateForm({ ...createForm, president: e.target.value }); if (formErrors.president) setFormErrors(prev => ({ ...prev, president: '' })); }} placeholder="President Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Secretary Name</label>
-                        <input type="text" value={createForm.secretary} onChange={(e) => setCreateForm({ ...createForm, secretary: e.target.value })} placeholder="Secretary Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.secretary} onChange={(e) => { setCreateForm({ ...createForm, secretary: e.target.value }); if (formErrors.secretary) setFormErrors(prev => ({ ...prev, secretary: '' })); }} placeholder="Secretary Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Coach Name</label>
-                        <input type="text" value={createForm.coach} onChange={(e) => setCreateForm({ ...createForm, coach: e.target.value })} placeholder="Coach Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.coach} onChange={(e) => { setCreateForm({ ...createForm, coach: e.target.value }); if (formErrors.coach) setFormErrors(prev => ({ ...prev, coach: '' })); }} placeholder="Coach Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                     </>
                   ) : (
@@ -1014,7 +1039,7 @@ export default function UserManagementPage() {
                       <input
                         type="text"
                         value={createForm.fullName}
-                        onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
+                        onChange={(e) => { setCreateForm({ ...createForm, fullName: e.target.value }); if (formErrors.fullName) setFormErrors(prev => ({ ...prev, fullName: '' })); }}
                         placeholder="Enter Full Name"
                         className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                       />
@@ -1028,7 +1053,7 @@ export default function UserManagementPage() {
                     <input
                       type="email"
                       value={createForm.email}
-                      onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                      onChange={(e) => { setCreateForm({ ...createForm, email: e.target.value }); if (formErrors.email) setFormErrors(prev => ({ ...prev, email: '' })); }}
                       placeholder="Enter Email Address"
                       className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                     />
@@ -1040,7 +1065,7 @@ export default function UserManagementPage() {
                     <input
                       type="text"
                       value={createForm.mobileNumber}
-                      onChange={(e) => setCreateForm({ ...createForm, mobileNumber: e.target.value })}
+                      onChange={(e) => { setCreateForm({ ...createForm, mobileNumber: e.target.value.replace(/\D/g, '') }); if (formErrors.mobileNumber) setFormErrors(prev => ({ ...prev, mobileNumber: '' })); }}
                       placeholder="10-digit Mobile Number"
                       className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                     />
@@ -1052,14 +1077,16 @@ export default function UserManagementPage() {
                     </label>
                     <select
                       value={createForm.districtId}
-                      onChange={(e) => setCreateForm({ ...createForm, districtId: e.target.value, talukId: "" })}
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                      onChange={(e) => { setCreateForm({ ...createForm, districtId: e.target.value, talukId: "" }); if (formErrors.districtId) setFormErrors(prev => ({ ...prev, districtId: '' })); }}
+                      className="` w-full px-4 py-3 bg-white border ${formErrors.districtId ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
                     >
                       <option value="">Select District</option>
                       {districtsList.map((d: any) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
+                        {formErrors.name && <p className="text-red-500 text-xs mt-1.5 font-bold ml-1 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-red-500"></span>{formErrors.name}</p>}
+                        {formErrors.name && <p className='text-red-500 text-[10px] mt-1 ml-1'>{formErrors.name}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
@@ -1067,14 +1094,16 @@ export default function UserManagementPage() {
                     </label>
                     <select
                       value={createForm.talukId}
-                      onChange={(e) => setCreateForm({ ...createForm, talukId: e.target.value })}
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                      onChange={(e) => { setCreateForm({ ...createForm, talukId: e.target.value }); if (formErrors.talukId) setFormErrors(prev => ({ ...prev, talukId: '' })); }}
+                      className="` w-full px-4 py-3 bg-white border ${formErrors.talukId ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
                     >
                       <option value="">Select Taluk</option>
                       {taluksList.map((t: any) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
+                        {formErrors.talukId && <p className="text-red-500 text-xs mt-1.5 font-bold ml-1 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-red-500"></span>{formErrors.talukId}</p>}
+                        {formErrors.talukId && <p className='text-red-500 text-[10px] mt-1 ml-1'>{formErrors.talukId}</p>}
                   </div>
 
                   {createType !== "CLUB" && (
@@ -1085,13 +1114,15 @@ export default function UserManagementPage() {
                         </label>
                         <select
                           value={createForm.gender}
-                          onChange={(e) => setCreateForm({ ...createForm, gender: e.target.value })}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                          onChange={(e) => { setCreateForm({ ...createForm, gender: e.target.value }); if (formErrors.gender) setFormErrors(prev => ({ ...prev, gender: '' })); }}
+                          className="` w-full px-4 py-3 bg-white border ${formErrors.gender ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
                         >
                           <option value="MALE">Male</option>
                           <option value="FEMALE">Female</option>
                           <option value="OTHER">Other</option>
                         </select>
+                        {formErrors.gender && <p className="text-red-500 text-xs mt-1.5 font-bold ml-1 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-red-500"></span>{formErrors.gender}</p>}
+                        {formErrors.gender && <p className='text-red-500 text-[10px] mt-1 ml-1'>{formErrors.gender}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
@@ -1101,7 +1132,7 @@ export default function UserManagementPage() {
                           type="date"
                           max={new Date(new Date().setFullYear(new Date().getFullYear() - (createType === 'STUDENT' ? 3 : 18))).toISOString().split('T')[0]}
                           value={createForm.dob}
-                          onChange={(e) => setCreateForm({ ...createForm, dob: e.target.value })}
+                          onChange={(e) => { setCreateForm({ ...createForm, dob: e.target.value }); if (formErrors.dob) setFormErrors(prev => ({ ...prev, dob: '' })); }}
                           className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                         />
                       </div>
@@ -1112,7 +1143,7 @@ export default function UserManagementPage() {
                         <input
                           type="text"
                           value={createForm.aadhaarNumber}
-                          onChange={(e) => setCreateForm({ ...createForm, aadhaarNumber: e.target.value })}
+                          onChange={(e) => { setCreateForm({ ...createForm, aadhaarNumber: e.target.value.replace(/\D/g, '') }); if (formErrors.aadhaarNumber) setFormErrors(prev => ({ ...prev, aadhaarNumber: '' })); }}
                           placeholder="12-digit Aadhaar Number"
                           className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                         />
@@ -1124,51 +1155,66 @@ export default function UserManagementPage() {
                     <>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Blood Group</label>
-                        <input type="text" value={createForm.bloodGroup} onChange={(e) => setCreateForm({ ...createForm, bloodGroup: e.target.value })} placeholder="e.g. O+, A-" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <select
+                          value={createForm.bloodGroup}
+                          onChange={(e) => { setCreateForm({ ...createForm, bloodGroup: e.target.value }); if (formErrors.bloodGroup) setFormErrors(prev => ({ ...prev, bloodGroup: '' })); }}
+                          className="` w-full px-4 py-3 bg-white border ${formErrors.bloodGroup ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
+                        >
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                        {formErrors.bloodGroup && <p className="text-red-500 text-xs mt-1.5 font-bold ml-1 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-red-500"></span>{formErrors.bloodGroup}</p>}
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address</label>
-                        <input type="text" value={createForm.address} onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })} placeholder="Full Address" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.address} onChange={(e) => { setCreateForm({ ...createForm, address: e.target.value }); if (formErrors.address) setFormErrors(prev => ({ ...prev, address: '' })); }} placeholder="Full Address" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">City</label>
-                        <input type="text" value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.city} onChange={(e) => { setCreateForm({ ...createForm, city: e.target.value }); if (formErrors.city) setFormErrors(prev => ({ ...prev, city: '' })); }} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">State</label>
-                        <input type="text" value={createForm.state} onChange={(e) => setCreateForm({ ...createForm, state: e.target.value })} placeholder="State" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.state} onChange={(e) => { setCreateForm({ ...createForm, state: e.target.value }); if (formErrors.state) setFormErrors(prev => ({ ...prev, state: '' })); }} placeholder="State" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
-                        <input type="text" value={createForm.addressPincode} onChange={(e) => setCreateForm({ ...createForm, addressPincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.addressPincode} onChange={(e) => { setCreateForm({ ...createForm, addressPincode: e.target.value.replace(/\D/g, '') }); if (formErrors.addressPincode) setFormErrors(prev => ({ ...prev, addressPincode: '' })); }} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Nationality</label>
-                        <input type="text" value={createForm.nationality} onChange={(e) => setCreateForm({ ...createForm, nationality: e.target.value })} placeholder="Nationality" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.nationality} onChange={(e) => { setCreateForm({ ...createForm, nationality: e.target.value }); if (formErrors.nationality) setFormErrors(prev => ({ ...prev, nationality: '' })); }} placeholder="Nationality" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Annual Income</label>
-                        <input type="number" value={createForm.annualIncome} onChange={(e) => setCreateForm({ ...createForm, annualIncome: e.target.value })} placeholder="Annual Income" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="number" value={createForm.annualIncome} onChange={(e) => { setCreateForm({ ...createForm, annualIncome: e.target.value }); if (formErrors.annualIncome) setFormErrors(prev => ({ ...prev, annualIncome: '' })); }} placeholder="Annual Income" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">School Name</label>
-                        <input type="text" value={createForm.schoolName} onChange={(e) => setCreateForm({ ...createForm, schoolName: e.target.value })} placeholder="School Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.schoolName} onChange={(e) => { setCreateForm({ ...createForm, schoolName: e.target.value }); if (formErrors.schoolName) setFormErrors(prev => ({ ...prev, schoolName: '' })); }} placeholder="School Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Grade</label>
-                        <input type="text" value={createForm.grade} onChange={(e) => setCreateForm({ ...createForm, grade: e.target.value })} placeholder="Grade" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.grade} onChange={(e) => { setCreateForm({ ...createForm, grade: e.target.value }); if (formErrors.grade) setFormErrors(prev => ({ ...prev, grade: '' })); }} placeholder="Grade" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Area of Interest</label>
-                        <input type="text" value={createForm.areaOfInterest} onChange={(e) => setCreateForm({ ...createForm, areaOfInterest: e.target.value })} placeholder="Area of Interest" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.areaOfInterest} onChange={(e) => { setCreateForm({ ...createForm, areaOfInterest: e.target.value }); if (formErrors.areaOfInterest) setFormErrors(prev => ({ ...prev, areaOfInterest: '' })); }} placeholder="Area of Interest" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Area of Study</label>
-                        <input type="text" value={createForm.areaOfStudy} onChange={(e) => setCreateForm({ ...createForm, areaOfStudy: e.target.value })} placeholder="Area of Study" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.areaOfStudy} onChange={(e) => { setCreateForm({ ...createForm, areaOfStudy: e.target.value }); if (formErrors.areaOfStudy) setFormErrors(prev => ({ ...prev, areaOfStudy: '' })); }} placeholder="Area of Study" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Prefer Location</label>
-                        <input type="text" value={createForm.preferLocation} onChange={(e) => setCreateForm({ ...createForm, preferLocation: e.target.value })} placeholder="Prefer Location" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.preferLocation} onChange={(e) => { setCreateForm({ ...createForm, preferLocation: e.target.value }); if (formErrors.preferLocation) setFormErrors(prev => ({ ...prev, preferLocation: '' })); }} placeholder="Prefer Location" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                     </>
                   )}
@@ -1177,27 +1223,42 @@ export default function UserManagementPage() {
                     <>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Father's Name</label>
-                        <input type="text" value={createForm.fatherName} onChange={(e) => setCreateForm({ ...createForm, fatherName: e.target.value })} placeholder="Father's Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.fatherName} onChange={(e) => { setCreateForm({ ...createForm, fatherName: e.target.value }); if (formErrors.fatherName) setFormErrors(prev => ({ ...prev, fatherName: '' })); }} placeholder="Father's Name" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Blood Group</label>
-                        <input type="text" value={createForm.bloodGroup} onChange={(e) => setCreateForm({ ...createForm, bloodGroup: e.target.value })} placeholder="e.g. O+, A-" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <select
+                          value={createForm.bloodGroup}
+                          onChange={(e) => { setCreateForm({ ...createForm, bloodGroup: e.target.value }); if (formErrors.bloodGroup) setFormErrors(prev => ({ ...prev, bloodGroup: '' })); }}
+                          className="` w-full px-4 py-3 bg-white border ${formErrors.bloodGroup ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm `"
+                        >
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                        {formErrors.bloodGroup && <p className="text-red-500 text-xs mt-1.5 font-bold ml-1 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-red-500"></span>{formErrors.bloodGroup}</p>}
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 1</label>
-                        <input type="text" value={createForm.addressLine1} onChange={(e) => setCreateForm({ ...createForm, addressLine1: e.target.value })} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.addressLine1} onChange={(e) => { setCreateForm({ ...createForm, addressLine1: e.target.value }); if (formErrors.addressLine1) setFormErrors(prev => ({ ...prev, addressLine1: '' })); }} placeholder="Address Line 1" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Address Line 2 (Optional)</label>
-                        <input type="text" value={createForm.addressLine2} onChange={(e) => setCreateForm({ ...createForm, addressLine2: e.target.value })} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.addressLine2} onChange={(e) => { setCreateForm({ ...createForm, addressLine2: e.target.value }); if (formErrors.addressLine2) setFormErrors(prev => ({ ...prev, addressLine2: '' })); }} placeholder="Address Line 2" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">City</label>
-                        <input type="text" value={createForm.city} onChange={(e) => setCreateForm({ ...createForm, city: e.target.value })} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.city} onChange={(e) => { setCreateForm({ ...createForm, city: e.target.value }); if (formErrors.city) setFormErrors(prev => ({ ...prev, city: '' })); }} placeholder="City" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                       <div>
                         <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Pincode</label>
-                        <input type="text" value={createForm.addressPincode} onChange={(e) => setCreateForm({ ...createForm, addressPincode: e.target.value })} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
+                        <input type="text" value={createForm.addressPincode} onChange={(e) => { setCreateForm({ ...createForm, addressPincode: e.target.value.replace(/\D/g, '') }); if (formErrors.addressPincode) setFormErrors(prev => ({ ...prev, addressPincode: '' })); }} placeholder="Pincode" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm" />
                       </div>
                     </>
                   )}
