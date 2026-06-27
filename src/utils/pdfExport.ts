@@ -276,14 +276,23 @@ export function exportMatchToPDF(
   iframe.style.display = "none";
   document.body.appendChild(iframe);
 
-  iframe.contentWindow?.document.open();
-  iframe.contentWindow?.document.write(html);
-  iframe.contentWindow?.document.close();
+  const doc = iframe.contentWindow?.document;
+  if (doc) {
+    doc.open();
+    doc.write(html);
+    doc.close();
+  }
 
-  iframe.onload = () => {
+  // Give the browser a moment to parse the HTML and apply styles
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    
+    // Clean up after printing
     setTimeout(() => {
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1000);
-    }, 500);
-  };
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 1000);
+  }, 250);
 }

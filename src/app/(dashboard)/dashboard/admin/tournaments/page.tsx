@@ -60,6 +60,7 @@ interface Tournament {
   superAdminApproval: ApprovalStatus;
   ceoApproval: ApprovalStatus;
   rejectionRemark?: string;
+  hasPendingPlayers?: boolean;
   club?: { name: string; district?: { name: string } };
 }
 
@@ -713,12 +714,22 @@ export default function AdminTournamentsPage() {
 
                       {/* Manage link */}
                       <div className="px-4 pb-3">
-                        <Link
-                          href={`/dashboard/admin/tournaments/${t.id}`}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all"
-                        >
-                          <Trophy size={12} /> Manage / Generate Draw <ChevronRight size={12} />
-                        </Link>
+                        {!t.hasPendingPlayers && (
+                          <Link
+                            href={`/dashboard/admin/tournaments/${t.id}`}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all"
+                          >
+                            <Trophy size={12} /> Manage / Generate Draw <ChevronRight size={12} />
+                          </Link>
+                        )}
+                        {t.hasPendingPlayers && (
+                          <button
+                            disabled
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-400 font-bold rounded-lg text-xs cursor-not-allowed"
+                          >
+                            <AlertCircle size={12} /> Resolve Pending Players
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -788,13 +799,23 @@ export default function AdminTournamentsPage() {
                           </div>
                         </div>
 
-                        <Link
-                          href={`/dashboard/admin/tournaments/${t.id}`}
-                          className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
-                        >
-                          <Trophy size={12} /> Manage / Generate Draw
-                          <ChevronRight size={12} />
-                        </Link>
+                        {!t.hasPendingPlayers && (
+                          <Link
+                            href={`/dashboard/admin/tournaments/${t.id}`}
+                            className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
+                          >
+                            <Trophy size={12} /> Manage / Generate Draw
+                            <ChevronRight size={12} />
+                          </Link>
+                        )}
+                        {t.hasPendingPlayers && (
+                          <button
+                            disabled
+                            className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-100 text-slate-400 font-bold rounded-xl text-xs cursor-not-allowed"
+                          >
+                            <AlertCircle size={12} /> Resolve Pending Players
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -907,14 +928,24 @@ export default function AdminTournamentsPage() {
                           )}
                         </div>
 
-                        {/* Manage button — always visible */}
-                        <Link
-                          href={`/dashboard/admin/tournaments/${t.id}`}
-                          className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
-                        >
-                          <Trophy size={14} /> Manage Tournament
-                          <ChevronRight size={14} />
-                        </Link>
+                        {/* Manage button — conditionally visible */}
+                        {!t.hasPendingPlayers && (
+                          <Link
+                            href={`/dashboard/admin/tournaments/${t.id}`}
+                            className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                          >
+                            <Trophy size={14} /> Manage Tournament
+                            <ChevronRight size={14} />
+                          </Link>
+                        )}
+                        {t.hasPendingPlayers && (
+                          <button
+                            disabled
+                            className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm transition-all cursor-not-allowed"
+                          >
+                            <AlertCircle size={14} /> Resolve Pending Players
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   ))}

@@ -41,6 +41,7 @@ export default function ClubTournamentsPage() {
   const [loadingRegs, setLoadingRegs] = useState<Record<string, boolean>>({});
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
   const [tMessages, setTMessages] = useState<Record<string, { id: string; senderRole: string; senderName: string; message: string; createdAt: string }[]>>({});
   const [tReplyTexts, setTReplyTexts] = useState<Record<string, string>>({});
@@ -208,6 +209,7 @@ export default function ClubTournamentsPage() {
   };
 
   const handleApproveReg = async (tournamentId: string, registrationId: string, action: "APPROVE" | "REJECT") => {
+    setApprovingId(registrationId);
     try {
       const token = localStorage.getItem("token");
       const message = replyTexts[registrationId]?.trim() || "";
@@ -217,17 +219,29 @@ export default function ClubTournamentsPage() {
         body: JSON.stringify({ status: action === "APPROVE" ? "APPROVED" : "REJECTED", message }),
       });
       if (!res.ok) throw new Error("Failed to update registration");
-      setRegistrations((prev) => ({
-        ...prev,
-        [tournamentId]: prev[tournamentId].map((r) =>
+      
+      setRegistrations((prev) => {
+        const updatedRegs = prev[tournamentId].map((r) =>
           r.id === registrationId ? { ...r, status: action === "APPROVE" ? "APPROVED" : "REJECTED" } : r
-        ),
-      }));
+        );
+        
+        // Also update tournaments state immediately to reflect hasPendingPlayers changes
+        const hasPending = updatedRegs.some(r => r.status === "PENDING");
+        setTournaments((prevT) => prevT.map(t => t.id === tournamentId ? { ...t, hasPendingPlayers: hasPending } : t));
+        
+        return {
+          ...prev,
+          [tournamentId]: updatedRegs,
+        };
+      });
+
       setReplyTexts((prev) => { const n = { ...prev }; delete n[registrationId]; return n; });
       await fetchMessages(tournamentId, registrationId);
       showToast(`Registration ${action === "APPROVE" ? "approved" : "rejected"}.`, "success");
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -561,13 +575,21 @@ export default function ClubTournamentsPage() {
                     </button>
                   </div>
                   {/* Manage button — conditionally visible */}
-                  {tournament.status === "APPROVED" && (
+                  {tournament.status === "APPROVED" && !tournament.hasPendingPlayers && (
                     <Link
                       href={`/dashboard/admin/tournaments/${tournament.id}`}
                       className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
                     >
                       <Trophy size={14} /> Manage / Draw <ChevronRight size={13} />
                     </Link>
+                  )}
+                  {tournament.status === "APPROVED" && tournament.hasPendingPlayers && (
+                    <button
+                      disabled
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm transition-all cursor-not-allowed"
+                    >
+                      <AlertCircle size={14} /> Resolve Pending Players
+                    </button>
                   )}
                 </div>
               </div>
@@ -735,13 +757,16 @@ export default function ClubTournamentsPage() {
                                     <>
                                       <button
                                         onClick={() => handleApproveReg(tournament.id, reg.id, "APPROVE")}
-                                        className="px-5 py-2 bg-[#FF7400] text-white text-sm font-bold rounded-lg hover:bg-[#E56900] transition-all"
+                                        disabled={approvingId === reg.id}
+                                        className="px-5 py-2 bg-[#FF7400] text-white text-sm font-bold rounded-lg hover:bg-[#E56900] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                       >
+                                        {approvingId === reg.id ? <Loader2 size={16} className="animate-spin" /> : null}
                                         Approve
                                       </button>
                                       <button
                                         onClick={() => handleApproveReg(tournament.id, reg.id, "REJECT")}
-                                        className="px-5 py-2 bg-white border border-[#FF7400] text-slate-700 text-sm font-bold rounded-lg hover:bg-orange-50 transition-all"
+                                        disabled={approvingId === reg.id}
+                                        className="px-5 py-2 bg-white border border-[#FF7400] text-slate-700 text-sm font-bold rounded-lg hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         Reject
                                       </button>

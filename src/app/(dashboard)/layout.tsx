@@ -126,7 +126,12 @@ export default function DashboardLayout({
 
     if (!userId) return;
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000";
+    let defaultWsUrl = "ws://localhost:9000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
+    if (apiUrl) {
+      defaultWsUrl = apiUrl.replace("http://", "ws://").replace("https://", "wss://").replace("/api", "");
+    }
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || defaultWsUrl;
     const socket = new WebSocket(`${wsUrl}?userId=${userId}&role=${role}`);
 
     socket.onopen = () => {
@@ -506,7 +511,7 @@ export default function DashboardLayout({
           
           <div className="flex items-center space-x-6">
             <div className="relative">
-              {/* <button 
+              <button 
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
                 className="p-2 text-slate-400 hover:text-[#FF7400] relative focus:outline-none transition-colors"
               >
@@ -566,7 +571,7 @@ export default function DashboardLayout({
                     </div>
                   </motion.div>
                 )}
-              </AnimatePresence> */}
+              </AnimatePresence>
             </div>
             <div className="relative border-l pl-4 md:pl-6 border-slate-200 shrink-0">
               <button 

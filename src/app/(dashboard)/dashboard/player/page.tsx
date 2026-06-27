@@ -24,6 +24,7 @@ import {
   Hash,
   UserCheck,
   Download,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { exportMatchToPDF } from "@/utils/pdfExport";
@@ -218,10 +219,29 @@ export default function PlayerDashboard() {
         const trnRes = await fetch(`${API_BASE}/tournaments/player`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
+        const pubRes = await fetch(`${API_BASE}/tournaments/player/matches`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        
+        let tournaments: any[] = [];
+        
         if (trnRes.ok) {
-          const tournaments = await trnRes.json();
-          const matches: any[] = [];
-          const completed: any[] = [];
+          const clubTournaments = await trnRes.json();
+          tournaments = [...tournaments, ...clubTournaments];
+        }
+        
+        if (pubRes.ok) {
+          const pubData = await pubRes.json();
+          tournaments = [
+            ...tournaments,
+            ...(pubData.district || []),
+            ...(pubData.zonal || []),
+            ...(pubData.stateAndNational || [])
+          ];
+        }
+
+        const matches: any[] = [];
+        const completed: any[] = [];
 
           for (const trn of tournaments) {
             if (trn.myRegistration && (trn.myRegistration.status === "APPROVED" || trn.myRegistration.status === "PENDING")) {
@@ -232,8 +252,15 @@ export default function PlayerDashboard() {
                 const draws = await drawRes.json();
                 for (const draw of draws) {
                   if (draw.rounds) {
-                    for (let rIdx = 0; rIdx < draw.rounds.length; rIdx++) {
-                      const round = draw.rounds[rIdx];
+                    let roundsArr = draw.rounds;
+                    if (typeof roundsArr === "string") {
+                      try { roundsArr = JSON.parse(roundsArr); } catch { continue; }
+                    }
+                    if (!Array.isArray(roundsArr)) continue;
+
+                    for (let rIdx = 0; rIdx < roundsArr.length; rIdx++) {
+                      const round = roundsArr[rIdx];
+                      if (!Array.isArray(round)) continue;
                       for (const match of round) {
                         const isPlayerInvolved = match.slotA?.playerId === profileData.user.id || match.slotB?.playerId === profileData.user.id;
                         if (!isPlayerInvolved) continue;
@@ -311,7 +338,6 @@ export default function PlayerDashboard() {
             }
           }
           setTournamentWins(wins);
-        }
       } catch (err) {
         console.error("Error fetching upcoming matches:", err);
       }
@@ -754,9 +780,21 @@ export default function PlayerDashboard() {
 
               {/* Match Statistics Card Grid */}
               {(() => {
-                const totalWins = playerData?.wins || 0;
-                const totalLosses = playerData?.losses || 0;
-                const totalDraws = playerData?.draws || 0;
+                let totalWins = 0;
+                let totalLosses = 0;
+                let totalDraws = 0;
+                
+                if (playerData?.id) {
+                  completedMatches.forEach(match => {
+                    const isWin = match.rawMatch?.winnerId === playerData.id;
+                    const isDraw = !match.rawMatch?.winnerId; // Depending on how draws are handled
+                    
+                    if (isDraw) totalDraws++;
+                    else if (isWin) totalWins++;
+                    else totalLosses++;
+                  });
+                }
+                
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Wins Card */}
@@ -827,6 +865,16 @@ export default function PlayerDashboard() {
                           </div>
                           
                           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                            {match.rawMatch?.status === "LIVE" && (
+                              <div className="flex items-center gap-1.5 bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 text-red-700 font-black shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span> LIVE
+                              </div>
+                            )}
+                            {match.rawMatch?.status === "PENDING" && (
+                              <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold shadow-sm">
+                                PENDING
+                              </div>
+                            )}
                             <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm">
                               <Calendar size={14} className="text-[#FF7400]" />
                               {new Date(match.tournamentDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -1013,30 +1061,32 @@ export default function PlayerDashboard() {
             </p>
           </div>
 
-          {/* Notifications Card */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <h4 className="font-bold text-[#1A1A1A]">Recent Notifications</h4>
-            {playerNotifications.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-xs font-semibold">
-                No notifications found.
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                {playerNotifications.map((n: any) => (
-                  <div key={n.id} className="p-3 bg-slate-50 hover:bg-slate-100/70 rounded-2xl border border-slate-100/50 transition-colors flex items-start gap-2.5">
-                    <span className="w-1.5 h-1.5 bg-[#FF7400] rounded-full mt-1.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-700 leading-relaxed text-left">
-                        {n.message}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+            <h4 className="font-bold text-[#1A1A1A] mb-4">Recent Notifications</h4>
+            <div className="space-y-4">
+              {playerNotifications && playerNotifications.length > 0 ? (
+                playerNotifications.slice(0, 3).map((notif: any) => (
+                  <div key={notif.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className="p-2 bg-white rounded-lg text-[#FF7400] shadow-sm shrink-0">
+                      <Bell size={16} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#1A1A1A]">{notif.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(notif.createdAt).toLocaleDateString()}
                       </p>
-                      <span className="text-[10px] text-slate-400 font-medium block">
-                        {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="text-center py-6">
+                  <div className="inline-flex p-3 bg-gray-50 rounded-full text-gray-400 mb-3">
+                    <Bell size={24} />
+                  </div>
+                  <p className="text-sm text-gray-500">No recent notifications</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

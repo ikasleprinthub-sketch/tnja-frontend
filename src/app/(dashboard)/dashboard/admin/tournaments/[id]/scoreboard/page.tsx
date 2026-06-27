@@ -80,8 +80,8 @@ function ScoreboardInner() {
   const [scoreA, setScoreA] = useState<Score>(emptyScore());
   const [scoreB, setScoreB] = useState<Score>(emptyScore());
   const [winner, setWinner] = useState<Fighter | null>(null);
+  const [showWinnerModal, setShowWinnerModal] = useState(false);
   const [winMethod, setWinMethod] = useState("");
-  const [matchSaved, setMatchSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [dbMatchStatus, setDbMatchStatus] = useState("");
 
@@ -164,11 +164,29 @@ function ScoreboardInner() {
       const postRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/draws`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ageGroup: targetDraw.ageGroup, gender: targetDraw.gender, weightCategory: targetDraw.weightCategory, rounds: targetDraw.rounds })
+        body: JSON.stringify({ 
+          ageGroup: targetDraw.ageGroup, 
+          exactAge: targetDraw.exactAge, 
+          gender: targetDraw.gender, 
+          weightCategory: targetDraw.weightCategory, 
+          matNumber: targetDraw.matNumber, 
+          rounds: targetDraw.rounds 
+        })
       });
-      if (!postRes.ok) console.error("Failed to save match to database:", await postRes.text());
-    } catch (err) { console.error("Error saving match to DB:", err); }
-  }, [tournamentId, matchId, scoreA, scoreB, winner, winMethod, logs, timeLeft, running, sp, fighterAName, fighterBName, fighterAClub, fighterBClub]);
+      if (!postRes.ok) {
+        const errText = await postRes.text();
+        console.error("Failed to save match to database:", errText);
+        showToast("Failed to save match: " + errText);
+      } else {
+        if (currentWinner) {
+          showToast("Match saved successfully!");
+        }
+      }
+    } catch (err: any) {
+      console.error("Error saving match to DB:", err);
+      showToast("Error saving match.");
+    }
+  }, [tournamentId, matchId, scoreA, scoreB, winner, winMethod, logs, timeLeft, running, sp, fighterAName, fighterBName, fighterAClub, fighterBClub, showToast]);
 
   useEffect(() => {
     if (!tournamentId || !matchId) return;
@@ -226,7 +244,7 @@ function ScoreboardInner() {
       showToast("This match is already completed and locked. You cannot change the winner.");
       return;
     }
-    setWinner(f); setWinMethod(method); setRunning(false); setOsaActive(false);
+    setWinner(f); setWinMethod(method); setRunning(false); setOsaActive(false); setShowWinnerModal(true);
     if (timerRef.current) clearInterval(timerRef.current);
     if (osaRef.current)   clearInterval(osaRef.current);
 
@@ -371,6 +389,10 @@ function ScoreboardInner() {
 
   const confirmUndo = () => {
     if (!undoPrompt) return;
+    if (!undoComment.trim()) {
+      showToast("Reason is required to undo a score.");
+      return;
+    }
     const { fighter, type, field } = undoPrompt;
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
     const reasonText = undoComment.trim() ? ` - Reason: ${undoComment.trim()}` : "";
@@ -703,9 +725,9 @@ function ScoreboardInner() {
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-white text-black px-4 py-1.5 rounded-md font-bold text-sm hover:bg-gray-200">
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={resetMatch} className="flex items-center gap-2 bg-red-600/20 border border-red-600 text-red-500 px-4 py-1.5 rounded-md font-bold text-sm hover:bg-red-600 hover:text-white transition-colors">
+          {/* <button onClick={resetMatch} className="flex items-center gap-2 bg-red-600/20 border border-red-600 text-red-500 px-4 py-1.5 rounded-md font-bold text-sm hover:bg-red-600 hover:text-white transition-colors">
             <RotateCcw size={14} /> Reset Match
-          </button>
+          </button> */}
           {/* <button className="bg-[#facc15] p-1.5 rounded-md text-black hover:bg-yellow-500">
             <Settings size={20} />
           </button> */}
@@ -998,10 +1020,18 @@ function ScoreboardInner() {
         <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-4 lg:px-8 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-8 shadow-xl w-full md:w-auto">
           <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
           <div className="flex flex-wrap justify-center gap-2 lg:gap-4">
-            <button onClick={handlePrint} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+            <button 
+              onClick={handlePrint} 
+              disabled={!winner && dbMatchStatus !== "COMPLETED"}
+              className={`bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors ${(!winner && dbMatchStatus !== "COMPLETED") ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
+            >
               <Download size={16} /> Save PDF
             </button>
-            <button onClick={()=>saveMatchToDB()} className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-gray-200 transition-colors">
+            <button 
+              onClick={() => saveMatchToDB()} 
+              disabled={!winner && dbMatchStatus !== "COMPLETED"}
+              className={`bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors ${(!winner && dbMatchStatus !== "COMPLETED") ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
+            >
               <CheckCircle size={16} /> Save Match
             </button>
             <button onClick={resetMatch} className="bg-red-600 text-white font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-red-500 transition-colors">
@@ -1013,7 +1043,7 @@ function ScoreboardInner() {
 
       {/* ── WINNER OVERLAY MODAL ─────────────────────────────────────────── */}
       <AnimatePresence>
-        {winner && (
+        {showWinnerModal && winner && (
           <motion.div 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
@@ -1051,7 +1081,7 @@ function ScoreboardInner() {
                   <Download size={20} className="sm:w-6 sm:h-6" /> Download PDF
                 </button>
                 <button 
-                  onClick={() => setWinner(null)} 
+                  onClick={() => setShowWinnerModal(false)} 
                   className="px-8 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-4 rounded-xl transition-all"
                 >
                   Dismiss
@@ -1129,12 +1159,12 @@ function ScoreboardInner() {
               <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
               <h2 className="text-xl sm:text-2xl font-black text-white mb-2 text-center">Undo Score</h2>
               <p className="text-gray-400 mb-6 font-semibold text-xs sm:text-sm text-center">
-                Please provide a reason for undoing this score.
+                Please provide a <span className="text-red-500 font-bold">mandatory</span> reason for undoing this score.
               </p>
               
               <input
                 type="text"
-                placeholder="Reason (e.g. Referee decision)"
+                placeholder="Reason (Required)"
                 value={undoComment}
                 onChange={(e) => setUndoComment(e.target.value)}
                 className="w-full bg-[#111] text-white px-4 py-3 rounded-lg border border-[#333] focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all mb-6"
@@ -1146,7 +1176,15 @@ function ScoreboardInner() {
                 <button onClick={() => { setUndoPrompt(null); setUndoComment(""); }} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
                   Cancel
                 </button>
-                <button onClick={confirmUndo} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl shadow-lg shadow-red-500/20 transition-all">
+                <button 
+                  onClick={confirmUndo} 
+                  disabled={!undoComment.trim()}
+                  className={`flex-1 font-black py-3 rounded-xl shadow-lg transition-all ${
+                    undoComment.trim() 
+                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' 
+                      : 'bg-[#333] text-gray-500 cursor-not-allowed'
+                  }`}
+                >
                   Confirm Undo
                 </button>
               </div>

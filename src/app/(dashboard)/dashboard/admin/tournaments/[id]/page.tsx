@@ -31,7 +31,8 @@ interface Tournament {
 interface RegisteredPlayer {
   id: string; name: string; club: string; district: string;
   weight: number; weightLabel?: string; ageGroup: string; exactAge?: number; gender: string; belt: string;
-  seedNumber?: number; coachName?: string; placement?: string;
+  seedNumber?: number; coachName?: string; placement?: string; status?: string;
+  regId?: string;
 }
 
 interface BracketSlot {
@@ -469,11 +470,25 @@ function exportMatchToPDF(
   iframe.style.display = "none";
   document.body.appendChild(iframe);
 
-  iframe.contentWindow?.document.write(html);
-  iframe.onload = () => {
+  const doc = iframe.contentWindow?.document;
+  if (doc) {
+    doc.open();
+    doc.write(html);
+    doc.close();
+  }
+
+  // Give the browser a moment to parse the HTML and apply styles
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
-    setTimeout(() => document.body.removeChild(iframe), 100);
-  };
+    
+    // Clean up after printing
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 1000);
+  }, 250);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -646,6 +661,8 @@ export default function TournamentDetailPage() {
               gender: r.gender || r.player?.gender || "MALE",
               belt: r.belt || r.player?.belt || "",
               placement: r.placement || "PARTICIPATION",
+              status: r.status || "APPROVED",
+              regId: r.id,
             };
           }
         );
@@ -653,6 +670,28 @@ export default function TournamentDetailPage() {
       }
     } catch (e) { console.error(e); }
   }, [tournamentId, token]);
+
+  // ── Handle Registration Status Update ─────────────────────────────────────────
+  const handleUpdatePlayerStatus = async (regId: string, status: "APPROVED" | "REJECTED") => {
+    if (!window.confirm(`Are you sure you want to ${status.toLowerCase()} this registration?`)) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        showToast(`Registration ${status.toLowerCase()} successfully`);
+        fetchPlayers(); // Refresh the players list
+      } else {
+        showToast("Failed to update registration status", false);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Error updating registration", false);
+    }
+  };
 
   // ── Fetch existing draws ────────────────────────────────────────────────────
   const fetchDraws = useCallback(async () => {
@@ -670,10 +709,12 @@ export default function TournamentDetailPage() {
           }
           if (!Array.isArray(roundsArr)) roundsArr = [];
           
-          drawMap[categoryKey(d.ageGroup, d.exactAge ? String(d.exactAge) : "0", d.gender, d.weightCategory)] = {
+          const ageStr = d.exactAge === 0 ? "ALL" : String(d.exactAge);
+          drawMap[categoryKey(d.ageGroup, ageStr, d.gender, d.weightCategory)] = {
             ...d,
             rounds: processByeMatches(roundsArr),
-            generated: true, saved: true,
+            generated: roundsArr.length > 0, 
+            saved: true,
           };
         });
         setDraws(drawMap);
@@ -696,6 +737,8 @@ export default function TournamentDetailPage() {
   }, [activeTab, autoDetectPlacements]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
+  const hasPendingPlayers = players.some((p) => p.status === "PENDING");
+
   const filteredPlayers = players.filter((p) => {
     if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
     if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
@@ -703,6 +746,8 @@ export default function TournamentDetailPage() {
     if (weightFilter !== "ALL" && String(p.weight) !== weightFilter) return false;
     return true;
   });
+
+  const eligiblePlayers = filteredPlayers.filter((p) => p.status === "APPROVED");
 
   const weightOptions = [...new Set(players.map((p) => String(p.weight)))].sort(
     (a, b) => +a - +b
@@ -728,8 +773,8 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    if (filteredPlayers.length < 2) {
-      showToast("Need at least 2 players to generate a draw", false);
+    if (eligiblePlayers.length < 2) {
+      showToast("Need at least 2 approved players to generate a draw", false);
       return;
     }
 
@@ -746,7 +791,7 @@ export default function TournamentDetailPage() {
     setDrawPhase(isShuffle ? "shuffling" : "dealing");
     if (isShuffle) setShuffleKey(k => k + 1);
     
-    const rawRounds = generateIJFBracket(filteredPlayers, seeds);
+    const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
     const rounds = processByeMatches(rawRounds);
     
     setTimeout(async () => {
@@ -764,8 +809,12 @@ export default function TournamentDetailPage() {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            ageGroup: newDraw.ageGroup, gender: newDraw.gender,
-            weightCategory: newDraw.weightCategory, rounds: newDraw.rounds,
+            ageGroup: newDraw.ageGroup, 
+            exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
+            gender: newDraw.gender,
+            weightCategory: newDraw.weightCategory, 
+            matNumber: currentDraw?.matNumber || 1,
+            rounds: newDraw.rounds,
           }),
         });
         if (res.ok) {
@@ -806,6 +855,7 @@ export default function TournamentDetailPage() {
 
     // Filter players based on current age and gender dropdowns (ignore weight filter to generate all weights)
     const targetPlayers = players.filter((p) => {
+      if (p.status !== "APPROVED") return false;
       if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
       if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
       if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
@@ -1065,7 +1115,7 @@ export default function TournamentDetailPage() {
           })}
         </select>
         <span className="ml-auto text-sm font-bold text-slate-500 self-center">
-          {filteredPlayers.length} players
+          {eligiblePlayers.length} eligible / {filteredPlayers.length} total
         </span>
       </div>
     </div>
@@ -1271,7 +1321,7 @@ export default function TournamentDetailPage() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {["#", "Name", "Club", "District", "Weight", "Age Group", "Belt"].map((h) => (
+                    {["#", "Name", "Club", "District", "Weight", "Age Group", "Belt", "Status"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -1286,6 +1336,17 @@ export default function TournamentDetailPage() {
                       <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
+                      <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
+                        {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
+                        {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
+                        {p.status === "PENDING" && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-amber-600">Pending</span>
+                            <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
+                            <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1333,15 +1394,19 @@ export default function TournamentDetailPage() {
               <div className="flex items-center gap-2 px-5 py-3 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-200">
                 <AlertCircle size={18} /> Tournament must be approved before you can manage draws.
               </div>
+            ) : hasPendingPlayers ? (
+              <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 text-amber-600 rounded-2xl text-sm font-bold border border-amber-200">
+                <AlertCircle size={18} /> You must approve or reject all pending player registrations before managing draws.
+              </div>
             ) : (
               <>
                 <button onClick={() => setShowSeedModal(true)}
-                  disabled={drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                  disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
                   <Star size={16} /> Manage Seeds (IJF)
                 </button>
                 <button onClick={handleShuffle}
-                  disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                  disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   {drawPhase === "shuffling"
                     ? <><Loader2 size={15} className="animate-spin" /> Shuffling & Saving...</>
@@ -1349,7 +1414,7 @@ export default function TournamentDetailPage() {
                 </button>
                 {!currentDraw?.generated && (
                   <button onClick={handleGenerateDraw}
-                    disabled={filteredPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                    disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                     className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     {drawPhase === "dealing"
                       ? <><Loader2 size={15} className="animate-spin" /> Generating...</>
@@ -1889,29 +1954,43 @@ export default function TournamentDetailPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex items-center gap-4 px-6 py-4 bg-emerald-900/30 border border-emerald-500/40 rounded-2xl">
-                <Check size={24} className="text-emerald-400 shrink-0" />
-                <div>
-                  <p className="text-emerald-300 font-black">Tournament Concluded</p>
-                  <p className="text-emerald-400/70 text-xs mt-0.5">All participants can now download their certificates from their dashboard.</p>
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-5 px-8 py-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/60 rounded-3xl shadow-sm"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-emerald-200">
+                  <Check size={24} className="text-white" />
                 </div>
-              </div>
+                <div>
+                  <p className="text-emerald-800 font-black text-lg">Tournament Concluded</p>
+                  <p className="text-emerald-600/80 text-sm font-semibold mt-0.5">All participants can now download their certificates from their dashboard.</p>
+                </div>
+              </motion.div>
 
-              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="w-12 h-12 bg-yellow-500/20 rounded-2xl flex items-center justify-center shrink-0">
-                    <Trophy size={24} className="text-yellow-500" />
+              <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-yellow-100 via-orange-50 to-transparent opacity-50 pointer-events-none rounded-full -mr-20 -mt-20 blur-3xl" />
+                
+                <div className="flex items-center gap-4 mb-8 relative z-10">
+                  <div className="w-14 h-14 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-orange-200">
+                    <Trophy size={28} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-white">Category Winners</h3>
-                    <p className="text-slate-400 text-sm mt-1">Podium placements for the selected category filters.</p>
+                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">Category Winners</h3>
+                    <p className="text-slate-500 font-medium mt-1">Podium placements for the selected category filters.</p>
                   </div>
                 </div>
 
                 {filteredPlayers.filter(p => p.placement && p.placement !== "PARTICIPATION").length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 font-semibold">No winners found for this category.</div>
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm border border-slate-100">
+                      <Trophy size={24} className="text-slate-300" />
+                    </div>
+                    <p className="text-slate-500 font-bold text-lg">No Winners Yet</p>
+                    <p className="text-slate-400 text-sm mt-1">Submit results to see the podium placements here.</p>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 relative z-10">
                     {filteredPlayers
                       .filter(p => p.placement && p.placement !== "PARTICIPATION")
                       .sort((a, b) => {
@@ -1921,9 +2000,14 @@ export default function TournamentDetailPage() {
                       .map((player) => {
                         const placement = player.placement as string;
                         const placementColors: Record<string, string> = {
-                          FIRST: "border-yellow-400 bg-yellow-500/10 text-yellow-500",
-                          SECOND: "border-slate-400 bg-slate-400/10 text-slate-300",
-                          THIRD: "border-orange-500 bg-orange-500/10 text-orange-500",
+                          FIRST: "border-yellow-200 bg-yellow-50 text-yellow-700",
+                          SECOND: "border-slate-200 bg-slate-50 text-slate-700",
+                          THIRD: "border-orange-200 bg-orange-50 text-orange-700",
+                        };
+                        const placementIconColors: Record<string, string> = {
+                          FIRST: "text-yellow-500",
+                          SECOND: "text-slate-400",
+                          THIRD: "text-orange-500",
                         };
                         const placementLabels: Record<string, string> = {
                           FIRST: "1st Place",
@@ -1931,20 +2015,25 @@ export default function TournamentDetailPage() {
                           THIRD: "3rd Place",
                         };
                         return (
-                          <div key={player.id} className={`flex items-center gap-3 p-4 rounded-2xl border ${placementColors[placement].split(' ').slice(0,2).join(' ')}`}>
-                            <div className="w-12 h-12 bg-black/20 rounded-full flex items-center justify-center shrink-0 border border-white/10">
-                              <Trophy size={20} className={placementColors[placement].split(' ')[2]} />
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            key={player.id} 
+                            className={`flex items-center gap-4 p-5 rounded-2xl border ${placementColors[placement].split(' ').slice(0,2).join(' ')} shadow-sm hover:shadow-md transition-shadow`}
+                          >
+                            <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shrink-0 border border-black/5 shadow-sm">
+                              <Trophy size={24} className={placementIconColors[placement]} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-base font-black text-white truncate">{player.name}</p>
-                              <p className="text-xs text-slate-400 truncate">{player.club || player.district}</p>
+                              <p className="text-lg font-black text-slate-800 truncate">{player.name}</p>
+                              <p className="text-sm font-semibold text-slate-500 truncate mt-0.5">{player.club || player.district}</p>
                             </div>
-                            <div className="relative shrink-0 flex flex-col items-end pr-2">
+                            <div className="relative shrink-0 flex flex-col items-end pl-4 border-l border-black/5">
                               <span className={`text-sm font-black ${placementColors[placement].split(' ')[2]} uppercase tracking-widest`}>
                                 {placementLabels[placement]}
                               </span>
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })}
                   </div>

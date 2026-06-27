@@ -63,13 +63,30 @@ export default function MatchHistoryPage() {
       const trnRes = await fetch(`${API_BASE}/tournaments/player`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      const pubRes = await fetch(`${API_BASE}/tournaments/player/matches`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       
-      if (!trnRes.ok) throw new Error("Failed to fetch tournaments");
+      let allTournaments: any[] = [];
       
-      const tournaments = await trnRes.json();
+      if (trnRes.ok) {
+        const clubTournaments = await trnRes.json();
+        allTournaments = [...allTournaments, ...clubTournaments];
+      }
+      
+      if (pubRes.ok) {
+        const pubData = await pubRes.json();
+        allTournaments = [
+          ...allTournaments,
+          ...(pubData.district || []),
+          ...(pubData.zonal || []),
+          ...(pubData.stateAndNational || [])
+        ];
+      }
+      
       const completed: any[] = [];
 
-      for (const trn of tournaments) {
+      for (const trn of allTournaments) {
         if (trn.myRegistration && (trn.myRegistration.status === "APPROVED" || trn.myRegistration.status === "PENDING")) {
           const drawRes = await fetch(`${API_BASE}/tournaments/${trn.id}/draws`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -83,6 +100,7 @@ export default function MatchHistoryPage() {
                 if (typeof roundsArr === "string") {
                   try { roundsArr = JSON.parse(roundsArr); } catch { continue; }
                 }
+                if (!Array.isArray(roundsArr)) continue;
 
                 for (let rIdx = 0; rIdx < roundsArr.length; rIdx++) {
                   const round = roundsArr[rIdx];
@@ -168,11 +186,23 @@ export default function MatchHistoryPage() {
 
   // Statistics
   const stats = useMemo(() => {
-    let wins = playerData?.wins || 0;
-    let losses = playerData?.losses || 0;
-    let draws = playerData?.draws || 0;
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    
+    if (playerData?.id) {
+      completedMatches.forEach(match => {
+        const isWin = match.rawMatch.winnerId === playerData.id;
+        const isDraw = !match.rawMatch.winnerId; // Depending on how draws are stored, adapt this if necessary
+        
+        if (isDraw) draws++;
+        else if (isWin) wins++;
+        else losses++;
+      });
+    }
+    
     return { wins, losses, draws, total: wins + losses + draws };
-  }, [playerData]);
+  }, [completedMatches, playerData]);
 
   // Reset page when filters change
   useEffect(() => {
