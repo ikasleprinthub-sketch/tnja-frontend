@@ -254,9 +254,11 @@ const PlayerRegistrationForm = () => {
 
   const [districts, setDistricts] = useState<{ id: string, name: string }[]>([]);
   const [taluks, setTaluks] = useState<{ id: string, name: string }[]>([]);
-  const [clubs, setClubs] = useState<{ id: string, name: string, email: string, mobileNumber: string }[]>([]);
-  const [coaches, setCoaches] = useState<{ id: string, fullName: string, email: string, mobileNumber: string }[]>([]);
+  const [clubs, setClubs] = useState<{ id: string, name: string, email: string, mobileNumber: string, tempId?: string, permanentId?: string }[]>([]);
+  const [coaches, setCoaches] = useState<{ id: string, fullName: string, email: string, mobileNumber: string, tempId?: string, permanentId?: string }[]>([]);
   const [academyType, setAcademyType] = useState<"CLUB" | "COACH" | "NONE">("NONE");
+  const [clubSearchId, setClubSearchId] = useState("");
+  const [coachSearchId, setCoachSearchId] = useState("");
 
   const [formData, setFormData] = useState<PlayerRegistrationData>({
     districtId: '',
@@ -586,7 +588,7 @@ const PlayerRegistrationForm = () => {
           transition={{ duration: 0.5 }}
           className="space-y-12"
         >
-          {/* Select Your Location */}
+          {/* Residing Location */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
             <SectionHeader title="Residing Location" />
             <div className="p-8 pt-2 space-y-8">
@@ -682,6 +684,7 @@ const PlayerRegistrationForm = () => {
                     onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
                     accept="image/*"
                     helperText="JPG, PNG, WEBP (Max 5MB)"
+                    layout="passport"
                   />
                 </div>
 
@@ -888,20 +891,22 @@ const PlayerRegistrationForm = () => {
                     value={formData.isBPL.toString()}
                     onChange={handleInputChange}
                   />
-
-                  {formData.isBPL && (
-                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                      <FileUpload
-                        label="Proof for BPL Beneficiary"
-                        value={formData.bplProof}
-                        onChange={(url) => setFormData(prev => ({ ...prev, bplProof: url }))}
-                        accept="image/*,application/pdf"
-                        helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
+
+              {formData.isBPL && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300 w-full flex items-center justify-center pt-4">
+                  <div className="w-full lg:w-[400px]">
+                    <FileUpload
+                      label="Proof for BPL Beneficiary"
+                      value={formData.bplProof}
+                      onChange={(url) => setFormData(prev => ({ ...prev, bplProof: url }))}
+                      accept="image/*,application/pdf"
+                      helperText="JPG, PNG, WEBP or PDF (Max 5MB)"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -1005,16 +1010,39 @@ const PlayerRegistrationForm = () => {
 
               {academyType === "CLUB" && (
                 <div className="space-y-4">
-                  <SelectField
-                    label="Select Your Club"
-                    name="clubId"
-                    options={clubs.map(c => ({ label: c.name, value: c.id }))}
-                    value={formData.clubId}
-                    onChange={handleInputChange}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <InputField
+                      label="Enter Club Unique ID"
+                      name="clubSearchId"
+                      placeholder="e.g. TNJA-C-001"
+                      value={clubSearchId}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value;
+                        setClubSearchId(val);
+                        const match = clubs.find(c => 
+                          c.tempId?.toLowerCase() === val.toLowerCase() || 
+                          c.permanentId?.toLowerCase() === val.toLowerCase() ||
+                          c.id === val
+                        );
+                        if (match) {
+                          setFormData(prev => ({ ...prev, clubId: match.id }));
+                        }
+                      }}
+                    />
+                    <SelectField
+                      label="Or Select Your Club"
+                      name="clubId"
+                      options={clubs.map(c => ({ label: c.name || (c as any).fullName, value: c.id }))}
+                      value={formData.clubId}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        handleInputChange(e);
+                        setClubSearchId("");
+                      }}
+                    />
+                  </div>
                   {formData.clubId && clubs.find(c => c.id === formData.clubId) && (
                     <div className="p-4 bg-orange-50 border border-orange-100 rounded text-sm text-gray-700 flex flex-col gap-2">
-                      <p><strong>Club Contact:</strong></p>
+                      <p><strong>Club Found:</strong> {clubs.find(c => c.id === formData.clubId)?.name || (clubs.find(c => c.id === formData.clubId) as any)?.fullName}</p>
                       <p className="flex items-center gap-2"><Mail size={16} /> {clubs.find(c => c.id === formData.clubId)?.email}</p>
                       <p className="flex items-center gap-2"><Smartphone size={16} /> {clubs.find(c => c.id === formData.clubId)?.mobileNumber}</p>
                     </div>
@@ -1024,16 +1052,39 @@ const PlayerRegistrationForm = () => {
 
               {academyType === "COACH" && (
                 <div className="space-y-4">
-                  <SelectField
-                    label="Select Your Coach"
-                    name="coachId"
-                    options={coaches.map(c => ({ label: c.fullName, value: c.id }))}
-                    value={formData.coachId}
-                    onChange={handleInputChange}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <InputField
+                      label="Enter Coach Unique ID"
+                      name="coachSearchId"
+                      placeholder="e.g. TNJA-CO-001"
+                      value={coachSearchId}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value;
+                        setCoachSearchId(val);
+                        const match = coaches.find(c => 
+                          c.tempId?.toLowerCase() === val.toLowerCase() || 
+                          c.permanentId?.toLowerCase() === val.toLowerCase() ||
+                          c.id === val
+                        );
+                        if (match) {
+                          setFormData(prev => ({ ...prev, coachId: match.id }));
+                        }
+                      }}
+                    />
+                    <SelectField
+                      label="Or Select Your Coach"
+                      name="coachId"
+                      options={coaches.map(c => ({ label: c.fullName || (c as any).name, value: c.id }))}
+                      value={formData.coachId}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        handleInputChange(e);
+                        setCoachSearchId("");
+                      }}
+                    />
+                  </div>
                   {formData.coachId && coaches.find(c => c.id === formData.coachId) && (
                     <div className="p-4 bg-orange-50 border border-orange-100 rounded text-sm text-gray-700 flex flex-col gap-2">
-                      <p><strong>Coach Contact:</strong></p>
+                      <p><strong>Coach Found:</strong> {coaches.find(c => c.id === formData.coachId)?.fullName || (coaches.find(c => c.id === formData.coachId) as any)?.name}</p>
                       <p className="flex items-center gap-2"><Mail size={16} /> {coaches.find(c => c.id === formData.coachId)?.email}</p>
                       <p className="flex items-center gap-2"><Smartphone size={16} /> {coaches.find(c => c.id === formData.coachId)?.mobileNumber}</p>
                     </div>

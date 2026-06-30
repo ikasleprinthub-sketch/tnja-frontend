@@ -105,6 +105,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
     age16AboveFemale: '',
     agreedToTerms: false,
     profilePhoto: '',
+    nationality: '',
     ...initialData
   });
 
@@ -187,7 +188,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
         setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
       } else if (name === 'email') {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
-      } else if (['name', 'president', 'secretary'].includes(name)) {
+      } else if (['name', 'president', 'secretary', 'nationality'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
       } else if (['address1', 'address2'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
@@ -335,9 +336,9 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
           transition={{ duration: 0.5 }}
           className="space-y-12"
         >
-          {/* Select Your Location */}
+          {/* Residing Location  */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Select Your Location" />
+            <SectionHeader title="Residing Location " />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 pt-2">
               <SelectField 
                 label="Select Your District" 
@@ -390,44 +391,62 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
                     value={formData.email}
                     onChange={handleInputChange}
                   />
-                  <InputField 
-                    label="Pincode" 
-                    name="pincode" 
-                    placeholder="Enter Pincode" 
-                    required 
-                    maxLength={6}
-                    value={formData.pincode}
-                    onChange={handleInputChange}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <InputField 
-                    label="Address Line 1" 
-                    name="address1" 
-                    placeholder="Enter Address Line 1" 
-                    required 
-                    value={formData.address1}
-                    onChange={handleInputChange}
-                  />
-                  <InputField 
-                    label="Address Line 2" 
-                    name="address2" 
-                    placeholder="Enter Address Line 2" 
-                    value={formData.address2}
+                  <InputField
+                    label="Nationality"
+                    name="nationality"
+                    placeholder="Enter Nationality"
+                    required
+                    value={formData.nationality}
                     onChange={handleInputChange}
                   />
                 </div>
               </div>
 
               {/* Logo Upload */}
-              <div className="w-full lg:w-72 flex flex-col gap-3">
+              <div className="w-full lg:w-72 flex flex-col gap-3 h-full items-center justify-center pt-8">
                 <FileUpload 
                   label="Upload Club Logo *"
                   value={(formData as any).profilePhoto}
                   onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
                   accept="image/*"
-                  helperText="Drag & Drop or Click (7 x 7 inch)"
+                  helperText="JPG, PNG, WEBP (Max 5MB)"
+                  layout="passport"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Address Information */}
+          <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
+            <SectionHeader title="Permanent Address Information" />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField 
+                  label="Address Line 1" 
+                  name="address1" 
+                  placeholder="Enter Address Line 1" 
+                  required 
+                  value={formData.address1}
+                  onChange={handleInputChange}
+                />
+                <InputField 
+                  label="Address Line 2" 
+                  name="address2" 
+                  placeholder="Enter Address Line 2" 
+                  value={formData.address2}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField 
+                  label="Pincode" 
+                  name="pincode" 
+                  placeholder="Enter Pincode" 
+                  required 
+                  maxLength={6}
+                  value={formData.pincode}
+                  onChange={handleInputChange}
+                  autoComplete="off"
                 />
               </div>
             </div>

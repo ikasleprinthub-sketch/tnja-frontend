@@ -282,6 +282,11 @@ const CoachRegistrationForm = () => {
     designation: '',
     clubId: '',
     profilePhoto: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    addressPincode: '',
+    nationality: '',
     agreedToTerms: false
   });
 
@@ -441,14 +446,14 @@ const CoachRegistrationForm = () => {
         age: calculatedAge
       }));
     } else {
-      const numberFields = ['mobileNumber', 'alternateMobileNumber', 'pincode', 'aadhaarNumber', 'whatsappNumber'];
+      const numberFields = ['mobileNumber', 'alternateMobileNumber', 'pincode', 'aadhaarNumber', 'whatsappNumber', 'addressPincode'];
       if (numberFields.includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/\D/g, '') }));
       } else if (name === 'email') {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9@._-]/g, '') }));
-      } else if (['fullName', 'fatherName'].includes(name)) {
+      } else if (['fullName', 'fatherName', 'city', 'nationality'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z\s.'-]/g, '') }));
-      } else if (['address'].includes(name)) {
+      } else if (['address', 'addressLine1', 'addressLine2'].includes(name)) {
         setFormData(prev => ({ ...prev, [name]: value.replace(/[^a-zA-Z0-9\s,.'\/-]/g, '') }));
       } else {
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -565,9 +570,9 @@ const CoachRegistrationForm = () => {
           transition={{ duration: 0.5 }}
           className="space-y-12"
         >
-          {/* Select Your Location */}
+          {/* Residing Location  */}
           <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
-            <SectionHeader title="Select Your Location" />
+            <SectionHeader title="Residing Location " />
             <div className="p-8 pt-2 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <SelectField 
@@ -637,6 +642,7 @@ const CoachRegistrationForm = () => {
                     onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
                     accept="image/*"
                     helperText="JPG, PNG, WEBP (Max 5MB)"
+                    layout="passport"
                   />
                 </div>
                 <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -766,7 +772,7 @@ const CoachRegistrationForm = () => {
                     onChange={handleInputChange}
                   />
                 </div>
-                <div className="lg:col-span-12">
+                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
                   <InputField 
                     label="Email Address" 
                     name="email" 
@@ -778,7 +784,59 @@ const CoachRegistrationForm = () => {
                     onChange={handleInputChange}
                     disabled={otpVerified}
                   />
+                  <InputField
+                    label="Nationality"
+                    name="nationality"
+                    placeholder="Enter Nationality"
+                    required
+                    value={formData.nationality}
+                    onChange={handleInputChange}
+                  />
                 </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Address Information */}
+          <section className="bg-white border border-[#DEE2E6] rounded-sm overflow-hidden shadow-sm">
+            <SectionHeader title="Permanent Address Information" />
+            <div className="p-8 pt-2 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField 
+                  label="Address Line 1" 
+                  name="addressLine1" 
+                  placeholder="Enter Address Line 1" 
+                  required 
+                  value={formData.addressLine1}
+                  onChange={handleInputChange}
+                />
+                <InputField 
+                  label="Address Line 2" 
+                  name="addressLine2" 
+                  placeholder="Enter Address Line 2" 
+                  value={formData.addressLine2}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <InputField 
+                  label="City" 
+                  name="city" 
+                  placeholder="Search City" 
+                  required 
+                  value={formData.city}
+                  onChange={handleInputChange}
+                />
+                <InputField 
+                  label="Pincode" 
+                  name="addressPincode" 
+                  placeholder="6 Digit Pincode" 
+                  required 
+                  maxLength={6}
+                  value={formData.addressPincode}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
               </div>
             </div>
           </section>

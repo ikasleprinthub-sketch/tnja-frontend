@@ -58,6 +58,7 @@ export interface ClubRegistrationData {
   age16AboveFemale: string;
   agreedToTerms: boolean;
   profilePhoto?: string;
+  nationality: string;
 }
 
 export interface CoachRegistrationData {
@@ -88,6 +89,11 @@ export interface CoachRegistrationData {
   designation?: string;
   clubId?: string;
   profilePhoto?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  addressPincode: string;
+  nationality: string;
   agreedToTerms: boolean;
 }
 
@@ -113,5 +119,6 @@ export interface MemberRegistrationData {
   companyName?: string;
   designation?: string;
   profilePhoto?: string;
+  nationality: string;
   agreedToTerms: boolean;
 }
