@@ -738,6 +738,31 @@ export default function DashboardLayout({
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Official Role Details (For Promoted Users & Admins) */}
+                    {userRole && !["PLAYER", "CLUB", "COACH", "MEMBER", "GUEST"].includes(userRole) && (
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-2">Official Role Information</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role Title</p>
+                            <p className="font-extrabold text-[#FF7400] mt-1 capitalize">{userRole.replace(/_/g, " ").toLowerCase()}</p>
+                          </div>
+                          {(profileData.assignedDistrict?.name || profileData.district?.name || profileData.districtName) && (
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned District</p>
+                              <p className="font-extrabold text-slate-700 mt-1">{profileData.assignedDistrict?.name || profileData.district?.name || profileData.districtName}</p>
+                            </div>
+                          )}
+                          {(profileData.zone?.name || profileData.zoneName) && (
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Zone</p>
+                              <p className="font-extrabold text-slate-700 mt-1">{profileData.zone?.name || profileData.zoneName}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Match & Coaching Details (Only for players) */}
                     {userRole === "PLAYER" && (

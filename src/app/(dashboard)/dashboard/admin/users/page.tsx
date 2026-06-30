@@ -570,8 +570,8 @@ export default function UserManagementPage() {
         </div>
       </div>
 
-      <div className="flex flex-col 2xl:flex-row gap-6 items-start 2xl:items-center justify-between">
-        <div className="flex flex-col sm:flex-row w-full 2xl:w-auto gap-4 shrink-0 items-start sm:items-center">
+      <div className="flex flex-col gap-6 w-full">
+        <div className="flex flex-col sm:flex-row w-full gap-4 items-start sm:items-center flex-wrap">
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input
@@ -598,9 +598,9 @@ export default function UserManagementPage() {
           <AnimatePresence>
             {roleFilter === "PROMOTED" && (
               <motion.div
-                initial={{ opacity: 0, width: 0, scale: 0.9 }}
-                animate={{ opacity: 1, width: "auto", scale: 1 }}
-                exit={{ opacity: 0, width: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
                 className="relative shrink-0 w-full sm:w-auto"
               >
                 <select
@@ -619,7 +619,7 @@ export default function UserManagementPage() {
           </AnimatePresence>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto pb-2 w-full 2xl:w-auto 2xl:justify-end scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-2 w-full scrollbar-hide">
           {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER", "PROMOTED"].map((r) => {
             const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : r === "MEMBER" ? "Members" : "Promoted Persons";
             const isActive = roleFilter === r;
@@ -1472,6 +1472,8 @@ function ViewDetailsModal({
                       );
                     } else if (isDate) {
                       displayValue = new Date(val as string).toLocaleString();
+                    } else if (typeof val === "object" && val !== null) {
+                      displayValue = (val as any).name || (val as any).title || JSON.stringify(val);
                     }
 
                     return (
