@@ -83,8 +83,9 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
+  const [roleFilter, setRoleFilter] = useState<UserRole | "ALL" | "PROMOTED">("ALL");
   const [genderFilter, setGenderFilter] = useState<string>("ALL");
+  const [districtFilter, setDistrictFilter] = useState<string>("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
@@ -139,7 +140,7 @@ export default function UserManagementPage() {
       const token = localStorage.getItem("token");
       const params = new URLSearchParams();
       if (debouncedSearchQuery) params.append("search", debouncedSearchQuery);
-      if (roleFilter !== "ALL") params.append("role", roleFilter);
+      if (roleFilter !== "ALL" && roleFilter !== "PROMOTED") params.append("role", roleFilter);
       if (genderFilter !== "ALL") params.append("gender", genderFilter);
       params.append("status", "APPROVED");
 
@@ -401,6 +402,21 @@ export default function UserManagementPage() {
   };
 
   const filteredUsers = users.filter((u) => {
+    // 1. Role Filter for PROMOTED
+    if (roleFilter === "PROMOTED") {
+      const promotedRoles = ["DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"];
+      if (!promotedRoles.includes(u.role)) return false;
+      
+      // 2. District Filter for PROMOTED
+      if (districtFilter !== "ALL") {
+        const selectedDistrict = districtsList.find(d => d.id === districtFilter);
+        if (selectedDistrict && u.districtName !== selectedDistrict.name) {
+          return false;
+        }
+      }
+    }
+
+    // 3. Search Filter
     if (!debouncedSearchQuery) return true;
     const q = debouncedSearchQuery.toLowerCase();
     return (
@@ -578,18 +594,46 @@ export default function UserManagementPage() {
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
           </div>
+          
+          <AnimatePresence>
+            {roleFilter === "PROMOTED" && (
+              <motion.div
+                initial={{ opacity: 0, width: 0, scale: 0.9 }}
+                animate={{ opacity: 1, width: "auto", scale: 1 }}
+                exit={{ opacity: 0, width: 0, scale: 0.9 }}
+                className="relative shrink-0 w-full sm:w-auto"
+              >
+                <select
+                  value={districtFilter}
+                  onChange={(e) => setDistrictFilter(e.target.value)}
+                  className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-500 hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+                >
+                  <option value="ALL">All Districts</option>
+                  {districtsList.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
         <div className="flex gap-4 overflow-x-auto pb-2 w-full 2xl:w-auto 2xl:justify-end scrollbar-hide">
-          {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER"].map((r) => {
-            const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : "Members";
+          {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER", "PROMOTED"].map((r) => {
+            const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : r === "MEMBER" ? "Members" : "Promoted Persons";
+            const isActive = roleFilter === r;
+            const activeClass = r === "PROMOTED" 
+              ? "bg-gradient-to-r from-emerald-100 to-emerald-400 text-emerald-900 border-emerald-400 shadow-[0_8px_20px_-6px_rgba(52,211,153,0.6)] font-black"
+              : "bg-gradient-to-r from-amber-100 to-amber-400 text-slate-900 border-amber-400 shadow-[0_8px_20px_-6px_rgba(251,191,36,0.6)] font-black";
+            
             return (
               <button
                 key={r}
                 onClick={() => setRoleFilter(r as any)}
                 className={`min-w-[130px] px-8 py-3 rounded-2xl text-base transition-all whitespace-nowrap border ${
-                  roleFilter === r
-                    ? "bg-gradient-to-r from-amber-100 to-amber-400 text-slate-900 border-amber-400 shadow-[0_8px_20px_-6px_rgba(251,191,36,0.6)] font-black"
+                  isActive
+                    ? activeClass
                     : "bg-white text-slate-700 border-orange-200 hover:border-[#FF7400] hover:bg-orange-50 font-bold shadow-sm"
                 }`}
               >
