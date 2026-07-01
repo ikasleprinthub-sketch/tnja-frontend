@@ -1164,22 +1164,22 @@ export default function TournamentDetailPage() {
         </p>
         <div className="flex flex-wrap gap-3">
           <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
             <option value="ALL">All Age Groups</option>
             {allAgeGroups.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
           <select value={exactAgeFilter} onChange={(e) => setExactAgeFilter(e.target.value)}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
             <option value="ALL">All Exact Ages</option>
             {exactAgeOptions.map(opt => <option key={opt} value={opt}>{opt} Years</option>)}
           </select>
         <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
           <option value="MALE">Male</option>
           <option value="FEMALE">Female</option>
         </select>
         <select value={weightFilter} onChange={(e) => setWeightFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300">
+          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
           <option value="ALL">All Weights</option>
           {weightOptions.map((w) => {
             const label = players.find((p) => String(p.weight) === w)?.weightLabel || `${w} kg`;
@@ -1706,7 +1706,7 @@ export default function TournamentDetailPage() {
                                 {p.weight} kg
                               </span>
                               <button
-                                onClick={() => setEditingMetrics({ regId: p.regId, weight: p.weight?.toString() || "", height: p.height?.toString() || "" })}
+                                onClick={() => setEditingMetrics({ regId: p.regId || "", weight: p.weight?.toString() || "", height: (p as any).height?.toString() || "" })}
                                 className="text-slate-300 hover:text-orange-500 transition-colors"
                               >
                                 <Edit2 size={12} />
