@@ -1081,10 +1081,10 @@ function ScoreboardInner() {
                   <Download size={20} className="sm:w-6 sm:h-6" /> Download PDF
                 </button>
                 <button 
-                  onClick={() => setShowWinnerModal(false)} 
-                  className="px-8 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-4 rounded-xl transition-all"
+                  onClick={() => window.close()} 
+                  className="px-8 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-4 rounded-xl transition-all flex items-center justify-center gap-2"
                 >
-                  Dismiss
+                  <ArrowLeft size={20} /> Back to Matches
                 </button>
               </div>
             </motion.div>

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
-  Target, Zap, Award, Medal,
+  Target, Zap, Award, Medal, Edit2,
   AlertCircle, Clock, Download, BarChart3, MessageSquare, Send
 } from "lucide-react";
 
@@ -527,6 +527,11 @@ export default function TournamentDetailPage() {
   const [placementsAutoDetected, setPlacementsAutoDetected] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
+  // ── Modals State ────────────────────────────────────────────────────────────
+  const [editingMetrics, setEditingMetrics] = useState<{ regId: string, weight: string, height: string } | null>(null);
+  const [savingMetrics, setSavingMetrics] = useState(false);
+  const [isConcludeModalOpen, setIsConcludeModalOpen] = useState(false);
+
   // ── Messaging / Reply State ─────────────────────────────────────────────────
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
@@ -590,7 +595,7 @@ export default function TournamentDetailPage() {
   }, [draws, players]);
 
   const handleConcludeTournament = async () => {
-    if (!window.confirm("Are you sure you want to conclude this tournament and submit the final results? This will CLOSE the tournament and allow participants to download their certificates. This action cannot be undone.")) return;
+    setIsConcludeModalOpen(false);
 
     const results = players.map((p) => ({
       playerId: p.id,
@@ -639,6 +644,31 @@ export default function TournamentDetailPage() {
       if (res.ok) setTournament(await res.json());
     } catch (e) { console.error(e); }
   }, [tournamentId, token]);
+
+  const handleUpdateMetrics = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMetrics?.regId) return;
+    setSavingMetrics(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/registrations/${editingMetrics.regId}/metrics`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ weight: editingMetrics.weight, height: editingMetrics.height }),
+      });
+      if (res.ok) {
+        setToast({ msg: "Metrics updated successfully", ok: true });
+        setEditingMetrics(null);
+        fetchPlayers(); // Refresh the players list
+      } else {
+        const data = await res.json();
+        setToast({ msg: data.error || "Failed to update metrics", ok: false });
+      }
+    } catch {
+      setToast({ msg: "Error updating metrics", ok: false });
+    } finally {
+      setSavingMetrics(false);
+    }
+  };
 
   // ── Fetch registered players ────────────────────────────────────────────────
   const fetchPlayers = useCallback(async () => {
@@ -1671,13 +1701,23 @@ export default function TournamentDetailPage() {
                             </div>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                              {p.weight} kg
-                            </span>
-                            {seeds[1]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S1</span>}
-                            {seeds[2]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S2</span>}
-                            {seeds[3]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S3</span>}
-                            {seeds[4]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S4</span>}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                                {p.weight} kg
+                              </span>
+                              <button
+                                onClick={() => setEditingMetrics({ regId: p.regId, weight: p.weight?.toString() || "", height: p.height?.toString() || "" })}
+                                className="text-slate-300 hover:text-orange-500 transition-colors"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {seeds[1]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S1</span>}
+                              {seeds[2]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S2</span>}
+                              {seeds[3]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S3</span>}
+                              {seeds[4]?.id === p.id && <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">S4</span>}
+                            </div>
                           </div>
                         </motion.div>
                       ))}
@@ -2045,7 +2085,7 @@ export default function TournamentDetailPage() {
                       {Object.values(placements).filter(v => v === "FIRST").length} Gold · {Object.values(placements).filter(v => v === "SECOND").length} Silver · {Object.values(placements).filter(v => v === "THIRD").length} Bronze · {players.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
                     </p>
                     <button
-                      onClick={handleConcludeTournament}
+                      onClick={() => setIsConcludeModalOpen(true)}
                       disabled={submittingResults || players.length === 0}
                       className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -2401,6 +2441,112 @@ export default function TournamentDetailPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── Edit Metrics Modal ── */}
+      <AnimatePresence>
+        {editingMetrics && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100"
+            >
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 className="font-black text-slate-800">Edit Player Metrics</h3>
+                <button onClick={() => setEditingMetrics(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              <form onSubmit={handleUpdateMetrics} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Weight (kg) *</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    required
+                    value={editingMetrics.weight}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, weight: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Height (optional)</label>
+                  <input
+                    type="text"
+                    value={editingMetrics.height}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, height: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                    placeholder="e.g. 165 cm"
+                  />
+                </div>
+                
+                <div className="pt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMetrics(null)}
+                    className="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingMetrics}
+                    className="px-6 py-2 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-[#FFDA00] hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {savingMetrics ? "Saving..." : "Save Metrics"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Conclude Tournament Confirmation Modal ── */}
+      <AnimatePresence>
+        {isConcludeModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100"
+            >
+              <div className="p-6 bg-red-50 border-b border-red-100 flex items-center gap-4 text-red-600">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0 text-red-500">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">Conclude Tournament</h3>
+                  <p className="text-sm font-semibold opacity-80">This action cannot be undone.</p>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <p className="text-slate-600 font-medium leading-relaxed">
+                  Are you sure you want to conclude this tournament and submit the final results? 
+                  This will <strong className="text-slate-900">CLOSE</strong> the tournament and allow participants to download their certificates.
+                </p>
+                
+                <div className="pt-8 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setIsConcludeModalOpen(false)}
+                    className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConcludeTournament}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-red-500 text-white rounded-xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 hover:shadow-red-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                  >
+                    Yes, Conclude Tournament
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -2628,7 +2774,13 @@ function BracketView({
                        match.status !== "COMPLETED" && (
                         <button
                           onClick={() => onOpenScoreboard(match)}
-                          className="text-[8px] font-black text-orange-500 hover:text-orange-700 transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                          disabled={!(ri === 0 || rounds[ri - 1].every(m => m.status === "COMPLETED"))}
+                          title={!(ri === 0 || rounds[ri - 1].every(m => m.status === "COMPLETED")) ? "Previous round must be completed first" : ""}
+                          className={`text-[8px] font-black transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ${
+                            (ri === 0 || rounds[ri - 1].every(m => m.status === "COMPLETED"))
+                              ? "text-orange-500 hover:text-orange-700"
+                              : "text-slate-400 cursor-not-allowed"
+                          }`}>
                           <Monitor size={8} /> Scoreboard ↗
                         </button>
                       )}

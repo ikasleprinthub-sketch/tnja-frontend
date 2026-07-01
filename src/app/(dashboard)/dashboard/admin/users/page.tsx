@@ -537,7 +537,7 @@ export default function UserManagementPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
+            className={`fixed top-6 right-6 z-200 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
               toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
             }`}
           >
@@ -651,7 +651,7 @@ export default function UserManagementPage() {
           </AnimatePresence>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto pb-2 w-full scrollbar-hide">
+        <div className="flex gap-4 overflow-x-auto pb-2 w-full scrollbar-hide ">
           {["ALL", "CLUB", "STUDENT", "COACH", "MEMBER", "PROMOTED"].map((r) => {
             const label = r === "ALL" ? "All Users" : r === "CLUB" ? "Clubs" : r === "STUDENT" ? "Players" : r === "COACH" ? "Coaches" : r === "MEMBER" ? "Members" : "Promoted Persons";
             const isActive = roleFilter === r;
@@ -663,7 +663,7 @@ export default function UserManagementPage() {
               <button
                 key={r}
                 onClick={() => setRoleFilter(r as any)}
-                className={`min-w-[130px] px-8 py-3 rounded-2xl text-base transition-all whitespace-nowrap border ${
+                className={`min-w-[130px] px-8 py-3 rounded-2xl text-base transition-all whitespace-nowrap border cursor-pointer ${
                   isActive
                     ? activeClass
                     : "bg-white text-slate-700 border-orange-200 hover:border-[#FF7400] hover:bg-orange-50 font-bold shadow-sm"

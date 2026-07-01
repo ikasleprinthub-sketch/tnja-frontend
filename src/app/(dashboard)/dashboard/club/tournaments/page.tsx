@@ -48,6 +48,9 @@ export default function ClubTournamentsPage() {
   const [tReplyTexts, setTReplyTexts] = useState<Record<string, string>>({});
   const [tReplyLoading, setTReplyLoading] = useState<Record<string, boolean>>({});
   const [regSearch, setRegSearch] = useState<Record<string, string>>({});
+  const [editingMetrics, setEditingMetrics] = useState<any | null>(null);
+  const [metricsForm, setMetricsForm] = useState({ weight: "", height: "" });
+  const [savingMetrics, setSavingMetrics] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -111,6 +114,32 @@ export default function ClubTournamentsPage() {
       console.error("Failed to load approved tournaments", err);
     }
   }, []);
+
+  const handleUpdateMetrics = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMetrics) return;
+    setSavingMetrics(true);
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${editingMetrics.tournamentId}/registrations/${editingMetrics.id}/metrics`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({
+          weight: metricsForm.weight.toString(),
+          height: metricsForm.height.toString()
+        }),
+      });
+      if (res.ok) {
+        setEditingMetrics(null);
+        if (editingMetrics.tournamentId) {
+          fetchRegistrations(editingMetrics.tournamentId, true);
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSavingMetrics(false);
+    }
+  };
 
   const fetchTournamentMessages = async (tournamentId: string) => {
     try {
@@ -176,8 +205,8 @@ export default function ClubTournamentsPage() {
     fetchApprovedTournaments();
   }, [fetchTournaments, fetchApprovedTournaments]);
 
-  const fetchRegistrations = async (tournamentId: string) => {
-    if (registrations[tournamentId]) {
+  const fetchRegistrations = async (tournamentId: string, force = false) => {
+    if (registrations[tournamentId] && !force) {
       setExpandedId(expandedId === tournamentId ? null : tournamentId);
       return;
     }
@@ -388,7 +417,7 @@ export default function ClubTournamentsPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
+            className={`fixed top-6 right-6 z-200 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
               toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
             }`}
           >
@@ -666,6 +695,8 @@ export default function ClubTournamentsPage() {
                                       { label: "Role",            value: "Player" },
                                       { label: "Gender",          value: (() => { const g = tournament.gender; return g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : g || "—"; })() },
                                       { label: "Age",             value: (() => { const from = tournament.ageFrom, to = tournament.ageTo; if (to <= 15) return `Subjunior (${from}-${to})`; if (to <= 18) return `Cadets (${from}-${to})`; if (to <= 21) return `Juniors (${from}-${to})`; if (from > 21) return `Seniors (${from}+)`; return `Veterans (${from}+)`; })() },
+                                      { label: "Weight",          value: reg.weight ? `${reg.weight} kg` : "—" },
+                                      { label: "Height",          value: reg.height ? `${reg.height} cm` : "—" },
                                       { label: "Date",            value: new Date(tournament.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
                                       { label: "Time",            value: new Date(tournament.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
                                       { label: "Location",        value: tournament.location },
@@ -673,7 +704,21 @@ export default function ClubTournamentsPage() {
                                     ].map(({ label, value }) => (
                                       <div key={label}>
                                         <p className="text-[11px] font-bold text-[#FF7400] mb-0.5">{label}</p>
-                                        <p className="text-sm font-semibold text-slate-700 leading-tight">{value}</p>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm font-semibold text-slate-700 leading-tight">{value}</p>
+                                          {label === "Weight" && tournament.status !== "COMPLETED" && (
+                                            <button 
+                                              onClick={() => {
+                                                setEditingMetrics({ ...reg, tournamentId: tournament.id });
+                                                setMetricsForm({ weight: String(reg.weight || ""), height: reg.height || "" });
+                                              }}
+                                              className="text-slate-300 hover:text-[#FF7400] transition-colors"
+                                              title="Edit Metrics"
+                                            >
+                                              <Pencil size={12} />
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -1123,6 +1168,72 @@ export default function ClubTournamentsPage() {
           </div>
         )}
       </AnimatePresence>
+      {/* ── Edit Metrics Modal ── */}
+      <AnimatePresence>
+        {editingMetrics && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">Edit Player Metrics</h3>
+                  <p className="text-sm text-slate-500 font-medium">{editingMetrics.player?.fullName || editingMetrics.playerName}</p>
+                </div>
+                <button onClick={() => setEditingMetrics(null)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
+                  <XCircle size={24} />
+                </button>
+              </div>
+              
+              <form onSubmit={handleUpdateMetrics} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Weight (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    required
+                    value={metricsForm.weight}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, weight: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#FF7400] transition-colors font-bold text-slate-800"
+                    placeholder="e.g. 48.5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Height (optional)</label>
+                  <input
+                    type="text"
+                    value={metricsForm.height}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, height: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#FF7400] transition-colors font-bold text-slate-800"
+                    placeholder="e.g. 165 cm"
+                  />
+                </div>
+                
+                <div className="pt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMetrics(null)}
+                    className="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingMetrics}
+                    className="px-6 py-2 rounded-xl font-bold text-white bg-gradient-to-r from-orange-500 to-[#FFDA00] hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {savingMetrics ? "Saving..." : "Save Metrics"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

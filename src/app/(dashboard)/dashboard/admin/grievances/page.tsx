@@ -115,7 +115,7 @@ export default function AdminGrievancePage() {
     );
   }
 
-  if (userRole && !["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"].includes(userRole)) {
+  if (userRole && !["SUPER_ADMIN", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY"].includes(userRole)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
         <AlertCircle size={48} className="text-red-500" />
@@ -145,12 +145,12 @@ export default function AdminGrievancePage() {
             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-orange/20 outline-none transition-all"
           />
         </div>
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-200">
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 ">
           {["all", "pending", "replied", "closed"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-6 py-2 rounded-xl font-bold capitalize transition-all ${
+              className={`px-6 py-2 rounded-xl font-bold capitalize transition-all cursor-pointer ${
                 filter === f ? "bg-[#FF7400] text-white shadow-lg shadow-orange-500/20" : "text-slate-500 hover:bg-slate-50"
               }`}
             >
@@ -255,7 +255,7 @@ export default function AdminGrievancePage() {
                   </div>
                   <button 
                     onClick={() => setSelectedGrievance(null)}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
                   >
                     <X size={24} />
                   </button>
@@ -326,7 +326,7 @@ export default function AdminGrievancePage() {
                               </div>
                               <span className="text-sm font-semibold text-blue-800 truncate max-w-xs">{decodeURIComponent(fileName)}</span>
                             </div>
-                            <Download size={16} className="text-blue-500 shrink-0 group-hover:text-blue-700" />
+                            <Download size={16} className="text-blue-500 shrink-0 group-hover:text-blue-700 cursor-pointer" />
                           </a>
                         );
                       })}
@@ -352,7 +352,7 @@ export default function AdminGrievancePage() {
                   </div>
                 )}
 
-                {["SUPER_ADMIN", "CEO", "STATE_PRESIDENT", "STATE_SECRETARY"].includes(userRole || "") && selectedGrievance.status !== "CLOSED" && (
+                {["SUPER_ADMIN", "CEO", "STATE_PRESIDENT", "STATE_SECRETARY", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY"].includes(userRole || "") && selectedGrievance.status !== "CLOSED" && (
                   <div className="space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -366,7 +366,7 @@ export default function AdminGrievancePage() {
                         <button
                           disabled={submitting || !replyText.trim()}
                           onClick={handleReply}
-                          className="w-full py-4 bg-[#FF7400] text-white rounded-2xl font-bold text-lg hover:bg-[#E56900] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                          className="w-full py-4 bg-[#FF7400] text-white rounded-2xl font-bold text-lg hover:bg-[#E56900] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
                         >
                           {submitting ? <Loader2 className="animate-spin" /> : <Send size={20} />}
                           {selectedGrievance.reply ? "Update Reply" : "Send Reply"}
@@ -384,7 +384,7 @@ export default function AdminGrievancePage() {
                         <button
                           disabled={closing || !remarkText.trim()}
                           onClick={handleClose}
-                          className="w-full py-4 bg-red-500 text-white rounded-2xl font-bold text-lg hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                          className="w-full py-4 bg-red-500 text-white rounded-2xl font-bold text-lg hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
                         >
                           {closing ? <Loader2 className="animate-spin" /> : <X size={20} />}
                           Close with Remark

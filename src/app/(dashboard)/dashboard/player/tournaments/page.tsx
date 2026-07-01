@@ -573,15 +573,11 @@ export default function PlayerTournamentsPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            if (playerData?.height && playerData?.weight) {
-                              handleRegister(tournament, playerData.height, playerData.weight);
-                            } else {
-                              setRegisterModal(tournament);
-                              setPhysicalDetails({
-                                height: playerData?.height || "",
-                                weight: playerData?.weight || "",
-                              });
-                            }
+                            setRegisterModal(tournament);
+                            setPhysicalDetails({
+                              height: playerData?.height || "",
+                              weight: playerData?.weight || "",
+                            });
                           }}
                           disabled={isPayingThis}
                           className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"

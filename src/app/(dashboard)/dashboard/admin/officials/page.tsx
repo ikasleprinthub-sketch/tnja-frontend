@@ -20,9 +20,10 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
-export default function MembersListPage() {
+export default function OfficialsDirectoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [genderFilter, setGenderFilter] = useState<"ALL" | "MALE" | "FEMALE">("ALL");
+  const [districtFilter, setDistrictFilter] = useState("ALL");
   const [members, setMembers] = useState<any[]>([]);
   const [districtName, setDistrictName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -47,8 +48,16 @@ export default function MembersListPage() {
         const profileData = await profileRes.json();
 
         if (membersRes.ok) {
-          const approved = membersData.filter((u: any) => u.status === "APPROVED");
-          setMembers(approved);
+          const officialRoles = [
+            "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY",
+            "ZONE_PRESIDENT", "ZONE_SECRETARY",
+            "STATE_PRESIDENT", "STATE_SECRETARY",
+            "CEO", "SUPER_ADMIN"
+          ];
+          const officials = membersData.filter((u: any) => 
+            u.status === "APPROVED" && officialRoles.includes(u.role)
+          );
+          setMembers(officials);
         }
 
         if (profileRes.ok && profileData.user?.district) {
@@ -71,8 +80,10 @@ export default function MembersListPage() {
       
     const mGender = (m.gender || "MALE").toUpperCase();
     const matchesGender = genderFilter === "ALL" || mGender === genderFilter;
+    
+    const matchesDistrict = districtFilter === "ALL" || m.districtName === districtFilter;
 
-    return matchesSearch && matchesGender;
+    return matchesSearch && matchesGender && matchesDistrict;
   });
 
   const handleExportCSV = () => {
@@ -134,8 +145,8 @@ export default function MembersListPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-[#FF7400]">Members List</h1>
-          <p className="text-slate-600 text-[13px] font-medium mt-1">Manage all registered members in your location</p>
+          <h1 className="text-4xl font-black text-[#FF7400]">Officials Directory</h1>
+          <p className="text-slate-600 text-[13px] font-medium mt-1">Manage all promoted officials and administrators</p>
         </div>
         <div 
           className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
@@ -157,13 +168,23 @@ export default function MembersListPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
-            placeholder="Search Members"
+            placeholder="Search Officials"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 transition-all text-[13px] font-medium shadow-sm"
           />
         </div>
         <div className="flex gap-2 shrink-0 bg-slate-100 p-1.5 rounded-[12px]">
+          <select
+            value={districtFilter}
+            onChange={(e) => setDistrictFilter(e.target.value)}
+            className="px-4 py-2 bg-white border border-slate-200 rounded-[10px] text-[13px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 transition-all shadow-sm cursor-pointer mr-2 h-full"
+          >
+            <option value="ALL">All Districts</option>
+            {Array.from(new Set(members.map(m => m.districtName).filter(Boolean))).sort().map(d => (
+              <option key={String(d)} value={String(d)}>{String(d)}</option>
+            ))}
+          </select>
           {(["ALL", "MALE", "FEMALE"] as const).map(g => (
             <button
               key={g}
@@ -183,7 +204,7 @@ export default function MembersListPage() {
       {/* List Headers */}
       <div className="mt-4 hidden md:block">
         <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.8fr_1fr_1fr_60px] gap-6 px-8 text-[#FF7400] font-black text-[14px] mb-4">
-          <div>Member</div>
+          <div>Official</div>
           <div>Temporary Id</div>
           <div>Role</div>
           <div>Contact</div>
@@ -202,7 +223,7 @@ export default function MembersListPage() {
           </div>
         ) : filteredMembers.length === 0 ? (
           <div className="p-20 text-center text-slate-400 font-medium bg-white rounded-2xl shadow-sm border border-slate-100">
-            No members found matching your search.
+            No officials found matching your search.
           </div>
         ) : (
           filteredMembers.map((member, idx) => (

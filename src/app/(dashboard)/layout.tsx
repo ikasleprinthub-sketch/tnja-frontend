@@ -210,6 +210,7 @@ export default function DashboardLayout({
     { name: "Events", href: "/dashboard/admin/events", icon: Calendar },
     { name: "Tournaments", href: "/dashboard/admin/tournaments", icon: Trophy, children: superAdminCeoChildren },
     { name: "Members List", href: "/dashboard/admin/members", icon: Users },
+    { name: "Officials Directory", href: "/dashboard/admin/officials", icon: ShieldCheck },
     { name: "Grievances", href: "/dashboard/admin/grievances", icon: MessageSquare },
   ];
 
@@ -513,7 +514,7 @@ export default function DashboardLayout({
             <div className="relative">
               <button 
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="p-2 text-slate-400 hover:text-[#FF7400] relative focus:outline-none transition-colors"
+                className="p-2 text-slate-400 hover:text-[#FF7400] relative focus:outline-none transition-colors cursor-pointer"
               >
                 <Bell size={20} />
                 {notifications.some(n => !n.read) && (
@@ -537,7 +538,7 @@ export default function DashboardLayout({
                             const updated = notifications.map(n => ({ ...n, read: true }));
                             saveNotifications(updated);
                           }}
-                          className="text-xs text-[#FF7400] font-bold hover:underline"
+                          className="text-xs text-[#FF7400] font-bold hover:underline cursor-pointer"
                         >
                           Mark all as read
                         </button>
@@ -576,7 +577,7 @@ export default function DashboardLayout({
             <div className="relative border-l pl-4 md:pl-6 border-slate-200 shrink-0">
               <button 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center space-x-2 md:space-x-3 focus:outline-none hover:opacity-85 transition-opacity"
+                className="flex items-center space-x-2 md:space-x-3 focus:outline-none hover:opacity-85 transition-opacity cursor-pointer"
               >
                 <div className="hidden sm:block text-right">
                   <p className="text-sm font-bold text-slate-800">{userName}</p>
@@ -611,7 +612,7 @@ export default function DashboardLayout({
                             setIsProfileDropdownOpen(false);
                             fetchFullProfile();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-orange-50 hover:text-[#FF7400] rounded-xl transition-colors text-sm font-bold text-left"
+                          className="w-full flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-orange-50 hover:text-[#FF7400] rounded-xl transition-colors text-sm font-bold text-left cursor-pointer"
                         >
                           <User size={18} />
                           My Profile Details
@@ -621,7 +622,7 @@ export default function DashboardLayout({
                             setIsProfileDropdownOpen(false);
                             handleLogout();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors text-sm font-bold text-left"
+                          className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors text-sm font-bold text-left cursor-pointer"
                         >
                           <LogOut size={18} />
                           Logout

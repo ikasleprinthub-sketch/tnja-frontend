@@ -495,10 +495,10 @@ function ApprovalsContent() {
                           
                           <button 
                              onClick={() => { setSelectedItem(item); setIsDetailModalOpen(true); }}
-                             className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0"
+                             className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0 cursor-pointer"
                              title="View Details"
                           >
-                            <MoreHorizontal size={18} className="stroke-[3]" />
+                            <MoreHorizontal size={18} className="stroke-3" />
                           </button>
                         </div>
                       </div>

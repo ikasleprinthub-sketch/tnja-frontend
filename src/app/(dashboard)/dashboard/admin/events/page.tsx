@@ -311,7 +311,7 @@ export default function EventsPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+            className={`fixed top-6 right-6 z-200 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
               }`}
           >
             {toast.type === "success" ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
@@ -332,7 +332,7 @@ export default function EventsPage() {
         >
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm cursor-pointer"
           >
             <Plus size={18} className="stroke-[2.5]" />
             Create Event
@@ -378,7 +378,7 @@ export default function EventsPage() {
           >
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm cursor-pointer"
             >
               <Filter size={16} />
               {filter === "ALL" ? "Filter" : filter}
@@ -507,7 +507,7 @@ export default function EventsPage() {
                 </div>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all cursor-pointer"
                 >
                   <XCircle size={28} />
                 </button>
@@ -540,7 +540,7 @@ export default function EventsPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -6 }}
                             transition={{ duration: 0.15 }}
-                            className="absolute top-full mt-1 left-0 right-0 z-[150] bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+                            className="absolute top-full mt-1 left-0 right-0 z-150 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
                           >
                             <div className="max-h-64 overflow-y-auto py-1">
                               {eventSections.map((section) => (
@@ -767,7 +767,7 @@ export default function EventsPage() {
       {/* Edit Event Modal */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -781,7 +781,7 @@ export default function EventsPage() {
                 </div>
                 <button
                   onClick={() => setIsEditModalOpen(false)}
-                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all cursor-pointer"
                 >
                   <XCircle size={28} />
                 </button>
@@ -1029,7 +1029,7 @@ export default function EventsPage() {
                 </div>
                 <button
                   onClick={() => setSelectedEvent(null)}
-                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all cursor-pointer"
                 >
                   <XCircle size={28} />
                 </button>
@@ -1122,7 +1122,7 @@ export default function EventsPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedEvent(null)}
-                  className="w-full py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all font-semibold"
+                  className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all font-semibold cursor-pointer"
                 >
                   Close Details
                 </button>
