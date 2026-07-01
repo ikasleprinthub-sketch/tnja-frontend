@@ -249,8 +249,21 @@ export default function MembersListPage() {
               </div>
 
               {/* Location */}
-              <div>
-                <span className="text-[12px] text-slate-600 font-medium">{member.talukName || member.districtName || "Chennai"}</span>
+              <div className="flex flex-col gap-0.5">
+                {member.assignedDistrict?.name && member.assignedDistrict?.name !== member.district?.name ? (
+                  <>
+                    <span className="text-[12px] text-slate-800 font-bold">
+                      <span className="text-slate-400 font-medium mr-1 text-[10px]">WORK:</span>
+                      {member.assignedDistrict.name}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      <span className="text-slate-400 font-medium mr-1 text-[10px]">NATIVE:</span>
+                      {member.district?.name || "Chennai"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[12px] text-slate-600 font-medium">{member.talukName || member.districtName || "Chennai"}</span>
+                )}
               </div>
 
               {/* Status */}

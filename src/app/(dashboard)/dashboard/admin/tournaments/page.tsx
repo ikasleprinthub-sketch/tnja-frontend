@@ -23,6 +23,7 @@ import {
   Send,
   MessageSquare,
 } from "lucide-react";
+import FileUpload from "@/components/common/FileUpload";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
@@ -62,6 +63,7 @@ interface Tournament {
   rejectionRemark?: string;
   hasPendingPlayers?: boolean;
   club?: { name: string; district?: { name: string } };
+  bannerImage?: string;
 }
 
 // ─── Role configuration ───────────────────────────────────────────────────────
@@ -154,6 +156,7 @@ const emptyForm = {
   title: "", dateFrom: "", dateTo: "", location: "", description: "",
   entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100",
   gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT",
+  bannerImage: "",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -602,7 +605,7 @@ export default function AdminTournamentsPage() {
                       {/* Top — image + details */}
                       <div className="flex">
                         <div className="w-44 flex-shrink-0 relative" style={{ minHeight: 200 }}>
-                          <img src="/homepage/whatjudo/judo1.png" alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={t.bannerImage || "/homepage/whatjudo/judo1.png"} alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
                         </div>
                         <div className="flex-grow p-5">
                           <div className="grid grid-cols-2 gap-x-8 gap-y-3">
@@ -760,6 +763,7 @@ export default function AdminTournamentsPage() {
                       className="bg-white rounded-[20px] shadow-lg overflow-hidden flex flex-col"
                     >
                       <div className="h-32 bg-gradient-to-br from-emerald-900 via-emerald-700 to-[#FF7400] relative overflow-hidden">
+                        {t.bannerImage && <img src={t.bannerImage} alt="Banner" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60" />}
                         <div className="absolute inset-0 bg-black/20" />
                         <div className="absolute top-3 left-3 bg-white/20 backdrop-blur text-white text-[10px] font-bold px-3 py-1 rounded-full border border-white/30">
                           {t.level}
@@ -845,7 +849,11 @@ export default function AdminTournamentsPage() {
                     >
                       {/* Card banner */}
                       <div className="h-28 bg-gradient-to-br from-[#FF7400]/15 to-amber-50 flex items-center justify-center relative overflow-hidden">
-                        <Trophy size={36} className="text-[#FF7400]/25" />
+                        {t.bannerImage ? (
+                          <img src={t.bannerImage} alt="Banner" className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                          <Trophy size={40} className="text-[#FF7400]/20 absolute" />
+                        )}
                         <span className="absolute top-3 left-3 bg-white/90 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">
                           {t.level}
                         </span>
@@ -1116,6 +1124,15 @@ export default function AdminTournamentsPage() {
                     <label htmlFor="bpl_create" className="text-sm font-bold text-slate-700">
                       Allow BPL Students to Register for Free
                     </label>
+                  </div>
+
+                  <div className="md:col-span-2 mt-2">
+                    <FileUpload 
+                      label="Banner Image (Optional)" 
+                      value={formData.bannerImage} 
+                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
+                      accept="image/*" 
+                    />
                   </div>
 
                   <div className="md:col-span-2">

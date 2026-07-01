@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal,
-  AlertCircle, Clock, Download, BarChart3,
+  AlertCircle, Clock, Download, BarChart3, MessageSquare, Send
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
@@ -527,6 +527,12 @@ export default function TournamentDetailPage() {
   const [placementsAutoDetected, setPlacementsAutoDetected] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
+  // ── Messaging / Reply State ─────────────────────────────────────────────────
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
+  const [messages, setMessages] = useState<Record<string, any[]>>({});
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+
   // ── Auto-detect placements from draw results ─────────────────────────────────
   // Runs whenever the draws or players change (e.g. when Results tab is opened)
   const autoDetectPlacements = useCallback(() => {
@@ -690,6 +696,42 @@ export default function TournamentDetailPage() {
     } catch (e) {
       console.error(e);
       showToast("Error updating registration", false);
+    }
+  };
+
+  // ── Messages / Replies ───────────────────────────────────────────────────────
+  const fetchMessages = async (regId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((prev) => ({ ...prev, [regId]: data }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch messages", err);
+    }
+  };
+
+  const handleSendReply = async (regId: string) => {
+    const message = replyTexts[regId]?.trim();
+    if (!message) return;
+    setReplyLoading((prev) => ({ ...prev, [regId]: true }));
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("Failed to send reply");
+      setReplyTexts((prev) => { const n = { ...prev }; delete n[regId]; return n; });
+      await fetchMessages(regId);
+      showToast("Reply sent to player.");
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", false);
+    } finally {
+      setReplyLoading((prev) => ({ ...prev, [regId]: false }));
     }
   };
 
@@ -1328,26 +1370,87 @@ export default function TournamentDetailPage() {
                 </thead>
                 <tbody>
                   {filteredPlayers.map((p, i) => (
-                    <tr key={p.id} className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
-                      <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
-                      <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
-                      <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
-                        {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
-                        {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
-                        {p.status === "PENDING" && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-amber-600">Pending</span>
-                            <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
-                            <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    <React.Fragment key={p.id}>
+                      <tr className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
+                        <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
+                        <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
+                        <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
+                          {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
+                          {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
+                          {p.status === "PENDING" && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-amber-600">Pending</span>
+                              <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
+                              <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => {
+                              const newExpanded = expandedPlayerId === p.id ? null : p.id;
+                              setExpandedPlayerId(newExpanded);
+                              if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
+                            }}
+                            className="ml-2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-2 text-xs transition-colors"
+                          >
+                            <MessageSquare size={14} /> Reply
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedPlayerId === p.id && p.regId && (
+                        <tr>
+                          <td colSpan={8} className="p-0 border-b border-slate-200 bg-slate-50/80">
+                            <div className="p-4 flex flex-col items-center">
+                              <div className="w-full max-w-3xl space-y-4">
+                                {/* Chat thread */}
+                                {messages[p.regId]?.length > 0 && (
+                                  <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
+                                    {messages[p.regId].map((msg) => (
+                                      <div key={msg.id} className="flex items-start gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
+                                          <span className="text-[10px] font-black text-[#FF7400]">A</span>
+                                        </div>
+                                        <div className="flex-grow">
+                                          <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
+                                          <p className="text-[10px] text-slate-400 mt-0.5">
+                                            {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {/* Reply Input */}
+                                <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                                  <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
+                                    <input
+                                      type="text"
+                                      placeholder={`Send message to ${p.name}...`}
+                                      value={replyTexts[p.regId!] || ""}
+                                      onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
+                                      onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
+                                      className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
+                                    />
+                                    <button
+                                      onClick={() => handleSendReply(p.regId!)}
+                                      disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
+                                      className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
+                                    >
+                                      {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

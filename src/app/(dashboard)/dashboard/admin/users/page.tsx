@@ -39,6 +39,8 @@ interface TNJAUser {
   email: string;
   mobileNumber?: string;
   districtName?: string;
+  district?: { name: string };
+  assignedDistrict?: { name: string };
   tempId: string;
   permanentId: string | null;
   status: string;
@@ -86,6 +88,7 @@ export default function UserManagementPage() {
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL" | "PROMOTED">("ALL");
   const [genderFilter, setGenderFilter] = useState<string>("ALL");
   const [districtFilter, setDistrictFilter] = useState<string>("ALL");
+  const [promotedRoleFilter, setPromotedRoleFilter] = useState<string>("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
@@ -407,6 +410,10 @@ export default function UserManagementPage() {
       const promotedRoles = ["DISTRICT_PRESIDENT", "DISTRICT_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "STATE_PRESIDENT", "STATE_SECRETARY", "CEO"];
       if (!promotedRoles.includes(u.role)) return false;
       
+      if (promotedRoleFilter !== "ALL" && u.role !== promotedRoleFilter) {
+        return false;
+      }
+
       // 2. District Filter for PROMOTED
       if (districtFilter !== "ALL") {
         const selectedDistrict = districtsList.find(d => d.id === districtFilter);
@@ -597,24 +604,49 @@ export default function UserManagementPage() {
           
           <AnimatePresence>
             {roleFilter === "PROMOTED" && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="relative shrink-0 w-full sm:w-auto"
-              >
-                <select
-                  value={districtFilter}
-                  onChange={(e) => setDistrictFilter(e.target.value)}
-                  className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-500 hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+              <>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="relative shrink-0 w-full sm:w-auto"
                 >
-                  <option value="ALL">All Districts</option>
-                  {districtsList.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-              </motion.div>
+                  <select
+                    value={districtFilter}
+                    onChange={(e) => setDistrictFilter(e.target.value)}
+                    className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-500 hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+                  >
+                    <option value="ALL">All Districts</option>
+                    {districtsList.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="relative shrink-0 w-full sm:w-auto"
+                >
+                  <select
+                    value={promotedRoleFilter}
+                    onChange={(e) => setPromotedRoleFilter(e.target.value)}
+                    className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 hover:border-emerald-500 hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+                  >
+                    <option value="ALL">All Roles</option>
+                    <option value="DISTRICT_PRESIDENT">District President</option>
+                    <option value="DISTRICT_SECRETARY">District Secretary</option>
+                    <option value="ZONE_PRESIDENT">Zone President</option>
+                    <option value="ZONE_SECRETARY">Zone Secretary</option>
+                    <option value="STATE_PRESIDENT">State President</option>
+                    <option value="STATE_SECRETARY">State Secretary</option>
+                    <option value="CEO">CEO</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                </motion.div>
+              </>
             )}
           </AnimatePresence>
         </div>
@@ -693,11 +725,22 @@ export default function UserManagementPage() {
                     </span>
                   </div>
 
-                  {u.districtName && (
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                      <MapPin size={12} className="text-[#FF7400]" /> {u.districtName} District
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-1 mt-1">
+                    {u.assignedDistrict?.name && u.assignedDistrict?.name !== u.district?.name ? (
+                      <>
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                          <MapPin size={12} className="text-[#FF7400]" /> <span className="text-slate-400 font-medium text-[9px]">WORK:</span> {u.assignedDistrict.name}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 pl-[18px]">
+                          <span className="text-slate-400 font-medium text-[9px]">NATIVE:</span> {u.district?.name || "Chennai"}
+                        </div>
+                      </>
+                    ) : u.districtName ? (
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                        <MapPin size={12} className="text-[#FF7400]" /> {u.districtName} District
+                      </div>
+                    ) : null}
+                  </div>
 
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <div className="flex justify-between items-center text-[10px]">

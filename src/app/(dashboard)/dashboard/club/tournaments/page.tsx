@@ -25,6 +25,7 @@ import {
   Send,
   MessageSquare,
 } from "lucide-react";
+import FileUpload from "@/components/common/FileUpload";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
@@ -64,6 +65,7 @@ export default function ClubTournamentsPage() {
     beltEligibility: "",
     level: "DISTRICT",
     zoneId: "",
+    bannerImage: "",
   });
 
   const [editData, setEditData] = useState({
@@ -82,6 +84,7 @@ export default function ClubTournamentsPage() {
     beltEligibility: "",
     level: "DISTRICT",
     zoneId: "",
+    bannerImage: "",
   });
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -208,43 +211,6 @@ export default function ClubTournamentsPage() {
     }
   };
 
-  const handleApproveReg = async (tournamentId: string, registrationId: string, action: "APPROVE" | "REJECT") => {
-    setApprovingId(registrationId);
-    try {
-      const token = localStorage.getItem("token");
-      const message = replyTexts[registrationId]?.trim() || "";
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${registrationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: action === "APPROVE" ? "APPROVED" : "REJECTED", message }),
-      });
-      if (!res.ok) throw new Error("Failed to update registration");
-      
-      setRegistrations((prev) => {
-        const updatedRegs = prev[tournamentId].map((r) =>
-          r.id === registrationId ? { ...r, status: action === "APPROVE" ? "APPROVED" : "REJECTED" } : r
-        );
-        
-        // Also update tournaments state immediately to reflect hasPendingPlayers changes
-        const hasPending = updatedRegs.some(r => r.status === "PENDING");
-        setTournaments((prevT) => prevT.map(t => t.id === tournamentId ? { ...t, hasPendingPlayers: hasPending } : t));
-        
-        return {
-          ...prev,
-          [tournamentId]: updatedRegs,
-        };
-      });
-
-      setReplyTexts((prev) => { const n = { ...prev }; delete n[registrationId]; return n; });
-      await fetchMessages(tournamentId, registrationId);
-      showToast(`Registration ${action === "APPROVE" ? "approved" : "rejected"}.`, "success");
-    } catch (err: any) {
-      showToast(err.message || "Something went wrong", "error");
-    } finally {
-      setApprovingId(null);
-    }
-  };
-
   const fetchMessages = async (tournamentId: string, registrationId: string) => {
     try {
       const token = localStorage.getItem("token");
@@ -301,6 +267,7 @@ export default function ClubTournamentsPage() {
       gender: tournament.gender || "BOTH",
       allowBPL: tournament.allowBPL || false,
       beltEligibility: tournament.beltEligibility || "",
+      bannerImage: tournament.bannerImage || "",
       level: level,
       zoneId: tournament.zoneId || "",
     });
@@ -389,7 +356,7 @@ export default function ClubTournamentsPage() {
       if (!res.ok) throw new Error(json.error || "Failed to create tournament");
       showToast("Tournament created! Your club players will be notified.", "success");
       setIsCreateModalOpen(false);
-      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "" });
+      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", bannerImage: "" });
       fetchTournaments();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -500,11 +467,15 @@ export default function ClubTournamentsPage() {
               className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
             >
               {/* Tournament Header */}
-              <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-[#FF7400]/10 text-[#FF7400] rounded-2xl shrink-0">
-                    <Trophy size={24} />
-                  </div>
+              <div className="p-6 flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-80 h-48 flex-shrink-0 relative bg-slate-100 flex items-center justify-center rounded-2xl overflow-hidden shadow-inner border border-slate-100">
+                  {tournament.bannerImage ? (
+                    <img src={tournament.bannerImage} alt="Banner" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <Trophy size={40} className="text-slate-300 absolute" />
+                  )}
+                </div>
+                <div className="flex flex-col md:flex-row justify-between gap-6 flex-grow">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-xl font-bold text-slate-800">{tournament.title}</h3>
@@ -682,7 +653,7 @@ export default function ClubTournamentsPage() {
                               {/* Top — image + details */}
                               <div className="flex" style={{ minHeight: 200 }}>
                                 <div className="w-44 flex-shrink-0 relative">
-                                  <img src="/homepage/whatjudo/judo1.png" alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
+                                  <img src={tournament.bannerImage || "/homepage/whatjudo/judo1.png"} alt="Judo" className="absolute inset-0 w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-grow p-5">
                                   {/* Player Name - Heading */}
@@ -751,35 +722,15 @@ export default function ClubTournamentsPage() {
                                   </div>
                                 </div>
 
-                                {/* Buttons pushed to far right */}
+                                {/* Status badge pushed to far right */}
                                 <div className="ml-auto flex items-center gap-2">
-                                  {reg.status === "PENDING" && reg.isPaid ? (
-                                    <>
-                                      <button
-                                        onClick={() => handleApproveReg(tournament.id, reg.id, "APPROVE")}
-                                        disabled={approvingId === reg.id}
-                                        className="px-5 py-2 bg-[#FF7400] text-white text-sm font-bold rounded-lg hover:bg-[#E56900] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                      >
-                                        {approvingId === reg.id ? <Loader2 size={16} className="animate-spin" /> : null}
-                                        Approve
-                                      </button>
-                                      <button
-                                        onClick={() => handleApproveReg(tournament.id, reg.id, "REJECT")}
-                                        disabled={approvingId === reg.id}
-                                        className="px-5 py-2 bg-white border border-[#FF7400] text-slate-700 text-sm font-bold rounded-lg hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
-                                      reg.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                      reg.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
-                                      "bg-amber-50 text-amber-700 border-amber-200"
-                                    }`}>
-                                      {reg.status}
-                                    </span>
-                                  )}
+                                  <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                    reg.status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                    reg.status === "REJECTED" ? "bg-red-50 text-red-600 border-red-200" :
+                                    "bg-amber-50 text-amber-700 border-amber-200"
+                                  }`}>
+                                    {reg.status}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -828,8 +779,12 @@ export default function ClubTournamentsPage() {
                     whileHover={{ y: -4 }}
                     className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
                   >
-                    <div className="h-24 bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center relative">
-                      <Trophy size={32} className="text-white/20" />
+                    <div className="h-24 bg-gradient-to-br from-slate-900 to-slate-700 flex items-center justify-center relative overflow-hidden">
+                      {t.bannerImage ? (
+                        <img src={t.bannerImage} alt="Banner" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60" />
+                      ) : (
+                        <Trophy size={32} className="text-white/20" />
+                      )}
                       <span className="absolute top-3 left-3 bg-white/20 text-white text-[9px] font-bold px-2.5 py-1 rounded-full">
                         {t.level}
                       </span>
@@ -989,6 +944,14 @@ export default function ClubTournamentsPage() {
                       className="w-5 h-5 accent-[#FF7400]" />
                     <label htmlFor="allowBpl_create" className="text-sm font-bold text-slate-700">Allow BPL Students to Register for Free</label>
                   </div>
+                  <div className="md:col-span-2 mt-2">
+                    <FileUpload 
+                      label="Banner Image (Optional)" 
+                      value={formData.bannerImage} 
+                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
+                      accept="image/*" 
+                    />
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
                     <textarea required value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -1124,6 +1087,14 @@ export default function ClubTournamentsPage() {
                     <input type="checkbox" id="allowBpl_edit" checked={editData.allowBPL} onChange={(e) => setEditData({ ...editData, allowBPL: e.target.checked })}
                       className="w-5 h-5 accent-[#FF7400]" />
                     <label htmlFor="allowBpl_edit" className="text-sm font-bold text-slate-700">Allow BPL Students to Register for Free</label>
+                  </div>
+                  <div className="md:col-span-2 mt-2">
+                    <FileUpload 
+                      label="Banner Image (Optional)" 
+                      value={editData.bannerImage} 
+                      onChange={(url) => setEditData({ ...editData, bannerImage: url })} 
+                      accept="image/*" 
+                    />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
