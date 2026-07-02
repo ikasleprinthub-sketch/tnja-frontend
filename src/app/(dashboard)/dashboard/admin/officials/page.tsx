@@ -15,7 +15,9 @@ import {
   Loader2,
   Eye,
   X,
-  FileText
+  FileText,
+  AlertCircle,
+  MapPin
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
@@ -29,23 +31,27 @@ export default function OfficialsDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [isMissingModalOpen, setIsMissingModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
         
-        const [membersRes, profileRes] = await Promise.all([
+        const [membersRes, profileRes, districtsRes] = await Promise.all([
           fetch(`${API_BASE}/users/all`, {
             headers: { "Authorization": `Bearer ${token}` }
           }),
           fetch(`${API_BASE}/auth/profile`, {
             headers: { "Authorization": `Bearer ${token}` }
-          })
+          }),
+          fetch(`${API_BASE}/districts`)
         ]);
 
         const membersData = await membersRes.json();
         const profileData = await profileRes.json();
+        const districtsData = await districtsRes.json();
 
         if (membersRes.ok) {
           const officialRoles = [
@@ -62,6 +68,10 @@ export default function OfficialsDirectoryPage() {
 
         if (profileRes.ok && profileData.user?.district) {
           setDistrictName(profileData.user.district.name);
+        }
+
+        if (districtsRes.ok) {
+          setDistricts(districtsData);
         }
       } catch (err) {
         console.error("Failed to fetch directory data", err);
@@ -140,6 +150,36 @@ export default function OfficialsDirectoryPage() {
     }
   };
 
+  const hasStatePresident = members.some(m => m.role === "STATE_PRESIDENT");
+  const hasStateSecretary = members.some(m => m.role === "STATE_SECRETARY");
+
+  const districtRolesStatus = districts.map(district => {
+    const districtMembers = members.filter(m => 
+      m.districtName === district.name || 
+      (m.assignedDistrict && m.assignedDistrict.name === district.name) || 
+      (m.district && m.district.name === district.name)
+    );
+
+    const hasDistrictPresident = districtMembers.some(m => m.role === "DISTRICT_PRESIDENT");
+    const hasDistrictSecretary = districtMembers.some(m => m.role === "DISTRICT_SECRETARY");
+    const hasZonePresident = districtMembers.some(m => m.role === "ZONE_PRESIDENT");
+    const hasZoneSecretary = districtMembers.some(m => m.role === "ZONE_SECRETARY");
+
+    const missing = [];
+    const assigned = [];
+    
+    if (hasDistrictPresident) assigned.push("District President"); else missing.push("District President");
+    if (hasDistrictSecretary) assigned.push("District Secretary"); else missing.push("District Secretary");
+    if (hasZonePresident) assigned.push("Zone President"); else missing.push("Zone President");
+    if (hasZoneSecretary) assigned.push("Zone Secretary"); else missing.push("Zone Secretary");
+
+    return {
+      districtName: district.name,
+      missing,
+      assigned
+    };
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -148,17 +188,27 @@ export default function OfficialsDirectoryPage() {
           <h1 className="text-4xl font-black text-[#FF7400]">Officials Directory</h1>
           <p className="text-slate-600 text-[13px] font-medium mt-1">Manage all promoted officials and administrators</p>
         </div>
-        <div 
-          className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
-          style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
-        >
+        <div className="flex gap-3 shrink-0">
           <button 
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm cursor-pointer"
+            onClick={() => setIsMissingModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 font-bold rounded-[10px] hover:bg-blue-100 transition-all text-sm shadow-sm cursor-pointer"
           >
-            <FileText size={18} className="stroke-[2.5]" />
-            Export CSV
+            <AlertCircle size={18} className="stroke-[2.5]" />
+            Officials Status
           </button>
+          
+          <div 
+            className="p-[1.5px] rounded-[10px] shrink-0 inline-flex"
+            style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
+          >
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm shadow-sm cursor-pointer"
+            >
+              <FileText size={18} className="stroke-[2.5]" />
+              Export CSV
+            </button>
+          </div>
         </div>
       </div>
 
@@ -399,6 +449,100 @@ export default function OfficialsDirectoryPage() {
                     })}
                 </tbody>
               </table>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Missing Officials Modal ───────────────────────────────────── */}
+      <AnimatePresence>
+        {isMissingModalOpen && (
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-4xl bg-white rounded-3xl p-8 shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-100 text-blue-500 rounded-2xl flex items-center justify-center font-bold text-xl">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-xl font-bold text-slate-800">Officials Status Report</h3>
+                    <p className="text-xs text-slate-500 font-medium">Overview of assigned and vacant roles per district</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsMissingModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+                  <X size={22} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="space-y-8 overflow-y-auto pr-2 pb-4">
+                {/* State Level */}
+                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <Users size={18} className="text-[#FF7400]" />
+                    State Level Officials
+                  </h4>
+                  <div className="flex gap-4">
+                    <div className={`flex-1 p-4 rounded-xl border ${hasStatePresident ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                      <p className="text-sm font-bold text-slate-800 mb-1">State President</p>
+                      <p className={`text-xs font-bold ${hasStatePresident ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {hasStatePresident ? 'Assigned' : 'Missing'}
+                      </p>
+                    </div>
+                    <div className={`flex-1 p-4 rounded-xl border ${hasStateSecretary ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                      <p className="text-sm font-bold text-slate-800 mb-1">State Secretary</p>
+                      <p className={`text-xs font-bold ${hasStateSecretary ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {hasStateSecretary ? 'Assigned' : 'Missing'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* District Level */}
+                <div>
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <MapPin size={18} className="text-[#FF7400]" />
+                    District & Zone Level Status
+                  </h4>
+                  {districts.length === 0 ? (
+                    <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-sm font-medium">
+                      Loading districts...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {districtRolesStatus.map((d, i) => (
+                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all">
+                          <h5 className="font-bold text-slate-800 text-[15px] mb-3 pb-2 border-b border-slate-100">{d.districtName}</h5>
+                          <div className="flex flex-col gap-2">
+                            {d.assigned.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {d.assigned.map((role, idx) => (
+                                  <span key={`a-${idx}`} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded border border-emerald-100 uppercase tracking-wider">
+                                    ✓ {role}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {d.missing.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {d.missing.map((role, idx) => (
+                                  <span key={`m-${idx}`} className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-bold rounded border border-red-100 uppercase tracking-wider">
+                                    ✗ {role}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
