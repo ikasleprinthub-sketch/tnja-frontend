@@ -106,6 +106,8 @@ function ScoreboardInner() {
   const [confirmWinner, setConfirmWinner] = useState<Fighter | null>(null);
   const [undoPrompt, setUndoPrompt] = useState<{ fighter: Fighter, type: "last" | "specific", field?: keyof Score } | null>(null);
   const [undoComment, setUndoComment] = useState("");
+  const [showResetPrompt, setShowResetPrompt] = useState(false);
+  const [resetComment, setResetComment] = useState("");
   const [toastMsg, setToastMsg] = useState("");
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -148,8 +150,20 @@ function ScoreboardInner() {
                   const nextMi = Math.floor(mi / 2);
                   const winnerIdVal = currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId");
                   const winnerSlot = { playerId: winnerIdVal, playerName: currentWinner === "A" ? fighterAName : fighterBName, club: currentWinner === "A" ? fighterAClub : fighterBClub, isBye: false };
+                  
+                  // Route winner to the next standard match slot
                   if (mi % 2 === 0) newRounds[nextRi][nextMi].slotA = winnerSlot;
                   else              newRounds[nextRi][nextMi].slotB = winnerSlot;
+
+                  // Bronze Match Logic: If this is the semi-final and a bronze match exists
+                  if (ri === newRounds.length - 2 && newRounds[nextRi].length > 1) {
+                    const loserIdVal = currentWinner === "A" ? sp.get("fighterBId") : sp.get("fighterAId");
+                    const loserSlot = { playerId: loserIdVal, playerName: currentWinner === "A" ? fighterBName : fighterAName, club: currentWinner === "A" ? fighterBClub : fighterAClub, isBye: false };
+                    
+                    // Route loser to the Bronze Match (which is at index 1 of the final round)
+                    if (mi % 2 === 0) newRounds[nextRi][1].slotA = loserSlot;
+                    else              newRounds[nextRi][1].slotB = loserSlot;
+                  }
                 }
               }
             }
@@ -263,28 +277,43 @@ function ScoreboardInner() {
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
   }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB, dbMatchStatus]);
 
-  const resetMatch = useCallback(() => {
-    if (window.confirm("Are you sure you want to completely reset this match? This will clear all scores, penalties, logs, and timers.")) {
-      setScoreA(emptyScore());
-      setScoreB(emptyScore());
-      setWinner(null);
-      setWinMethod("");
-      setLogs([]);
-      setTimeLeft(durationInput * 60);
-      setRunning(false);
-      setGoldenScore(false);
-      goldenScoreLoggedRef.current = false;
-      setOsaActive(false);
-      setOsaFor(null);
-      setOsaTime(0);
-      setDbMatchStatus("PENDING");
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (osaRef.current) clearInterval(osaRef.current);
-      
-      saveMatchToDB(emptyScore(), emptyScore(), null, "", []);
-      showToast("Match has been reset successfully!");
+  const handleResetClick = useCallback(() => {
+    setShowResetPrompt(true);
+  }, []);
+
+  const confirmReset = useCallback(() => {
+    if (!resetComment.trim()) {
+      showToast("Reason is required to reset the match.");
+      return;
     }
-  }, [durationInput, saveMatchToDB, showToast]);
+    const nextLogs = [{
+      id: `${Date.now()}_system_reset`,
+      timestamp: Date.now(),
+      text: `Match completely reset. Reason: ${resetComment.trim()}`,
+      type: "system" as const
+    }];
+
+    setScoreA(emptyScore());
+    setScoreB(emptyScore());
+    setWinner(null);
+    setWinMethod("");
+    setLogs(nextLogs);
+    setTimeLeft(durationInput * 60);
+    setRunning(false);
+    setGoldenScore(false);
+    goldenScoreLoggedRef.current = false;
+    setOsaActive(false);
+    setOsaFor(null);
+    setOsaTime(0);
+    setDbMatchStatus("PENDING");
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (osaRef.current) clearInterval(osaRef.current);
+    
+    saveMatchToDB(emptyScore(), emptyScore(), null, "", nextLogs);
+    showToast("Match has been reset successfully!");
+    setShowResetPrompt(false);
+    setResetComment("");
+  }, [durationInput, saveMatchToDB, showToast, resetComment]);
 
   const handlePrint = () => {
     const ageGroup = sp.get("ageGroup") || "";
@@ -655,10 +684,12 @@ function ScoreboardInner() {
   }, [osaActive, osaFor]);
 
   useEffect(() => {
-    if (isMatchEnded && osaActive) {
-      if (osaRef.current) clearInterval(osaRef.current);
-      setOsaActive(false);
+    if (isMatchEnded) {
       setRunning(false);
+      if (osaActive) {
+        if (osaRef.current) clearInterval(osaRef.current);
+        setOsaActive(false);
+      }
     }
   }, [isMatchEnded, osaActive]);
 
@@ -1016,30 +1047,80 @@ function ScoreboardInner() {
       </div>
 
       {/* ══ EXPORT SECTION ════════════════════════════════════════════════════ */}
-      <div className="pb-6 flex justify-center shrink-0 px-4">
-        <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-4 lg:px-8 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-8 shadow-xl w-full md:w-auto">
-          <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
-          <div className="flex flex-wrap justify-center gap-2 lg:gap-4">
-            <button 
-              onClick={handlePrint} 
-              disabled={!winner && dbMatchStatus !== "COMPLETED"}
-              className={`bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors ${(!winner && dbMatchStatus !== "COMPLETED") ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
-            >
-              <Download size={16} /> Save PDF
-            </button>
-            <button 
-              onClick={() => saveMatchToDB()} 
-              disabled={!winner && dbMatchStatus !== "COMPLETED"}
-              className={`bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors ${(!winner && dbMatchStatus !== "COMPLETED") ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
-            >
-              <CheckCircle size={16} /> Save Match
-            </button>
-            <button onClick={resetMatch} className="bg-red-600 text-white font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-red-500 transition-colors">
-              <RotateCcw size={16} /> Reset Match
-            </button>
+      {(isMatchEnded || winner || dbMatchStatus === "COMPLETED") && (
+        <div className="pb-6 flex justify-center shrink-0 px-4">
+          <div className="bg-[#1a1a1a] border border-[#333] rounded-xl px-4 lg:px-8 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-8 shadow-xl w-full md:w-auto">
+            <span className="text-xs font-bold text-gray-500 tracking-widest uppercase">EXPORT</span>
+            <div className="flex flex-wrap justify-center gap-2 lg:gap-4">
+              <button 
+                onClick={handlePrint} 
+                className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors hover:bg-gray-200"
+              >
+                <Download size={16} /> Save PDF
+              </button>
+              <button 
+                onClick={() => saveMatchToDB()} 
+                className="bg-white text-black font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded transition-colors hover:bg-gray-200"
+              >
+                <CheckCircle size={16} /> Save Match
+              </button>
+              <button onClick={handleResetClick} className="bg-red-600 text-white font-bold text-sm px-5 py-2.5 flex items-center gap-2 rounded hover:bg-red-500 transition-colors">
+                <RotateCcw size={16} /> Reset Match
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── RESET MATCH OVERLAY MODAL ────────────────────────────────────── */}
+      <AnimatePresence>
+        {showResetPrompt && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              className="bg-[#1a1a1a] border-2 border-[#333] p-6 sm:p-8 mx-4 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-2 text-center">Reset Match</h2>
+              <p className="text-gray-400 mb-6 font-semibold text-xs sm:text-sm text-center">
+                Please provide a <span className="text-red-500 font-bold">mandatory</span> reason for resetting this match.
+              </p>
+              
+              <input
+                type="text"
+                placeholder="Reason (Required)"
+                value={resetComment}
+                onChange={(e) => setResetComment(e.target.value)}
+                className="w-full bg-[#111] text-white px-4 py-3 rounded-lg border border-[#333] focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all mb-6"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") confirmReset(); }}
+              />
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <button onClick={() => { setShowResetPrompt(false); setResetComment(""); }} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmReset} 
+                  disabled={!resetComment.trim()}
+                  className={`flex-1 font-black py-3 rounded-xl shadow-lg transition-all ${
+                    resetComment.trim() 
+                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' 
+                      : 'bg-[#333] text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Confirm Reset
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── WINNER OVERLAY MODAL ─────────────────────────────────────────── */}
       <AnimatePresence>

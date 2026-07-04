@@ -182,6 +182,17 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
         winnerId: null, status: "PENDING",
       });
     }
+
+    if (count === 1 && N >= 4) {
+      round.push({
+        matchId: `M_BRONZE_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        round: rNum, matchNumber: 2, matNumber: 1, // Bronze match gets matchNumber 2 in the final round
+        slotA: { playerId: null, playerName: "TBD", club: "", isBye: false, coachName: "" },
+        slotB: { playerId: null, playerName: "TBD", club: "", isBye: false, coachName: "" },
+        winnerId: null, status: "PENDING",
+      });
+    }
+
     rounds.push(round);
     rNum++;
   }
@@ -557,6 +568,8 @@ export default function TournamentDetailPage() {
 
       // ── Final (last round) ──────────────────────────────────────────────────
       const finalRound = rounds[totalRounds - 1];
+      let hasBronzeMatch = false;
+
       if (finalRound && finalRound.length > 0) {
         const finalMatch = finalRound[0];
         if (finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
@@ -570,14 +583,23 @@ export default function TournamentDetailPage() {
               : finalMatch.slotA.playerId;
           if (silverPlayerId) detected[silverPlayerId] = "SECOND";
         }
+
+        // 🥉 Bronze: winner of the bronze match (if it exists)
+        if (finalRound.length > 1) {
+          hasBronzeMatch = true;
+          const bronzeMatch = finalRound[1];
+          if (bronzeMatch.status === "COMPLETED" && bronzeMatch.winnerId) {
+            detected[bronzeMatch.winnerId] = "THIRD";
+          }
+        }
       }
 
       // ── Semi-Finals (second-to-last round, if exists) ────────────────────────
-      if (totalRounds >= 2) {
+      if (totalRounds >= 2 && !hasBronzeMatch) {
         const semiRound = rounds[totalRounds - 2];
         for (const match of semiRound) {
           if (match.status === "COMPLETED" && match.winnerId) {
-            // 🥉 Bronze: loser of each semi-final
+            // 🥉 Bronze fallback: loser of each semi-final (legacy)
             const bronzePlayerId =
               match.winnerId === match.slotA.playerId
                 ? match.slotB.playerId
@@ -1785,17 +1807,22 @@ export default function TournamentDetailPage() {
                           {roundName(ri, currentDraw.rounds.length)}
                         </h4>
                         <div className="space-y-2">
-                          {round.map((match, mi) => (
+                          {round.map((match, mi) => {
+                            const isBronze = ri === currentDraw.rounds.length - 1 && mi === 1;
+                            return (
                             <motion.div
                               key={match.matchId}
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: ri * 0.15 + mi * 0.04, type: "spring", stiffness: 300, damping: 25 }}
-                              className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-orange-50/30 transition-colors"
+                              className={`flex items-center justify-between p-3 rounded-2xl transition-colors ${
+                                isBronze ? "bg-amber-50/50 border border-amber-200" : "bg-slate-50 hover:bg-orange-50/30"
+                              }`}
                             >
                               <div className="flex items-center gap-4">
-                                <span className="text-[10px] font-black text-slate-400 min-w-[80px]">
-                                  Mat {currentDraw.matNumber || 1} · #{match.matchNumber}
+                                <span className="text-[10px] font-black text-slate-400 min-w-[80px] flex flex-col gap-0.5">
+                                  <span>Mat {currentDraw.matNumber || 1} · #{match.matchNumber}</span>
+                                  {isBronze && <span className="text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded inline-block w-max mt-1">🥉 BRONZE</span>}
                                 </span>
                                 <div className="flex items-center gap-2">
                                   <span className={`text-sm font-bold flex items-center gap-1 ${match.slotA.isBye ? "text-slate-300" : match.winnerId === match.slotA.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
@@ -1814,9 +1841,10 @@ export default function TournamentDetailPage() {
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
                                   <Monitor size={11} /> Scoreboard
                                 </button>
-                              )}
+                                )}
                             </motion.div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -2718,7 +2746,14 @@ function BracketView({
             {rounds.map((round, ri) => {
               const xOffset = ri * (MATCH_W + CONN_W);
               return round.map((match, mi) => {
-                const top = mTop(ri, mi);
+                let top = mTop(ri, mi);
+                const isBronzeMatch = ri === rounds.length - 1 && mi === 1;
+                
+                if (isBronzeMatch) {
+                  // Position the bronze match visually below the gold match
+                  top = mTop(ri, 0) + MATCH_H + 40; // 40px gap
+                }
+
                 const isWinnerA = match.winnerId && match.winnerId === match.slotA.playerId;
                 const isWinnerB = match.winnerId && match.winnerId === match.slotB.playerId;
                 const staggerDelay = ri * 0.18 + mi * 0.07;
@@ -2730,8 +2765,15 @@ function BracketView({
                     initial={{ opacity: 0, x: -60, scale: 0.8, rotateY: -25 }}
                     animate={{ opacity: 1, x: 0, scale: 1, rotateY: 0 }}
                     transition={{ delay: staggerDelay, type: "spring", stiffness: 280, damping: 22 }}
-                    className="group bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-300 transition-shadow"
+                    className={`group bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-300 transition-shadow ${
+                      isBronzeMatch ? "border-amber-400 border-2" : "border-slate-200"
+                    }`}
                   >
+                    {isBronzeMatch && (
+                      <div className="bg-gradient-to-r from-amber-500 to-amber-400 text-white text-[9px] font-black uppercase text-center py-0.5 tracking-wider">
+                        🥉 Bronze Match
+                      </div>
+                    )}
                     {/* Player A row */}
                     <div className={`flex items-center gap-1.5 px-3 py-2 border-b border-slate-100 min-h-[34px] ${match.slotA.isBye ? "opacity-25" : ""} ${isWinnerA ? "bg-emerald-50" : "hover:bg-blue-50/50"} transition-colors`}>
                       {match.slotA.seedNumber && (
