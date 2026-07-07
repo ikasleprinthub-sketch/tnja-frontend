@@ -739,10 +739,10 @@ export default function AdminTournamentsPage() {
                       <div className="px-4 pb-3">
                         {!t.hasPendingPlayers && (
                           <Link
-                            href={`/dashboard/admin/tournaments/${t.id}`}
+                            href={`/dashboard/admin/tournaments/${t.id}/setup`}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all"
                           >
-                            <Trophy size={12} /> Manage / Generate Draw <ChevronRight size={12} />
+                            <Trophy size={12} /> Start Tournament <ChevronRight size={12} />
                           </Link>
                         )}
                         {t.hasPendingPlayers && (
@@ -825,10 +825,10 @@ export default function AdminTournamentsPage() {
 
                         {!t.hasPendingPlayers && (
                           <Link
-                            href={`/dashboard/admin/tournaments/${t.id}`}
+                            href={`/dashboard/admin/tournaments/${t.id}/setup`}
                             className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
                           >
-                            <Trophy size={12} /> Manage / Generate Draw
+                            <Trophy size={12} /> Start Tournament
                             <ChevronRight size={12} />
                           </Link>
                         )}

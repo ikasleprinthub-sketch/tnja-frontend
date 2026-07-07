@@ -545,6 +545,7 @@ export default function TournamentDetailPage() {
   const [editingMetrics, setEditingMetrics] = useState<{ regId: string, weight: string, height: string } | null>(null);
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [isConcludeModalOpen, setIsConcludeModalOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; action?: () => void }>({ isOpen: false, title: "", message: "" });
 
   // ── Messaging / Reply State ─────────────────────────────────────────────────
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
@@ -712,9 +713,15 @@ export default function TournamentDetailPage() {
         // normalise: backend may return nested player objects
         const normalised: RegisteredPlayer[] = (Array.isArray(raw) ? raw : raw.registrations || []).map(
           (r: any) => {
-            const exactWeight = Number(r.weightCategory || r.weight || 0);
-            const bucketWeight = Math.ceil(exactWeight / 5) * 5;
-            const weightLabel = bucketWeight <= 50 ? "Under 50" : `${bucketWeight - 4}-${bucketWeight}`;
+            const exactWeightStr = r.weightCategory || r.weight || "";
+            const exactWeight = Number(exactWeightStr);
+            let bucketWeight: number | string = exactWeightStr;
+            let weightLabel = exactWeightStr;
+
+            if (!isNaN(exactWeight) && exactWeight > 0) {
+              bucketWeight = Math.ceil(exactWeight / 5) * 5;
+              weightLabel = bucketWeight <= 50 ? "Under 50" : `${bucketWeight - 4}-${bucketWeight}`;
+            }
             
             return {
               id: r.playerId || r.player?.id || r.id,
@@ -912,11 +919,7 @@ export default function TournamentDetailPage() {
     setAssigningSeed(null);
   };
 
-  const handleGenerateAndSaveDraw = async (isShuffle = false) => {
-    if (ageFilter === "ALL") {
-      showToast("Please select a specific Age Group to generate a manual draw, or use 'Auto-Generate Categories'.", false);
-      return;
-    }
+  const handleGenerateAndSaveDraw = async (isShuffle = false, isConfirmed = false) => {
 
     if (eligiblePlayers.length < 2) {
       showToast("Need at least 2 approved players to generate a draw", false);
@@ -933,7 +936,15 @@ export default function TournamentDetailPage() {
       }
 
       if (isShuffle && currentDraw?.generated) {
-        if (!window.confirm("Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.")) return;
+        if (!isConfirmed) {
+          setConfirmModal({
+            isOpen: true,
+            title: "Re-shuffle Bracket",
+            message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
+            action: () => handleGenerateAndSaveDraw(isShuffle, true)
+          });
+          return;
+        }
       }
 
       setDrawPhase(isShuffle ? "shuffling" : "dealing");
@@ -1019,8 +1030,16 @@ export default function TournamentDetailPage() {
 
     let confirmMsg = `This will generate/shuffle draws for ${groupsToProcess.length} sub-categories simultaneously.`;
     if (skippedActive > 0) confirmMsg += `\n\n(Skipped ${skippedActive} categories because they have active matches.)`;
-    confirmMsg += `\n\nProceed?`;
-    if (!window.confirm(confirmMsg)) return;
+    
+    if (!isConfirmed) {
+      setConfirmModal({
+        isOpen: true,
+        title: "Bulk Generate / Shuffle",
+        message: confirmMsg,
+        action: () => handleGenerateAndSaveDraw(isShuffle, true)
+      });
+      return;
+    }
 
     setAutoGenerating(true);
     let successCount = 0;
@@ -1317,6 +1336,9 @@ export default function TournamentDetailPage() {
 
   // ── Global Auto-Selection Effect ─────────────────────────────────────────────
   const ageGroupOrder = [
+    "7-8 years",
+    "8-9 years",
+    "10-11 years",
     "mini sub-junior age group 1",
     "mini sub-junior age group 2",
     "mini sub-junior age group 3",
@@ -1409,6 +1431,20 @@ export default function TournamentDetailPage() {
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 text-left">Select Category</p>
             <div className="flex flex-wrap gap-2 justify-start">
+              <button
+                onClick={() => {
+                  setAgeFilter("ALL");
+                  setWeightFilter("ALL");
+                  setExactAgeFilter("ALL");
+                }}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                  ageFilter === "ALL"
+                    ? "bg-slate-800 text-white border-slate-800 shadow-lg"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                }`}
+              >
+                All Categories
+              </button>
               {availableAgeGroups.map((age) => (
                 <button
                   key={age}
@@ -1442,6 +1478,7 @@ export default function TournamentDetailPage() {
               </span>
             </div>
             
+            {/* 
             {filteredExactAges.length > 0 && (
               <div className="mb-5">
                 <p className="text-xs font-bold text-slate-500 mb-2">Exact Ages</p>
@@ -1479,6 +1516,7 @@ export default function TournamentDetailPage() {
                 </div>
               </div>
             )}
+            */}
 
             {availableWeights.length > 0 && availableWeights[0] !== "0" && (
               <div>
@@ -1679,7 +1717,7 @@ export default function TournamentDetailPage() {
               }`}
             >
               {lockedByExpiry && <span className="text-[10px]">🔒</span>}
-              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab === "weigh-in" ? "Weigh-In" : tab === "disqualify" ? "Disqualify" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab === "weigh-in" ? "Weigh-In" : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           );
         })}
@@ -3091,6 +3129,55 @@ export default function TournamentDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* ── Custom Confirm Modal ── */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100"
+            >
+              <div className="p-6 bg-[#FF7400]/5 border-b border-[#FF7400]/10 flex items-center gap-4 text-[#FF7400]">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0 text-[#FF7400]">
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">{confirmModal.title}</h3>
+                  <p className="text-sm font-semibold opacity-80">Please confirm your action</p>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <p className="text-slate-600 font-medium leading-relaxed whitespace-pre-line">
+                  {confirmModal.message}
+                </p>
+                
+                <div className="pt-8 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setConfirmModal({ isOpen: false, title: "", message: "" })}
+                    className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirmModal.action) confirmModal.action();
+                      setConfirmModal({ isOpen: false, title: "", message: "" });
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[#FF7400] text-white rounded-xl font-black shadow-lg shadow-[#FF7400]/20 hover:bg-orange-600 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                  >
+                    Proceed
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ══ DISQUALIFY ═════════════════════════════════════════════════════════ */}
       {activeTab === "disqualify" && !expired && (
         <DisqualifyTab
@@ -3102,6 +3189,7 @@ export default function TournamentDetailPage() {
       {activeTab === "disqualify" && expired && (
         <ExpiredBlock label="Disqualify Players" />
       )}
+
     </div>
   );
 }
