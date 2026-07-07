@@ -24,10 +24,13 @@ import {
   Globe,
   Send,
   MessageSquare,
+  PlayCircle,
+  Lock,
 } from "lucide-react";
 import FileUpload from "@/components/common/FileUpload";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
+const AVAILABLE_CATEGORIES = ["Mini Sub Junior", "Sub Junior", "Cadet", "Junior", "Senior"];
 
 export default function ClubTournamentsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -60,9 +63,10 @@ export default function ClubTournamentsPage() {
     description: "",
     entryFee: "",
     totalSlots: "",
-    numberOfMats: "1",
+    numberOfMats: "",
     ageFrom: "0",
     ageTo: "100",
+    category: [] as string[],
     gender: "BOTH",
     allowBPL: false,
     beltEligibility: "",
@@ -79,9 +83,10 @@ export default function ClubTournamentsPage() {
     description: "",
     entryFee: "",
     totalSlots: "",
-    numberOfMats: "1",
+    numberOfMats: "",
     ageFrom: "0",
     ageTo: "100",
+    category: [] as string[],
     gender: "BOTH",
     allowBPL: false,
     beltEligibility: "",
@@ -289,10 +294,11 @@ export default function ClubTournamentsPage() {
       location: tournament.location,
       description: tournament.description,
       entryFee: String(tournament.entryFee),
-      totalSlots: String(tournament.totalSlots),
-      numberOfMats: String(tournament.numberOfMats || 1),
+      totalSlots: String(tournament.totalSlots || ""),
+      numberOfMats: String(tournament.numberOfMats),
       ageFrom: String(tournament.ageFrom || 0),
       ageTo: String(tournament.ageTo || 100),
+      category: tournament.category ? tournament.category.split(',').map((s: string) => s.trim()) : [],
       gender: tournament.gender || "BOTH",
       allowBPL: tournament.allowBPL || false,
       beltEligibility: tournament.beltEligibility || "",
@@ -321,8 +327,8 @@ export default function ClubTournamentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...editData,
+          category: editData.category.join(", "),
           entryFee: Number(editData.entryFee),
-          totalSlots: Number(editData.totalSlots),
           numberOfMats: Number(editData.numberOfMats),
         }),
       });
@@ -359,6 +365,23 @@ export default function ClubTournamentsPage() {
     }
   };
 
+  const handleStartTournament = async (tournamentId: string) => {
+    if (!confirm("Are you sure you want to start this tournament? This will close all registrations immediately.")) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to start tournament");
+      showToast("Tournament started! Registrations are now closed.", "success");
+      fetchTournaments();
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    }
+  };
+
   const handleCreate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
 
@@ -376,8 +399,8 @@ export default function ClubTournamentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
+          category: formData.category.join(", "),
           entryFee: Number(formData.entryFee),
-          totalSlots: Number(formData.totalSlots),
           numberOfMats: Number(formData.numberOfMats),
         }),
       });
@@ -385,7 +408,7 @@ export default function ClubTournamentsPage() {
       if (!res.ok) throw new Error(json.error || "Failed to create tournament");
       showToast("Tournament created! Your club players will be notified.", "success");
       setIsCreateModalOpen(false);
-      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", bannerImage: "" });
+      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", category: [], gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", bannerImage: "" });
       fetchTournaments();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -530,7 +553,7 @@ export default function ClubTournamentsPage() {
                       <span className="flex items-center gap-1.5"><Clock size={14} className="text-[#FF7400]" />{new Date(tournament.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
                       <span className="flex items-center gap-1.5"><MapPin size={14} className="text-[#FF7400]" />{tournament.location}</span>
                       <span className="flex items-center gap-1.5"><IndianRupee size={14} className="text-[#FF7400]" />Entry: ₹{tournament.entryFee}</span>
-                      <span className="flex items-center gap-1.5"><Users size={14} className="text-[#FF7400]" />{tournament.registrationCount ?? 0} / {tournament.totalSlots} Registered</span>
+                      <span className="flex items-center gap-1.5"><Users size={14} className="text-[#FF7400]" />{tournament.registrationCount ?? 0} Registered</span>
                     </div>
                     {/* Rejection remark / Admin reply */}
                     {tournament.status === "REJECTED" && tournament.rejectionRemark && (
@@ -561,6 +584,21 @@ export default function ClubTournamentsPage() {
                       {deletingId === tournament.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       Delete
                     </button>
+                    {!tournament.registrationClosed ? (
+                      <button
+                        onClick={() => handleStartTournament(tournament.id)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold rounded-xl transition-all text-sm"
+                      >
+                        <PlayCircle size={15} /> Start 
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl transition-all text-sm cursor-not-allowed"
+                      >
+                        <Lock size={15} /> Started
+                      </button>
+                    )}
                     <button
                       onClick={() => handleToggleExpand(tournament.id)}
                       className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all text-sm"
@@ -694,7 +732,7 @@ export default function ClubTournamentsPage() {
                                       { label: "Tournament Name", value: tournament.title },
                                       { label: "Role",            value: "Player" },
                                       { label: "Gender",          value: (() => { const g = tournament.gender; return g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : g || "—"; })() },
-                                      { label: "Age",             value: (() => { const from = tournament.ageFrom, to = tournament.ageTo; if (to <= 15) return `Subjunior (${from}-${to})`; if (to <= 18) return `Cadets (${from}-${to})`; if (to <= 21) return `Juniors (${from}-${to})`; if (from > 21) return `Seniors (${from}+)`; return `Veterans (${from}+)`; })() },
+                                      { label: "Category",             value: tournament.category || "N/A" },
                                       { label: "Weight",          value: reg.weight ? `${reg.weight} kg` : "—" },
                                       { label: "Height",          value: reg.height ? `${reg.height} cm` : "—" },
                                       { label: "Date",            value: new Date(tournament.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
@@ -855,7 +893,7 @@ export default function ClubTournamentsPage() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Users size={12} className="text-[#FF7400]" />
-                          Ages {t.ageFrom}–{t.ageTo} · {t.gender}
+                          Category: {t.category || "N/A"} · {t.gender}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <IndianRupee size={12} className="text-[#FF7400]" />
@@ -911,6 +949,14 @@ export default function ClubTournamentsPage() {
                     <input type="text" required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       placeholder="e.g. Club Championship 2026" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
+                  <div className="md:col-span-2 mt-2">
+                    <FileUpload 
+                      label="Banner Image (Optional)" 
+                      value={formData.bannerImage} 
+                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
+                      accept="image/*" 
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value, zoneId: "" })}
@@ -949,15 +995,43 @@ export default function ClubTournamentsPage() {
                     <input type="date" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
-                    <input type="text" maxLength={2} required value={formData.ageFrom} onChange={(e) => setFormData({ ...formData, ageFrom: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
-                    <input type="text" maxLength={2} required value={formData.ageTo} onChange={(e) => setFormData({ ...formData, ageTo: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 accent-[#FF7400]" 
+                          checked={Array.isArray(formData.category) && formData.category.length === AVAILABLE_CATEGORIES.length} 
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, category: [...AVAILABLE_CATEGORIES] });
+                            } else {
+                              setFormData({ ...formData, category: [] });
+                            }
+                          }} 
+                        />
+                        All
+                      </label>
+                      {AVAILABLE_CATEGORIES.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 accent-[#FF7400]" 
+                            checked={Array.isArray(formData.category) && formData.category.includes(cat)} 
+                            onChange={(e) => {
+                              const currentCategories = Array.isArray(formData.category) ? formData.category : [];
+                              if (e.target.checked) {
+                                setFormData({ ...formData, category: [...currentCategories, cat] });
+                              } else {
+                                setFormData({ ...formData, category: currentCategories.filter(c => c !== cat) });
+                              }
+                            }} 
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location</label>
@@ -974,28 +1048,12 @@ export default function ClubTournamentsPage() {
                     <input type="text" maxLength={5} required value={formData.entryFee} onChange={(e) => setFormData({ ...formData, entryFee: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
-                    <input type="text" maxLength={4} required value={formData.totalSlots} onChange={(e) => setFormData({ ...formData, totalSlots: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
-                    <input type="text" maxLength={2} required value={formData.numberOfMats} onChange={(e) => setFormData({ ...formData, numberOfMats: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
+
+
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">
                     <input type="checkbox" id="allowBpl_create" checked={formData.allowBPL} onChange={(e) => setFormData({ ...formData, allowBPL: e.target.checked })}
                       className="w-5 h-5 accent-[#FF7400]" />
                     <label htmlFor="allowBpl_create" className="text-sm font-bold text-slate-700">Allow BPL Students to Register for Free</label>
-                  </div>
-                  <div className="md:col-span-2 mt-2">
-                    <FileUpload 
-                      label="Banner Image (Optional)" 
-                      value={formData.bannerImage} 
-                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
-                      accept="image/*" 
-                    />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
@@ -1093,15 +1151,43 @@ export default function ClubTournamentsPage() {
                     <input type="date" min={editData.dateFrom || new Date().toISOString().split('T')[0]} value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
-                    <input type="text" maxLength={2} required value={editData.ageFrom} onChange={(e) => setEditData({ ...editData, ageFrom: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
-                    <input type="text" maxLength={2} required value={editData.ageTo} onChange={(e) => setEditData({ ...editData, ageTo: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 accent-[#FF7400]" 
+                          checked={Array.isArray(editData.category) && editData.category.length === AVAILABLE_CATEGORIES.length} 
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditData({ ...editData, category: [...AVAILABLE_CATEGORIES] });
+                            } else {
+                              setEditData({ ...editData, category: [] });
+                            }
+                          }} 
+                        />
+                        All
+                      </label>
+                      {AVAILABLE_CATEGORIES.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 accent-[#FF7400]" 
+                            checked={Array.isArray(editData.category) && editData.category.includes(cat)} 
+                            onChange={(e) => {
+                              const currentCategories = Array.isArray(editData.category) ? editData.category : [];
+                              if (e.target.checked) {
+                                setEditData({ ...editData, category: [...currentCategories, cat] });
+                              } else {
+                                setEditData({ ...editData, category: currentCategories.filter(c => c !== cat) });
+                              }
+                            }} 
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location</label>
@@ -1118,16 +1204,7 @@ export default function ClubTournamentsPage() {
                     <input type="text" maxLength={5} required value={editData.entryFee} onChange={(e) => setEditData({ ...editData, entryFee: e.target.value.replace(/\D/g, '') })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
-                    <input type="text" maxLength={4} required value={editData.totalSlots} onChange={(e) => setEditData({ ...editData, totalSlots: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
-                    <input type="text" maxLength={2} required value={editData.numberOfMats} onChange={(e) => setEditData({ ...editData, numberOfMats: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
-                  </div>
+
                   <div className="md:col-span-2 flex items-center gap-3 mt-4">
                     <input type="checkbox" id="allowBpl_edit" checked={editData.allowBPL} onChange={(e) => setEditData({ ...editData, allowBPL: e.target.checked })}
                       className="w-5 h-5 accent-[#FF7400]" />

@@ -73,8 +73,21 @@ export default function PlayerTournamentsPage() {
   const [playerData, setPlayerData] = useState<any>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [registerModal, setRegisterModal] = useState<any | null>(null);
-  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "" });
+  const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "", category: "" });
   const [coaches, setCoaches] = useState<any[]>([]);
+
+  const getEligibleCategories = (age: number): string[] => {
+    const eligible: string[] = [];
+    if (age >= 6 && age <= 7) eligible.push("Mini Sub-Junior Age Group 1");
+    if (age >= 8 && age <= 9) eligible.push("Mini Sub-Junior Age Group 2");
+    if (age >= 10 && age <= 11) eligible.push("Mini Sub-Junior Age Group 3");
+    if (age >= 12 && age <= 14) eligible.push("Sub-Junior");
+    if (age >= 15 && age <= 17) eligible.push("Cadet");
+    if (age >= 15 && age <= 20) eligible.push("Junior");
+    if (age >= 15) eligible.push("Senior");
+    if (age >= 35) eligible.push("Veteran");
+    return eligible;
+  };
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -174,6 +187,7 @@ export default function PlayerTournamentsPage() {
   const handleRegister = async (tournament: any, directHeight?: string, directWeight?: string) => {
     const height = directHeight || physicalDetails.height;
     const weight = directWeight || physicalDetails.weight;
+    const category = physicalDetails.category;
 
     if (!height || !weight) {
       showToast("Height and weight are required.", "error");
@@ -212,6 +226,7 @@ export default function PlayerTournamentsPage() {
           tournamentId: tournament.id,
           height,
           weight,
+          category,
         }),
       });
 
@@ -241,6 +256,7 @@ export default function PlayerTournamentsPage() {
                 tournamentId: tournament.id,
                 height,
                 weight,
+                category,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
@@ -270,7 +286,7 @@ export default function PlayerTournamentsPage() {
     } finally {
       setPaying(null);
       setRegisterModal(null);
-      setPhysicalDetails({ height: "", weight: "" });
+      setPhysicalDetails({ height: "", weight: "", category: "" });
     }
   };
 
@@ -411,7 +427,7 @@ export default function PlayerTournamentsPage() {
           <AnimatePresence mode="wait">
             {currentList.map((tournament) => {
               const myReg = tournament.myRegistration;
-              const isFull = tournament.registrationCount >= tournament.totalSlots;
+              const isFull = tournament.registrationClosed;
               const isPayingThis = paying === tournament.id;
               const isFree = tournament.entryFee === 0 || (tournament.allowBPL && playerData?.isBPL);
               const isClubTab = activeTab === "club";
@@ -497,11 +513,11 @@ export default function PlayerTournamentsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Users size={14} className="text-[#FF7400]" />
-                        {tournament.registrationCount ?? 0} / {tournament.totalSlots} Slots Filled
+                        Registration {tournament.registrationClosed ? "Closed" : "Open"} ({tournament.registrationCount ?? 0} Players)
                       </div>
                       <div className="flex gap-2 flex-wrap mt-1">
                         <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
-                          Age: {tournament.ageFrom}–{tournament.ageTo}
+                          Category: {tournament.category || "N/A"}
                         </span>
                         <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
                           {tournament.gender}
@@ -577,6 +593,7 @@ export default function PlayerTournamentsPage() {
                             setPhysicalDetails({
                               height: playerData?.height || "",
                               weight: playerData?.weight || "",
+                              category: "",
                             });
                           }}
                           disabled={isPayingThis}
@@ -620,11 +637,32 @@ export default function PlayerTournamentsPage() {
             >
               <h2 className="text-2xl font-bold text-slate-800 mb-1">Physical Details</h2>
               <p className="text-slate-400 text-sm mb-1 font-semibold">{registerModal.title}</p>
+              
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-sm text-blue-800">
+                <span className="font-bold">Your Age:</span> {playerData?.age ? `${playerData.age} years old` : "Unknown"}
+              </div>
+
               <p className="text-slate-500 text-sm mb-6">
-                Please provide your current height and weight for tournament registration.
+                Please confirm your details and select your category for tournament registration.
               </p>
 
               <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Age Group Category
+                  </label>
+                  <select
+                    value={physicalDetails.category}
+                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, category: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all text-slate-700 font-semibold"
+                  >
+                    <option value="" disabled>Select your category...</option>
+                    {(playerData?.age ? getEligibleCategories(playerData.age) : []).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
                     Height (cm)
@@ -659,7 +697,7 @@ export default function PlayerTournamentsPage() {
                 <button
                   onClick={() => {
                     setRegisterModal(null);
-                    setPhysicalDetails({ height: "", weight: "" });
+                    setPhysicalDetails({ height: "", weight: "", category: "" });
                   }}
                   className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all"
                 >
@@ -667,7 +705,7 @@ export default function PlayerTournamentsPage() {
                 </button>
                 <button
                   onClick={() => handleRegister(registerModal)}
-                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight}
+                  disabled={paying === registerModal.id || !physicalDetails.height || !physicalDetails.weight || !physicalDetails.category}
                   className="flex-1 py-3 bg-[#FF7400] hover:bg-[#e66a00] text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {paying === registerModal.id ? <Loader2 size={16} className="animate-spin" /> : "Proceed"}

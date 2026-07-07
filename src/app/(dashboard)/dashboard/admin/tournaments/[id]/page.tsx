@@ -7,24 +7,26 @@ import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal, Edit2,
-  AlertCircle, Clock, Download, BarChart3, MessageSquare, Send
+  AlertCircle, Clock, Download, BarChart3, MessageSquare, Send,
+  PlayCircle, Lock, Search, CheckCircle2, XCircle
 } from "lucide-react";
+import { FaMale, FaFemale } from "react-icons/fa";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Tab = "overview" | "players" | "draws" | "matches" | "results";
+type Tab = "overview" | "players" | "draws" | "matches" | "results" | "weigh-in" | "disqualify";
 type ViewMode = "list" | "bracket";
 
 interface Tournament {
   id: string; title: string; date: string; dateTo?: string;
   location: string; level: string; entryFee: number; totalSlots: number;
-  ageFrom: number; ageTo: number; gender: string; beltEligibility?: string;
+  ageFrom: number; ageTo: number; category?: string; gender: string; beltEligibility?: string;
   allowBPL: boolean; status: string; rejectionRemark?: string;
   numberOfMats?: number;
   districtApproval: string; stateApproval: string;
   superAdminApproval: string; ceoApproval: string;
-  registrationCount?: number;
+  registrationCount?: number; registrationClosed?: boolean;
   club?: { name: string; district?: { name: string } };
 }
 
@@ -33,6 +35,7 @@ interface RegisteredPlayer {
   weight: number; weightLabel?: string; ageGroup: string; exactAge?: number; gender: string; belt: string;
   seedNumber?: number; coachName?: string; placement?: string; status?: string;
   regId?: string;
+  permanentId?: string; tempId?: string; tnjaId?: string;
 }
 
 interface BracketSlot {
@@ -549,6 +552,12 @@ export default function TournamentDetailPage() {
   const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
+  // ── Weigh-in State ────────────────────────────────────────────────────────
+  const [weighInSearch, setWeighInSearch] = useState("");
+  const [selectedWeighInPlayer, setSelectedWeighInPlayer] = useState<RegisteredPlayer | null>(null);
+  const [actualWeight, setActualWeight] = useState("");
+  const [isDisqualifying, setIsDisqualifying] = useState(false);
+
   // ── Auto-detect placements from draw results ─────────────────────────────────
   // Runs whenever the draws or players change (e.g. when Results tab is opened)
   const autoDetectPlacements = useCallback(() => {
@@ -721,6 +730,9 @@ export default function TournamentDetailPage() {
               placement: r.placement || "PARTICIPATION",
               status: r.status || "APPROVED",
               regId: r.id,
+              permanentId: r.player?.permanentId,
+              tempId: r.player?.tempId,
+              tnjaId: r.player?.permanentId || r.player?.tempId || "N/A",
             };
           }
         );
@@ -748,6 +760,33 @@ export default function TournamentDetailPage() {
     } catch (e) {
       console.error(e);
       showToast("Error updating registration", false);
+    }
+  };
+
+  const handleDisqualifyPlayer = async (regId: string, currentWeight: string) => {
+    if (!window.confirm(`Are you sure you want to disqualify this player due to weight mismatch?`)) return;
+    
+    setIsDisqualifying(true);
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}/disqualify`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ currentWeight })
+      });
+      if (res.ok) {
+        showToast(`Player disqualified successfully`);
+        setSelectedWeighInPlayer(null);
+        setActualWeight("");
+        setWeighInSearch("");
+        fetchPlayers(); // Refresh the players list
+      } else {
+        showToast("Failed to disqualify player", false);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Error disqualifying player", false);
+    } finally {
+      setIsDisqualifying(false);
     }
   };
 
@@ -836,17 +875,29 @@ export default function TournamentDetailPage() {
   const filteredPlayers = players.filter((p) => {
     if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
     if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
-    if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
+    if (genderFilter !== "BOTH" && p.gender !== genderFilter) return false;
     if (weightFilter !== "ALL" && String(p.weight) !== weightFilter) return false;
     return true;
   });
 
   const eligiblePlayers = filteredPlayers.filter((p) => p.status === "APPROVED");
+  // Only approved players should be shown in the draw generation tab's cards
+  const drawPlayers = eligiblePlayers;
 
   const weightOptions = [...new Set(players.map((p) => String(p.weight)))].sort(
     (a, b) => +a - +b
   );
   const currentDraw = draws[currentKey];
+
+  // Group players by category for Overview
+  const categoriesMap = players.reduce((acc, p) => {
+    if (p.status !== "APPROVED") return acc;
+    const key = `${p.ageGroup} | ${p.gender} | ${p.weightLabel}`;
+    if (!acc[key]) acc[key] = { label: key, count: 0, ageGroup: p.ageGroup, gender: p.gender };
+    acc[key].count++;
+    return acc;
+  }, {} as Record<string, { label: string; count: number; ageGroup: string; gender: string }>);
+  const groupedCategories = Object.values(categoriesMap).sort((a, b) => a.label.localeCompare(b.label));
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleAssignSeed = (seedNum: 1 | 2 | 3 | 4, player: RegisteredPlayer) => {
@@ -861,7 +912,7 @@ export default function TournamentDetailPage() {
     setAssigningSeed(null);
   };
 
-  const handleGenerateAndSaveDraw = (isShuffle = false) => {
+  const handleGenerateAndSaveDraw = async (isShuffle = false) => {
     if (ageFilter === "ALL") {
       showToast("Please select a specific Age Group to generate a manual draw, or use 'Auto-Generate Categories'.", false);
       return;
@@ -872,70 +923,160 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
-    if (hasActive) {
-      showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+    const isMultiCategory = genderFilter === "BOTH" || weightFilter === "ALL" || exactAgeFilter === "ALL";
+
+    if (!isMultiCategory) {
+      const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+      if (hasActive) {
+        showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+        return;
+      }
+
+      if (isShuffle && currentDraw?.generated) {
+        if (!window.confirm("Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.")) return;
+      }
+
+      setDrawPhase(isShuffle ? "shuffling" : "dealing");
+      if (isShuffle) setShuffleKey(k => k + 1);
+      
+      const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
+      const rounds = processByeMatches(rawRounds);
+      
+      setTimeout(async () => {
+        const newDraw = {
+          ageGroup: ageFilter, gender: genderFilter,
+          weightCategory: weightFilter, rounds, generated: true, saved: false,
+        };
+
+        setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
+        setDrawPhase("done");
+        
+        setSaving(true);
+        try {
+          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ageGroup: newDraw.ageGroup, 
+              exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
+              gender: newDraw.gender,
+              weightCategory: newDraw.weightCategory, 
+              matNumber: currentDraw?.matNumber || 1,
+              rounds: newDraw.rounds,
+            }),
+          });
+          if (res.ok) {
+            const updatedDraw = await res.json();
+            let backendRounds = updatedDraw.draw?.rounds || newDraw.rounds;
+            if (typeof backendRounds === "string") {
+              try { backendRounds = JSON.parse(backendRounds); } catch (err) {}
+            }
+            if (!Array.isArray(backendRounds)) backendRounds = newDraw.rounds;
+
+            setDraws((prev) => ({
+              ...prev,
+              [currentKey]: {
+                ...newDraw,
+                rounds: backendRounds,
+                saved: true
+              }
+            }));
+            showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
+            await fetchDraws();
+          } else {
+            showToast("Failed to auto-save draw", false);
+          }
+        } catch { showToast("Error auto-saving draw", false); }
+        finally { setSaving(false); }
+      }, isShuffle ? 900 : 700);
       return;
     }
 
-    if (isShuffle && currentDraw?.generated) {
-      if (!window.confirm("Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.")) return;
+    // MULTI-CATEGORY LOGIC
+    const categoryGroups: Record<string, any[]> = {};
+    eligiblePlayers.forEach((p) => {
+      const key = categoryKey(p.ageGroup, String(p.exactAge || 0), p.gender, String(p.weight));
+      if (!categoryGroups[key]) categoryGroups[key] = [];
+      categoryGroups[key].push(p);
+    });
+
+    let skippedActive = 0;
+    const groupsToProcess = Object.entries(categoryGroups).filter(([catKey, catPlayers]) => {
+      if (catPlayers.length < 2) return false;
+      const draw = draws[catKey];
+      const hasActive = draw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+      if (hasActive) {
+        skippedActive++;
+        return false;
+      }
+      return true;
+    });
+
+    if (groupsToProcess.length === 0) {
+      showToast(skippedActive > 0 ? "All eligible categories already have active matches." : "No categories found with 2 or more players", false);
+      return;
     }
 
-    setDrawPhase(isShuffle ? "shuffling" : "dealing");
-    if (isShuffle) setShuffleKey(k => k + 1);
-    
-    const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
-    const rounds = processByeMatches(rawRounds);
-    
-    setTimeout(async () => {
-      const newDraw = {
-        ageGroup: ageFilter, gender: genderFilter,
-        weightCategory: weightFilter, rounds, generated: true, saved: false,
-      };
+    let confirmMsg = `This will generate/shuffle draws for ${groupsToProcess.length} sub-categories simultaneously.`;
+    if (skippedActive > 0) confirmMsg += `\n\n(Skipped ${skippedActive} categories because they have active matches.)`;
+    confirmMsg += `\n\nProceed?`;
+    if (!window.confirm(confirmMsg)) return;
 
-      setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
-      setDrawPhase("done");
-      
-      setSaving(true);
-      try {
-        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ageGroup: newDraw.ageGroup, 
-            exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
-            gender: newDraw.gender,
-            weightCategory: newDraw.weightCategory, 
-            matNumber: currentDraw?.matNumber || 1,
-            rounds: newDraw.rounds,
-          }),
-        });
-        if (res.ok) {
-          const updatedDraw = await res.json();
-          let backendRounds = updatedDraw.draw?.rounds || newDraw.rounds;
-          if (typeof backendRounds === "string") {
-            try { backendRounds = JSON.parse(backendRounds); } catch (err) {}
+    setAutoGenerating(true);
+    let successCount = 0;
+    const matsCount = tournament?.numberOfMats || 1;
+    const matLoads = new Array(matsCount).fill(0);
+
+    try {
+      const sortedCategories = groupsToProcess.sort((a, b) => b[1].length - a[1].length);
+
+      for (const [key, catPlayers] of sortedCategories) {
+        const firstPlayer = catPlayers[0];
+        const ageGroup = firstPlayer.ageGroup;
+        const exactAge = firstPlayer.exactAge || 0;
+        const gender = firstPlayer.gender;
+        const weightCategory = String(firstPlayer.weight);
+        const displayLabel = `${ageGroup} (${exactAge}y) ${gender} ${weightCategory}kg`;
+
+        setAutoGenProgress(`Generating & saving draw for ${displayLabel}...`);
+
+        const emptySeeds = { 1: null, 2: null, 3: null, 4: null };
+        const rounds = processByeMatches(generateIJFBracket(catPlayers, emptySeeds));
+
+        let minLoad = Infinity;
+        let assignedMatIdx = 0;
+        for (let i = 0; i < matsCount; i++) {
+          if (matLoads[i] < minLoad) {
+            minLoad = matLoads[i];
+            assignedMatIdx = i;
           }
-          if (!Array.isArray(backendRounds)) backendRounds = newDraw.rounds;
-
-          setDraws((prev) => ({
-            ...prev,
-            [currentKey]: {
-              ...newDraw,
-              rounds: backendRounds,
-              saved: true
-            }
-          }));
-          showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
-          await fetchDraws();
-        } else {
-          showToast("Failed to auto-save draw", false);
         }
-      } catch { showToast("Error auto-saving draw", false); }
-      finally { setSaving(false); }
+        matLoads[assignedMatIdx] += Math.max(1, catPlayers.length - 1);
+        const matNumber = assignedMatIdx + 1;
 
-    }, isShuffle ? 900 : 700);
+        try {
+          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ageGroup, exactAge, gender, weightCategory, matNumber, rounds,
+            }),
+          });
+          if (res.ok) successCount++;
+        } catch (err) {
+          console.error(`Error saving draw for ${key}:`, err);
+        }
+      }
+
+      showToast(`Successfully generated/shuffled draws for ${successCount} categories!`);
+      await fetchDraws();
+    } catch (err) {
+      console.error("Error in bulk shuffle:", err);
+      showToast("An error occurred during bulk generation", false);
+    } finally {
+      setAutoGenerating(false);
+      setAutoGenProgress("");
+    }
   };
 
   const handleShuffle = () => handleGenerateAndSaveDraw(true);
@@ -1174,45 +1315,201 @@ export default function TournamentDetailPage() {
     return () => channel.close();
   }, [handleMatchResult]);
 
+  // ── Global Auto-Selection Effect ─────────────────────────────────────────────
+  const availableAgeGroupsGlobal = [...new Set(players.filter(p => genderFilter === "BOTH" || p.gender === genderFilter).map((p) => p.ageGroup))].sort((a, b) => a.localeCompare(b));
+  
+  useEffect(() => {
+    if (availableAgeGroupsGlobal.length > 0 && (!availableAgeGroupsGlobal.includes(ageFilter) || ageFilter === "ALL")) {
+      setAgeFilter(availableAgeGroupsGlobal[0]);
+    }
+  }, [genderFilter, availableAgeGroupsGlobal.join(",")]);
+
   // ── Category filters UI ─────────────────────────────────────────────────────
-  const CategoryFilters = () => {
-    const allAgeGroups = [...new Set(players.map((p) => p.ageGroup))].sort((a, b) => a.localeCompare(b));
-    const exactAgeOptions = [...new Set(players.map((p) => String(p.exactAge || 0)))].sort((a, b) => Number(a) - Number(b));
+  const renderCategoryFilters = () => {
+    // 1. Gender Selection
+    const genders = ["BOTH", "MALE", "FEMALE"];
+    // Auto-set gender if not in the list
+    if (!genders.includes(genderFilter)) {
+      setGenderFilter("BOTH");
+    }
+
+    // 2. Age Groups for selected gender
+    const availableAgeGroups = availableAgeGroupsGlobal;
+
+    // 3. Weights and Exact Ages for selected gender + ageGroup
+    const groupPlayers = players.filter(p => (genderFilter === "BOTH" || p.gender === genderFilter) && p.ageGroup === ageFilter);
+    const availableWeights = [...new Set(groupPlayers.map(p => String(p.weight)))].sort((a, b) => +a - +b);
+    const availableExactAges = [...new Set(groupPlayers.map(p => String(p.exactAge || 0)))].sort((a, b) => +a - +b);
+    
+    // Remove "0" from exact ages if it's there
+    const filteredExactAges = availableExactAges.filter(a => a !== "0");
 
     return (
-      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-          Filter by Category
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <select value={ageFilter} onChange={(e) => setAgeFilter(e.target.value)}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
-            <option value="ALL">All Age Groups</option>
-            {allAgeGroups.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-          <select value={exactAgeFilter} onChange={(e) => setExactAgeFilter(e.target.value)}
-            className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
-            <option value="ALL">All Exact Ages</option>
-            {exactAgeOptions.map(opt => <option key={opt} value={opt}>{opt} Years</option>)}
-          </select>
-        <select value={genderFilter} onChange={(e) => setGenderFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-        </select>
-        <select value={weightFilter} onChange={(e) => setWeightFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-300 hover:bg-white hover:shadow-md hover:-translate-y-0.5 hover:border-orange-200 cursor-pointer transition-all">
-          <option value="ALL">All Weights</option>
-          {weightOptions.map((w) => {
-            const label = players.find((p) => String(p.weight) === w)?.weightLabel || `${w} kg`;
-            return <option key={w} value={w}>{label}</option>;
-          })}
-        </select>
-        <span className="ml-auto text-sm font-bold text-slate-500 self-center">
-          {eligiblePlayers.length} eligible / {filteredPlayers.length} total
-        </span>
+      <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
+        {/* Gender Toggle */}
+        <div className="flex justify-start">
+          <div className="bg-slate-100 p-1.5 rounded-xl flex gap-1">
+            <button
+              onClick={() => setGenderFilter("BOTH")}
+              className={`px-4 py-2 rounded-lg font-black text-xs transition-all ${
+                genderFilter === "BOTH"
+                  ? "bg-slate-800 text-white shadow-sm shadow-slate-800/20"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <Users size={14} /> BOTH
+              </div>
+            </button>
+            <button
+              onClick={() => setGenderFilter("MALE")}
+              className={`px-4 py-2 rounded-lg font-black text-xs transition-all ${
+                genderFilter === "MALE"
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <FaMale size={14} /> BOYS (MALE)
+              </div>
+            </button>
+            <button
+              onClick={() => setGenderFilter("FEMALE")}
+              className={`px-4 py-2 rounded-lg font-black text-xs transition-all ${
+                genderFilter === "FEMALE"
+                  ? "bg-pink-600 text-white shadow-sm shadow-pink-600/20"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <FaFemale size={14} /> GIRLS (FEMALE)
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Age Group Tabs */}
+        {availableAgeGroups.length > 0 ? (
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 text-left">Select Category</p>
+            <div className="flex flex-wrap gap-2 justify-start">
+              {availableAgeGroups.map((age) => (
+                <button
+                  key={age}
+                  onClick={() => {
+                    setAgeFilter(age);
+                    setWeightFilter("ALL");
+                    setExactAgeFilter("ALL");
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                    ageFilter === age
+                      ? "bg-slate-800 text-white border-slate-800 shadow-lg"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                  }`}
+                >
+                  {age}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-center text-slate-500 font-bold py-4">No categories found for {genderFilter}</p>
+        )}
+
+        {/* Weight / Exact Age Flow */}
+        {ageFilter !== "ALL" && (
+          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Weight / Age Sub-categories</p>
+              <span className="text-xs font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                {eligiblePlayers.length} eligible / {groupPlayers.length} total in this category
+              </span>
+            </div>
+            
+            {filteredExactAges.length > 0 && (
+              <div className="mb-5">
+                <p className="text-xs font-bold text-slate-500 mb-2">Exact Ages</p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      setExactAgeFilter("ALL");
+                    }}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                      exactAgeFilter === "ALL"
+                        ? "bg-orange-500 text-white border-orange-500 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
+                    }`}
+                  >
+                    All Ages
+                  </button>
+                  {filteredExactAges.map(age => {
+                    const count = groupPlayers.filter(p => String(p.exactAge) === age).length;
+                    return (
+                      <button
+                        key={age}
+                        onClick={() => {
+                          setExactAgeFilter(age);
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                          exactAgeFilter === age
+                            ? "bg-orange-500 text-white border-orange-500 shadow-md"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
+                        }`}
+                      >
+                        {age} Years <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {availableWeights.length > 0 && availableWeights[0] !== "0" && (
+              <div>
+                <p className="text-xs font-bold text-slate-500 mb-2">Weights</p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      setWeightFilter("ALL");
+                    }}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                      weightFilter === "ALL"
+                        ? "bg-[#FF7400] text-white border-[#FF7400] shadow-md shadow-orange-500/20"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
+                    }`}
+                  >
+                    All Weights
+                  </button>
+                  {availableWeights.map((w) => {
+                    const label = groupPlayers.find((p) => String(p.weight) === w)?.weightLabel || `${w} kg`;
+                    const count = groupPlayers.filter(p => String(p.weight) === w).length;
+                    const approvedCount = groupPlayers.filter(p => String(p.weight) === w && p.status === "APPROVED").length;
+                    
+                    return (
+                      <button
+                        key={w}
+                        onClick={() => {
+                          setWeightFilter(w);
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                          weightFilter === w
+                            ? "bg-[#FF7400] text-white border-[#FF7400] shadow-md shadow-orange-500/20"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-orange-300 hover:-translate-y-0.5"
+                        }`}
+                      >
+                        {label} 
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${weightFilter === w ? "bg-white/20" : "bg-slate-100 text-slate-500"}`}>
+                          {approvedCount}/{count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
     );
   };
 
@@ -1268,7 +1565,7 @@ export default function TournamentDetailPage() {
             {[
               { icon: Calendar, label: "Date", value: new Date(tournament.date).toLocaleDateString("en-GB") },
               { icon: MapPin, label: "Location", value: tournament.location },
-              { icon: Users, label: "Players", value: `${players.length} / ${tournament.totalSlots}` },
+              { icon: Users, label: "Players", value: `${players.length}` },
               { icon: Trophy, label: "Level", value: tournament.level },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-center gap-3">
@@ -1291,6 +1588,42 @@ export default function TournamentDetailPage() {
               </div>
             </div>
           )}
+          {/* Start Tournament Action */}
+          {tournament.status !== "CLOSED" && (
+            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between gap-3">
+              <div className="text-sm font-bold text-slate-300">
+                {tournament.registrationClosed ? "Registrations are currently closed." : "Registrations are open."}
+              </div>
+              {!tournament.registrationClosed ? (
+                <button
+                  onClick={async () => {
+                    if (!confirm("Are you sure you want to start this tournament? This will close all registrations immediately.")) return;
+                    try {
+                      const token = localStorage.getItem("token");
+                      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
+                        method: "PUT",
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      const json = await res.json();
+                      if (!res.ok) throw new Error(json.error || "Failed to start tournament");
+                      showToast("Tournament started! Registrations are now closed.", true);
+                      fetchTournament();
+                      fetchPlayers();
+                    } catch (err: any) {
+                      showToast(err.message || "Something went wrong", false);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all shadow-lg"
+                >
+                  <PlayCircle size={16} /> Start Tournament (Close Registrations)
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700 text-slate-400 font-bold rounded-xl">
+                  <Lock size={16} /> Registrations Closed
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1311,8 +1644,8 @@ export default function TournamentDetailPage() {
 
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit">
-        {(["overview", "players", "draws", "matches", "results"] as Tab[]).map((tab) => {
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit flex-wrap">
+        {(["overview", "players", "weigh-in", "draws", "matches", "results", "disqualify"] as Tab[]).map((tab) => {
           // Results tab is ALWAYS accessible — even for expired/CLOSED tournaments
           // Draws and matches are locked once the tournament date has passed
           const lockedByExpiry = expired && (tab === "draws" || tab === "matches");
@@ -1330,7 +1663,7 @@ export default function TournamentDetailPage() {
               }`}
             >
               {lockedByExpiry && <span className="text-[10px]">🔒</span>}
-              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab === "weigh-in" ? "Weigh-In" : tab === "disqualify" ? "Disqualify" : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           );
         })}
@@ -1345,9 +1678,9 @@ export default function TournamentDetailPage() {
               { l: "Title", v: tournament.title },
               { l: "Level", v: tournament.level },
               { l: "Gender", v: tournament.gender },
-              { l: "Age Range", v: `${tournament.ageFrom} – ${tournament.ageTo} yrs` },
+              { l: "Category", v: tournament.category || "N/A" },
               { l: "Entry Fee", v: `₹${tournament.entryFee}` },
-              { l: "Total Slots", v: String(tournament.totalSlots) },
+              { l: "Status", v: tournament.status },
               { l: "Belt", v: tournament.beltEligibility || "All belts" },
               { l: "BPL Allowed", v: tournament.allowBPL ? "Yes" : "No" },
             ].map(({ l, v }) => (
@@ -1395,13 +1728,178 @@ export default function TournamentDetailPage() {
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4 md:col-span-2">
+            <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
+              <Grid size={18} className="text-blue-500" /> Active Categories
+            </h3>
+            {groupedCategories.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {groupedCategories.map((c) => (
+                  <div key={c.label} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{c.ageGroup}</p>
+                      <p className="text-[10px] font-semibold text-slate-500">{c.gender} • {c.label.split(" | ")[2]}</p>
+                    </div>
+                    <div className="bg-blue-100 text-blue-700 text-xs font-black px-2.5 py-1 rounded-lg">
+                      {c.count} players
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 font-semibold italic py-4">No active categories yet. Wait for approved players.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ WEIGH-IN & DISQUALIFICATION ═════════════════════════════════════════════════ */}
+      {activeTab === "weigh-in" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
+            <h3 className="font-black text-slate-800 text-base mb-2">Player Weigh-In</h3>
+            
+            <div className="relative">
+              <input
+                type="text"
+                value={weighInSearch}
+                onChange={(e) => setWeighInSearch(e.target.value)}
+                placeholder="Search approved player by Name or ID..."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+              />
+              {weighInSearch.trim().length >= 2 && !selectedWeighInPlayer && (
+                <div className="absolute top-full left-0 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto z-10">
+                  {players.filter(p => p.status === "APPROVED" && (p.name.toLowerCase().includes(weighInSearch.toLowerCase()) || (p.tnjaId && p.tnjaId.toLowerCase().includes(weighInSearch.toLowerCase())))).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedWeighInPlayer(p); setWeighInSearch(""); setActualWeight(""); }}
+                      className="w-full text-left px-4 py-3 border-b border-slate-100 hover:bg-slate-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-800">{p.name}</p>
+                        <p className="text-xs text-slate-500 font-semibold">{p.tnjaId} • {p.club}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-slate-700">{p.ageGroup}</p>
+                        <p className="text-xs font-black text-[#FF7400]">{p.gender} • {p.weightLabel}</p>
+                      </div>
+                    </button>
+                  ))}
+                  {players.filter(p => p.status === "APPROVED" && (p.name.toLowerCase().includes(weighInSearch.toLowerCase()) || (p.tnjaId && p.tnjaId.toLowerCase().includes(weighInSearch.toLowerCase())))).length === 0 && (
+                    <div className="px-4 py-3 text-sm text-slate-500 font-semibold">No approved player found matching "{weighInSearch}"</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedWeighInPlayer && (
+              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h4 className="text-xl font-black text-slate-800">{selectedWeighInPlayer.name}</h4>
+                    <p className="text-sm font-bold text-slate-500">{selectedWeighInPlayer.tnjaId} • {selectedWeighInPlayer.club}</p>
+                  </div>
+                  <button onClick={() => setSelectedWeighInPlayer(null)} className="p-1 hover:bg-slate-200 rounded-lg text-slate-500">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] uppercase font-black text-slate-400">Gender</p>
+                    <p className="font-bold text-slate-700">{selectedWeighInPlayer.gender}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] uppercase font-black text-slate-400">Age Group</p>
+                    <p className="font-bold text-slate-700">{selectedWeighInPlayer.ageGroup}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] uppercase font-black text-slate-400">Registered Weight</p>
+                    <p className="font-black text-blue-600">{selectedWeighInPlayer.weightLabel}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] uppercase font-black text-slate-400">Status</p>
+                    <p className="font-bold text-emerald-600">Approved</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                  <label className="block text-sm font-black text-slate-800 mb-2">Enter Actual Scale Weight (kg)</label>
+                  <div className="flex gap-4 items-start">
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={actualWeight}
+                        onChange={(e) => setActualWeight(e.target.value)}
+                        placeholder="e.g. 66.5"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-[#FF7400] font-bold text-lg"
+                      />
+                    </div>
+                    <div className="flex-1 pt-1">
+                      {actualWeight ? (
+                        (() => {
+                          const w = Number(actualWeight);
+                          const targetWeight = selectedWeighInPlayer.weightLabel === "Under 50" ? 50 : Number(selectedWeighInPlayer.weightLabel?.split("-")[1] || selectedWeighInPlayer.weightLabel?.replace("kg", "") || 0);
+                          const minWeight = selectedWeighInPlayer.weightLabel === "Under 50" ? 0 : Number(selectedWeighInPlayer.weightLabel?.split("-")[0] || 0) - 0.99;
+                          
+                          const isMatch = w <= targetWeight && w > minWeight;
+                          return isMatch ? (
+                            <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-2.5 rounded-xl">
+                              <Check size={18} /> Weight is acceptable
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-red-600 font-bold bg-red-50 px-4 py-2.5 rounded-xl">
+                              <AlertCircle size={18} /> Exceeds category limit!
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <p className="text-sm text-slate-400 font-semibold mt-2 italic">Waiting for input...</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {actualWeight && (
+                    (() => {
+                      const w = Number(actualWeight);
+                      const targetWeight = selectedWeighInPlayer.weightLabel === "Under 50" ? 50 : Number(selectedWeighInPlayer.weightLabel?.split("-")[1] || selectedWeighInPlayer.weightLabel?.replace("kg", "") || 0);
+                      const minWeight = selectedWeighInPlayer.weightLabel === "Under 50" ? 0 : Number(selectedWeighInPlayer.weightLabel?.split("-")[0] || 0) - 0.99;
+                      
+                      const isMatch = w <= targetWeight && w > minWeight;
+                      if (!isMatch) {
+                        return (
+                          <div className="mt-6 pt-6 border-t border-red-100">
+                            <p className="text-sm text-red-600 font-bold mb-3">
+                              Player weight ({w}kg) does not match the registered category ({selectedWeighInPlayer.weightLabel}). 
+                              You may disqualify this player from the tournament.
+                            </p>
+                            <button 
+                              onClick={() => selectedWeighInPlayer.regId && handleDisqualifyPlayer(selectedWeighInPlayer.regId, actualWeight)}
+                              disabled={isDisqualifying}
+                              className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl shadow-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {isDisqualifying ? <Loader2 className="animate-spin" size={16} /> : <X size={16} />}
+                              Disqualify Player
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ══ PLAYERS ═══════════════════════════════════════════════════════════ */}
       {activeTab === "players" && (
         <div className="space-y-4">
-          <CategoryFilters />
+          {renderCategoryFilters()}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             {filteredPlayers.length === 0 ? (
               <div className="py-16 text-center space-y-4">
@@ -1434,6 +1932,7 @@ export default function TournamentDetailPage() {
                         <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
                           {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
                           {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
+                          {p.status === "DISQUALIFIED" && <span className="text-red-800 bg-red-100 px-2 py-0.5 rounded uppercase text-[10px]">Disqualified</span>}
                           {p.status === "PENDING" && (
                             <div className="flex items-center gap-2">
                               <span className="text-amber-600">Pending</span>
@@ -1541,7 +2040,7 @@ export default function TournamentDetailPage() {
       )}
       {activeTab === "draws" && !expired && (
         <div className="space-y-4">
-          <CategoryFilters />
+          {renderCategoryFilters()}
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3 items-center">
@@ -1628,7 +2127,7 @@ export default function TournamentDetailPage() {
                   className="text-center"
                 >
                   <div className="flex gap-3 justify-center mb-4">
-                    {filteredPlayers.slice(0, Math.min(8, filteredPlayers.length)).map((p, i) => (
+                    {drawPlayers.slice(0, Math.min(8, drawPlayers.length)).map((p, i) => (
                       <motion.div
                         key={p.id}
                         initial={{ y: 0, x: 0, rotate: 0, opacity: 1 }}
@@ -1648,7 +2147,7 @@ export default function TournamentDetailPage() {
                     ))}
                   </div>
                   <p className="text-white font-black text-lg">Dealing cards to bracket...</p>
-                  <p className="text-white/50 text-sm mt-1">{filteredPlayers.length} players</p>
+                  <p className="text-white/50 text-sm mt-1">{drawPlayers.length} players</p>
                 </motion.div>
               </motion.div>
             )}
@@ -1665,7 +2164,7 @@ export default function TournamentDetailPage() {
                 exit={{ opacity: 0, x: 100, transition: { duration: 0.3 } }}
                 className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
               >
-                {filteredPlayers.length === 0 ? (
+                {drawPlayers.length === 0 ? (
                   <div className="py-16 text-center space-y-4">
                     <Target size={48} className="mx-auto text-slate-200" />
                     <div>
@@ -1677,14 +2176,14 @@ export default function TournamentDetailPage() {
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-4">
                       <p className="font-black text-slate-800">
-                        {filteredPlayers.length} Players Ready
+                        {drawPlayers.length} Players Ready
                         <span className="ml-2 text-xs font-semibold text-slate-400">
                           — assign seeds then click Generate Draw
                         </span>
                       </p>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {filteredPlayers.map((p, i) => (
+                      {drawPlayers.map((p, i) => (
                         <motion.div
                           key={`${p.id}-${shuffleKey}`}
                           layoutId={`player-card-${p.id}`}
@@ -1871,7 +2370,7 @@ export default function TournamentDetailPage() {
       )}
       {activeTab === "matches" && !expired && (
         <div className="space-y-4">
-          <CategoryFilters />
+          {renderCategoryFilters()}
 
           {currentDraw?.generated ? (
             <div className="space-y-4">
@@ -1984,7 +2483,7 @@ export default function TournamentDetailPage() {
             </div>
           </div>
           
-          <CategoryFilters />
+          {renderCategoryFilters()}
 
           {/* ── Conclude Tournament Panel ── */}
           {tournament?.status !== "CLOSED" ? (
@@ -2575,6 +3074,18 @@ export default function TournamentDetailPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ══ DISQUALIFY ═════════════════════════════════════════════════════════ */}
+      {activeTab === "disqualify" && !expired && (
+        <DisqualifyTab
+          players={players}
+          tournamentId={tournamentId}
+          onSuccess={() => fetchPlayers()}
+        />
+      )}
+      {activeTab === "disqualify" && expired && (
+        <ExpiredBlock label="Disqualify Players" />
+      )}
     </div>
   );
 }
@@ -2870,6 +3381,197 @@ function BracketView({
             })()}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+function DisqualifyTab({
+  players,
+  tournamentId,
+  onSuccess,
+}: {
+  players: RegisteredPlayer[];
+  tournamentId: string;
+  onSuccess: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentWeight, setCurrentWeight] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" | "warning" } | null>(null);
+
+  const matchedPlayer = players.find(
+    (p) =>
+      p.tnjaId?.toLowerCase() === searchQuery.toLowerCase() ||
+      p.tempId?.toLowerCase() === searchQuery.toLowerCase()
+  );
+
+  const handleCheck = () => {
+    setMessage(null);
+    if (!matchedPlayer) {
+      setMessage({ text: "No player found with that TNJA ID.", type: "error" });
+      return;
+    }
+
+    const weightVal = parseFloat(currentWeight);
+    if (isNaN(weightVal)) {
+      setMessage({ text: "Please enter a valid weight.", type: "error" });
+      return;
+    }
+
+    // Logic: check against registered category limits.
+    // e.g., if registered for "-66", weightVal must be <= 66.
+    // if registered for "+78", weightVal must be > 78.
+    const registeredWeightLabel = matchedPlayer.weightLabel || String(matchedPlayer.weight);
+    
+    // Parse weight label
+    const isPlus = registeredWeightLabel.startsWith("+");
+    const numMatch = registeredWeightLabel.match(/(\d+)/);
+    const limit = numMatch ? parseFloat(numMatch[1]) : matchedPlayer.weight;
+
+    let isDisqualified = false;
+    
+    if (isPlus) {
+      if (weightVal <= limit) isDisqualified = true;
+    } else {
+      if (weightVal > limit) isDisqualified = true;
+    }
+
+    if (isDisqualified) {
+      setMessage({ text: `Weight Exceeded! Player registered for ${registeredWeightLabel}kg.`, type: "error" });
+    } else {
+      setMessage({ text: `Weight OK for ${registeredWeightLabel}kg category!`, type: "success" });
+    }
+  };
+
+  const handleDisqualify = async () => {
+    if (!matchedPlayer) return;
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${matchedPlayer.regId}/disqualify`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ currentWeight })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to disqualify");
+      }
+      setMessage({ text: "Player successfully disqualified.", type: "warning" });
+      onSuccess();
+    } catch (err: any) {
+      setMessage({ text: err.message, type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm max-w-2xl mx-auto space-y-6">
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-black text-slate-800">Disqualify Player</h2>
+        <p className="text-slate-500 font-medium">Search by TNJA ID to verify weigh-in limits.</p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-slate-700 mb-1">Search Player (TNJA ID)</label>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="e.g. TNJA-12345"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-300 transition-all font-semibold"
+            />
+          </div>
+        </div>
+
+        {matchedPlayer && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 rounded-2xl bg-slate-50 border border-slate-200"
+          >
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">Name</p>
+                <p className="font-black text-slate-800">{matchedPlayer.name}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">Registered Category</p>
+                <p className="font-black text-orange-600">{matchedPlayer.weightLabel || `${matchedPlayer.weight} kg`} ({matchedPlayer.ageGroup})</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">Status</p>
+                <p className={`font-bold ${matchedPlayer.status === "DISQUALIFIED" ? "text-red-600" : "text-emerald-600"}`}>
+                  {matchedPlayer.status}
+                </p>
+              </div>
+            </div>
+
+            {matchedPlayer.status !== "DISQUALIFIED" && (
+              <div className="space-y-3 pt-4 border-t border-slate-200">
+                <label className="block text-sm font-bold text-slate-700">Actual Weigh-in Weight (kg)</label>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 66.5"
+                    value={currentWeight}
+                    onChange={(e) => setCurrentWeight(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-300 font-semibold"
+                  />
+                  <button
+                    onClick={handleCheck}
+                    disabled={!currentWeight}
+                    className="px-6 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  >
+                    Check
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        <AnimatePresence>
+          {message && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className={`p-4 rounded-xl text-sm font-bold flex items-start gap-3 ${
+                message.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : message.type === "error"
+                  ? "bg-red-50 text-red-700 border border-red-200"
+                  : "bg-orange-50 text-orange-700 border border-orange-200"
+              }`}
+            >
+              {message.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} className="shrink-0 mt-0.5" />}
+              <div className="flex-1">
+                <p>{message.text}</p>
+                {message.type === "error" && matchedPlayer && matchedPlayer.status !== "DISQUALIFIED" && (
+                  <button
+                    onClick={handleDisqualify}
+                    disabled={loading}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                    Confirm Disqualification
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

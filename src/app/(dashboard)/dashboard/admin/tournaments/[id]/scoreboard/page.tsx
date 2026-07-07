@@ -108,6 +108,9 @@ function ScoreboardInner() {
   const [undoComment, setUndoComment] = useState("");
   const [showResetPrompt, setShowResetPrompt] = useState(false);
   const [resetComment, setResetComment] = useState("");
+  const [showEditTimerModal, setShowEditTimerModal] = useState(false);
+  const [editMinutes, setEditMinutes] = useState(0);
+  const [editSeconds, setEditSeconds] = useState(0);
   const [toastMsg, setToastMsg] = useState("");
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -276,6 +279,34 @@ function ScoreboardInner() {
 
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
   }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB, dbMatchStatus]);
+
+  const handleOpenEditTimer = useCallback(() => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked.");
+      return;
+    }
+    setEditMinutes(Math.floor(timeLeft / 60));
+    setEditSeconds(timeLeft % 60);
+    setShowEditTimerModal(true);
+  }, [timeLeft, dbMatchStatus, showToast]);
+
+  const handleSaveTimer = useCallback(() => {
+    const newTime = (editMinutes * 60) + editSeconds;
+    setTimeLeft(newTime);
+    if (newTime > maxTime) setMaxTime(newTime);
+    setDurationInput(editMinutes);
+
+    const nextLogs = [...logs, {
+      id: `${Date.now()}_system_timer_edit`,
+      timestamp: Date.now(),
+      text: `Timer manually adjusted to ${editMinutes.toString().padStart(2, '0')}:${editSeconds.toString().padStart(2, '0')}`,
+      type: "system" as const
+    }];
+    setLogs(nextLogs);
+    saveMatchToDB(scoreA, scoreB, winner, winMethod, nextLogs);
+    
+    setShowEditTimerModal(false);
+  }, [editMinutes, editSeconds, maxTime, logs, saveMatchToDB, scoreA, scoreB, winner, winMethod]);
 
   const handleResetClick = useCallback(() => {
     setShowResetPrompt(true);
@@ -890,7 +921,9 @@ function ScoreboardInner() {
 
               <div className="absolute inset-0 flex flex-col items-center justify-center pb-4">
                 <span className="text-[11px] font-black tracking-[0.2em] text-[#5a7fa8] mb-1">{goldenScore ? "GOLDEN SCORE" : "ROUND 1"}</span>
-                <span className="text-6xl font-black text-white tabular-nums tracking-tighter mb-1 drop-shadow-md">{fmt(timeLeft)}</span>
+                <button onClick={handleOpenEditTimer} className="text-6xl font-black text-white tabular-nums tracking-tighter mb-1 drop-shadow-md hover:text-orange-400 hover:scale-105 transition-all cursor-pointer">
+                  {fmt(timeLeft)}
+                </button>
                 <span className="text-[10px] font-black tracking-[0.1em] text-[#5a7fa8]">TIME REMAINING</span>
               </div>
             </div>
@@ -1267,6 +1300,64 @@ function ScoreboardInner() {
                   }`}
                 >
                   Confirm Undo
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── EDIT TIMER MODAL ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showEditTimerModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+              className="bg-[#1a1a1a] border-2 border-[#333] p-6 sm:p-8 mx-4 rounded-2xl max-w-sm w-full shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-orange-500 to-yellow-500" />
+              <h2 className="text-xl sm:text-2xl font-black text-white mb-6 text-center">Edit Timer</h2>
+              
+              <div className="flex gap-4 justify-center items-center mb-8">
+                <div className="flex flex-col items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={editMinutes}
+                    onChange={(e) => setEditMinutes(parseInt(e.target.value) || 0)}
+                    className="w-20 bg-[#111] text-white text-3xl font-black text-center px-2 py-3 rounded-lg border border-[#333] focus:border-orange-500 outline-none transition-all"
+                  />
+                  <span className="text-xs text-gray-500 font-bold mt-2 uppercase tracking-wider">Minutes</span>
+                </div>
+                <span className="text-3xl font-black text-gray-500 mb-6">:</span>
+                <div className="flex flex-col items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={editSeconds}
+                    onChange={(e) => setEditSeconds(parseInt(e.target.value) || 0)}
+                    className="w-20 bg-[#111] text-white text-3xl font-black text-center px-2 py-3 rounded-lg border border-[#333] focus:border-orange-500 outline-none transition-all"
+                  />
+                  <span className="text-xs text-gray-500 font-bold mt-2 uppercase tracking-wider">Seconds</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                <button onClick={() => setShowEditTimerModal(false)} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSaveTimer} 
+                  className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition-all"
+                >
+                  Save Time
                 </button>
               </div>
             </motion.div>

@@ -26,6 +26,7 @@ import {
 import FileUpload from "@/components/common/FileUpload";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
+const AVAILABLE_CATEGORIES = ["Mini Sub Junior", "Sub Junior", "Cadet", "Junior", "Senior"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "NOT_REQUIRED";
@@ -52,6 +53,7 @@ interface Tournament {
   registrationCount?: number;
   ageFrom: number;
   ageTo: number;
+  category?: string;
   gender: string;
   beltEligibility?: string;
   allowBPL: boolean;
@@ -90,6 +92,8 @@ const CAN_CREATE_ROLES = [
   "ZONE_SECRETARY",
   "STATE_PRESIDENT",
   "STATE_SECRETARY",
+  "SUPER_ADMIN",
+  "CEO",
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -154,8 +158,8 @@ const ApprovalChain = () => null;
 // ─── Empty form ───────────────────────────────────────────────────────────────
 const emptyForm = {
   title: "", dateFrom: "", dateTo: "", location: "", description: "",
-  entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100",
-  gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT",
+  entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", category: [] as string[],
+  gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "",
   bannerImage: "",
 };
 
@@ -172,6 +176,7 @@ export default function AdminTournamentsPage() {
   const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
   const [myTournaments, setMyTournaments] = useState<Tournament[]>([]);
   const [approvedByMeList, setApprovedByMeList] = useState<Tournament[]>([]);
+  const [zones, setZones] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
@@ -228,6 +233,17 @@ export default function AdminTournamentsPage() {
       const isCreatorOnly = role === "ZONE_PRESIDENT" || role === "ZONE_SECRETARY";
       setActiveTab(isCreatorOnly ? "mine" : "approval");
     }
+
+    // Fetch zones for tournament creation
+    fetch(`${API_BASE}/districts`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          const uniqueZones = Array.from(new Set(data.map(d => d.zoneName).filter(Boolean))) as string[];
+          setZones(uniqueZones);
+        }
+      })
+      .catch(err => console.error("Failed to fetch zones", err));
   }, [searchParams]);
 
   // ── Per-tab fetch — fires whenever activeTab or userRole changes ─────────────
@@ -238,27 +254,30 @@ export default function AdminTournamentsPage() {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
-      if (tab === "approval") {
-        const res = await fetch(`${API_BASE}/tournaments/admin`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setAllTournaments(data);
-          data.forEach((t: any) => fetchTournamentMessages(t.id));
-        }
-      } else if (tab === "mine") {
-        const res = await fetch(`${API_BASE}/tournaments/official/my`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setMyTournaments(data);
-          data.forEach((t: any) => fetchTournamentMessages(t.id));
-        }
-      } else if (tab === "approved") {
-        const res = await fetch(`${API_BASE}/tournaments/admin/approved`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setApprovedByMeList(data);
-          data.forEach((t: any) => fetchTournamentMessages(t.id));
-        }
+      const _approvalLevel = APPROVAL_LEVEL_MAP[role] ?? null;
+      const _canCreate = CAN_CREATE_ROLES.includes(role);
+      const _hasApprovalRole = _approvalLevel !== null;
+
+      const [adminRes, myRes, approvedRes] = await Promise.all([
+        _hasApprovalRole ? fetch(`${API_BASE}/tournaments/admin`, { headers }) : Promise.resolve(null),
+        _canCreate ? fetch(`${API_BASE}/tournaments/official/my`, { headers }) : Promise.resolve(null),
+        fetch(`${API_BASE}/tournaments/admin/approved`, { headers })
+      ]);
+
+      if (adminRes?.ok) {
+        const data = await adminRes.json();
+        setAllTournaments(data);
+        if (tab === "approval") data.forEach((t: any) => fetchTournamentMessages(t.id));
+      }
+      if (myRes?.ok) {
+        const data = await myRes.json();
+        setMyTournaments(data);
+        if (tab === "mine") data.forEach((t: any) => fetchTournamentMessages(t.id));
+      }
+      if (approvedRes?.ok) {
+        const data = await approvedRes.json();
+        setApprovedByMeList(data);
+        if (tab === "approved") data.forEach((t: any) => fetchTournamentMessages(t.id));
       }
     } catch (err) {
       console.error("[Tournaments] fetchTabData error:", err);
@@ -375,6 +394,7 @@ export default function AdminTournamentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
+          category: formData.category.join(", "),
           entryFee: Number(formData.entryFee),
           totalSlots: Number(formData.totalSlots),
           numberOfMats: Number(formData.numberOfMats),
@@ -613,7 +633,7 @@ export default function AdminTournamentsPage() {
                               { label: "Tournament Name", value: t.title },
                               { label: "Level", value: t.level },
                               { label: "Gender", value: t.gender || "—" },
-                              { label: "Age", value: `${t.ageFrom}–${t.ageTo} yrs` },
+                              { label: "Category", value: t.category || "N/A" },
                               { label: "Date", value: new Date(t.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) },
                               { label: "Time", value: new Date(t.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
                               { label: "Location", value: t.location },
@@ -795,7 +815,7 @@ export default function AdminTournamentsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Users size={13} className="text-[#FF7400]" />
-                            Ages: {t.ageFrom}–{t.ageTo} · {t.gender}
+                            Category: {t.category || "N/A"} · {t.gender}
                           </div>
                           <div className="flex items-center gap-2">
                             <IndianRupee size={13} className="text-[#FF7400]" />
@@ -1005,6 +1025,15 @@ export default function AdminTournamentsPage() {
                     />
                   </div>
 
+                  <div className="md:col-span-2 mt-2">
+                    <FileUpload 
+                      label="Banner Image (Optional)" 
+                      value={formData.bannerImage} 
+                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
+                      accept="image/*" 
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select
@@ -1020,7 +1049,24 @@ export default function AdminTournamentsPage() {
                     </select>
                   </div>
 
-                  <div>
+                  {formData.level === "ZONE" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Zone</label>
+                      <select
+                        required
+                        value={formData.zoneId || ""}
+                        onChange={e => setFormData({ ...formData, zoneId: e.target.value })}
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                      >
+                        <option value="" disabled>Select a Zone</option>
+                        {zones.map((zone) => (
+                          <option key={zone} value={zone}>{zone}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={formData.level !== "ZONE" ? "md:col-span-1" : ""}>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
                     <select
                       value={formData.gender}
@@ -1051,22 +1097,43 @@ export default function AdminTournamentsPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Min Age</label>
-                    <input
-                      required type="text" maxLength={2} value={formData.ageFrom}
-                      onChange={e => setFormData({ ...formData, ageFrom: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Max Age</label>
-                    <input
-                      required type="text" maxLength={2} value={formData.ageTo}
-                      onChange={e => setFormData({ ...formData, ageTo: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
-                    />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 accent-[#FF7400]" 
+                          checked={Array.isArray(formData.category) && formData.category.length === AVAILABLE_CATEGORIES.length} 
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({ ...formData, category: [...AVAILABLE_CATEGORIES] });
+                            } else {
+                              setFormData({ ...formData, category: [] });
+                            }
+                          }} 
+                        />
+                        All
+                      </label>
+                      {AVAILABLE_CATEGORIES.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 accent-[#FF7400]" 
+                            checked={Array.isArray(formData.category) && formData.category.includes(cat)} 
+                            onChange={(e) => {
+                              const currentCategories = Array.isArray(formData.category) ? formData.category : [];
+                              if (e.target.checked) {
+                                setFormData({ ...formData, category: [...currentCategories, cat] });
+                              } else {
+                                setFormData({ ...formData, category: currentCategories.filter((c: string) => c !== cat) });
+                              }
+                            }} 
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
@@ -1093,46 +1160,30 @@ export default function AdminTournamentsPage() {
                     <input
                       required type="text" maxLength={5} value={formData.entryFee}
                       onChange={e => setFormData({ ...formData, entryFee: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                      disabled={formData.allowBPL}
+                      className={`w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 ${formData.allowBPL ? 'opacity-50 cursor-not-allowed' : ''}`}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Total Slots</label>
-                    <input
-                      required type="text" maxLength={4} value={formData.totalSlots}
-                      onChange={e => setFormData({ ...formData, totalSlots: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
-                    />
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Mats</label>
-                    <input
-                      required type="text" maxLength={2} value={formData.numberOfMats}
-                      onChange={e => setFormData({ ...formData, numberOfMats: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
-                    />
-                  </div>
+
 
                   <div className="md:col-span-2 flex items-center gap-3">
                     <input
                       type="checkbox" id="bpl_create" checked={formData.allowBPL}
-                      onChange={e => setFormData({ ...formData, allowBPL: e.target.checked })}
+                      onChange={e => {
+                        const isChecked = e.target.checked;
+                        setFormData({ 
+                          ...formData, 
+                          allowBPL: isChecked,
+                          entryFee: isChecked ? "0" : formData.entryFee
+                        });
+                      }}
                       className="w-5 h-5 accent-[#FF7400]"
                     />
                     <label htmlFor="bpl_create" className="text-sm font-bold text-slate-700">
                       Allow BPL Students to Register for Free
                     </label>
-                  </div>
-
-                  <div className="md:col-span-2 mt-2">
-                    <FileUpload 
-                      label="Banner Image (Optional)" 
-                      value={formData.bannerImage} 
-                      onChange={(url) => setFormData({ ...formData, bannerImage: url })} 
-                      accept="image/*" 
-                    />
                   </div>
 
                   <div className="md:col-span-2">

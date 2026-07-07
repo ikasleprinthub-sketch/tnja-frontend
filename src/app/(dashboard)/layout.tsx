@@ -198,9 +198,10 @@ export default function DashboardLayout({
     { name: "Approved Tournaments", href: "/dashboard/admin/tournaments?tab=approved" },
   ] : undefined;
 
-  // Super Admin & CEO: no "My Tournaments" (they can't create tournaments)
+  // Super Admin & CEO
   const superAdminCeoChildren = (userRole === "SUPER_ADMIN" || userRole === "CEO") ? [
     { name: "Approval Queue", href: "/dashboard/admin/tournaments?tab=approval" },
+    { name: "My Tournaments", href: "/dashboard/admin/tournaments?tab=mine" },
     { name: "Approved Tournaments", href: "/dashboard/admin/tournaments?tab=approved" },
   ] : undefined;
 
