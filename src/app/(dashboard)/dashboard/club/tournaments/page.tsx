@@ -987,12 +987,12 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
-                    <input type="date" required min={new Date().toISOString().split('T')[0]} value={formData.dateFrom} onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
+                    <input type="date" lang="en-GB" required min={new Date().toISOString().split('T')[0]} value={formData.dateFrom} onChange={(e) => setFormData({ ...formData, dateFrom: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
-                    <input type="date" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
+                    <input type="date" lang="en-GB" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo} onChange={(e) => setFormData({ ...formData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div className="md:col-span-2">
@@ -1143,12 +1143,12 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
-                    <input type="date" required min={new Date().toISOString().split('T')[0]} value={editData.dateFrom} onChange={(e) => setEditData({ ...editData, dateFrom: e.target.value })}
+                    <input type="date" lang="en-GB" required min={new Date().toISOString().split('T')[0]} value={editData.dateFrom} onChange={(e) => setEditData({ ...editData, dateFrom: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
-                    <input type="date" min={editData.dateFrom || new Date().toISOString().split('T')[0]} value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
+                    <input type="date" lang="en-GB" min={editData.dateFrom || new Date().toISOString().split('T')[0]} value={editData.dateTo} onChange={(e) => setEditData({ ...editData, dateTo: e.target.value })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all" />
                   </div>
                   <div className="md:col-span-2">

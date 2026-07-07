@@ -1316,7 +1316,23 @@ export default function TournamentDetailPage() {
   }, [handleMatchResult]);
 
   // ── Global Auto-Selection Effect ─────────────────────────────────────────────
-  const availableAgeGroupsGlobal = [...new Set(players.filter(p => genderFilter === "BOTH" || p.gender === genderFilter).map((p) => p.ageGroup))].sort((a, b) => a.localeCompare(b));
+  const ageGroupOrder = [
+    "mini sub-junior age group 1",
+    "mini sub-junior age group 2",
+    "mini sub-junior age group 3",
+    "mini sub junior",
+    "sub-junior",
+    "sub junior",
+    "cadet",
+    "junior",
+    "senior"
+  ];
+  const getAgeGroupRank = (age: string) => {
+    const idx = ageGroupOrder.indexOf(age.toLowerCase());
+    return idx === -1 ? 999 : idx;
+  };
+
+  const availableAgeGroupsGlobal = [...new Set(players.filter(p => genderFilter === "BOTH" || p.gender === genderFilter).map((p) => p.ageGroup))].sort((a, b) => getAgeGroupRank(a) - getAgeGroupRank(b) || a.localeCompare(b));
   
   useEffect(() => {
     if (availableAgeGroupsGlobal.length > 0 && (!availableAgeGroupsGlobal.includes(ageFilter) || ageFilter === "ALL")) {

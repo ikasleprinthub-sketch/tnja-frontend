@@ -1082,7 +1082,7 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
                     <input
-                      required type="date" min={new Date().toISOString().split('T')[0]} value={formData.dateFrom}
+                      required type="date" lang="en-GB" min={new Date().toISOString().split('T')[0]} value={formData.dateFrom}
                       onChange={e => setFormData({ ...formData, dateFrom: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
@@ -1091,7 +1091,7 @@ export default function AdminTournamentsPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (optional)</label>
                     <input
-                      type="date" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo}
+                      type="date" lang="en-GB" min={formData.dateFrom || new Date().toISOString().split('T')[0]} value={formData.dateTo}
                       onChange={e => setFormData({ ...formData, dateTo: e.target.value })}
                       className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
