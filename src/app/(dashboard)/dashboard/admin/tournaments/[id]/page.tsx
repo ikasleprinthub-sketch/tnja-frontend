@@ -681,7 +681,7 @@ export default function TournamentDetailPage() {
     if (!editingMetrics?.regId) return;
     setSavingMetrics(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/registrations/${editingMetrics.regId}/metrics`, {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${editingMetrics.regId}/metrics`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ weight: editingMetrics.weight, height: editingMetrics.height }),
