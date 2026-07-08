@@ -258,6 +258,7 @@ export default function DashboardLayout({
     ? [
         { name: "Dashboard", href: "/dashboard/member", icon: LayoutDashboard },
         { name: "My Students", href: "/dashboard/coach/students", icon: Users },
+        { name: "My Mats", href: "/dashboard/coach/mats", icon: Trophy },
         { name: "Events", href: "/dashboard/member/events", icon: Calendar },
         { name: "Grievances", href: "/dashboard/grievance", icon: MessageSquare },
       ]
@@ -307,7 +308,7 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside
         className={`
-          fixed md:relative z-50 h-screen transition-all duration-300 bg-white border-r border-slate-200 flex flex-col shadow-sm
+          fixed md:relative z-50 h-screen transition-all duration-300 bg-white border-r border-slate-200 flex flex-col shadow-sm print:hidden
           ${isSidebarOpen ? "translate-x-0 w-64" : "-translate-x-full md:translate-x-0 w-64 md:w-[72px]"}
         `}
       >
@@ -498,7 +499,7 @@ export default function DashboardLayout({
       {/* Main Content */}
       <div className="flex-grow flex flex-col h-screen overflow-hidden min-w-0">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 shrink-0">
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 shrink-0 print:hidden">
           <div className="flex items-center gap-3 min-w-0">
             <button 
               onClick={() => setIsSidebarOpen(true)}

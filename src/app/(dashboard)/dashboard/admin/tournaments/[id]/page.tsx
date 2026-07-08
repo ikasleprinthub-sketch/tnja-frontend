@@ -8,14 +8,14 @@ import {
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal, Edit2,
   AlertCircle, Clock, Download, BarChart3, MessageSquare, Send,
-  PlayCircle, Lock, Search, CheckCircle2, XCircle
+  PlayCircle, Lock, Search, CheckCircle2, XCircle, RefreshCw
 } from "lucide-react";
 import { FaMale, FaFemale } from "react-icons/fa";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Tab = "overview" | "players" | "draws" | "matches" | "results" | "weigh-in" | "disqualify";
+type Tab = "overview" | "players" | "mats" | "draws" | "matches" | "results" | "weigh-in" | "disqualify";
 type ViewMode = "list" | "bracket";
 
 interface Tournament {
@@ -480,29 +480,22 @@ function exportMatchToPDF(
     </html>
   `;
 
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow?.document;
-  if (doc) {
-    doc.open();
-    doc.write(html);
-    doc.close();
-  }
-
-  // Give the browser a moment to parse the HTML and apply styles
-  setTimeout(() => {
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
     
-    // Clean up after printing
+    // Give the new window a moment to parse the HTML before printing
     setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-    }, 1000);
-  }, 250);
+      printWindow.focus();
+      printWindow.print();
+      // Optional: close the tab after printing
+      // printWindow.close();
+    }, 250);
+  } else {
+    alert("Please allow popups for this site to export the Match Report.");
+  }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -558,6 +551,40 @@ export default function TournamentDetailPage() {
   const [selectedWeighInPlayer, setSelectedWeighInPlayer] = useState<RegisteredPlayer | null>(null);
   const [actualWeight, setActualWeight] = useState("");
   const [isDisqualifying, setIsDisqualifying] = useState(false);
+
+  // ── Mats & Referees State ──────────────────────────────────────────────────
+  const [tournamentMats, setTournamentMats] = useState<{matNumber: number, refereeId: string, refereeName?: string}[]>([]);
+  const [savingMats, setSavingMats] = useState(false);
+  const [loadingMats, setLoadingMats] = useState(false);
+  const [matsCountInput, setMatsCountInput] = useState<string>("");
+  const [matsConfirmed, setMatsConfirmed] = useState(false);
+
+  const fetchMats = useCallback(async () => {
+    if (!tournamentId) return;
+    setLoadingMats(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTournamentMats(data.mats.map((m: any) => ({
+          matNumber: m.matNumber,
+          refereeId: m.refereeId || "",
+          refereeName: m.referee?.fullName || ""
+        })));
+        if (data.mats.length > 0) {
+          setMatsCountInput(data.mats.length.toString());
+          setMatsConfirmed(true);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching mats:", error);
+    } finally {
+      setLoadingMats(false);
+    }
+  }, [tournamentId]);
 
   // ── Auto-detect placements from draw results ─────────────────────────────────
   // Runs whenever the draws or players change (e.g. when Results tab is opened)
@@ -719,8 +746,13 @@ export default function TournamentDetailPage() {
             let weightLabel = exactWeightStr;
 
             if (!isNaN(exactWeight) && exactWeight > 0) {
-              bucketWeight = Math.ceil(exactWeight / 5) * 5;
-              weightLabel = bucketWeight <= 50 ? "Under 50" : `${bucketWeight - 4}-${bucketWeight}`;
+              if (exactWeight <= 50) {
+                bucketWeight = "Under 50";
+                weightLabel = "Under 50";
+              } else {
+                bucketWeight = `${Math.ceil(exactWeight / 5) * 5}`;
+                weightLabel = `${Math.ceil(exactWeight / 5) * 5 - 4}-${Math.ceil(exactWeight / 5) * 5}`;
+              }
             }
             
             return {
@@ -876,9 +908,28 @@ export default function TournamentDetailPage() {
     }
   }, [activeTab, autoDetectPlacements]);
 
+  useEffect(() => {
+    if (activeTab === "mats") {
+      fetchMats();
+    }
+  }, [activeTab, fetchMats]);
+
+  // Polling for live bracket updates from the scoreboards
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (activeTab === "draws" && drawPhase === "idle" && !autoGenerating) {
+      interval = setInterval(() => {
+        fetchDraws();
+      }, 10000); // 10 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTab, drawPhase, autoGenerating, fetchDraws]);
+
   // ── Derived ─────────────────────────────────────────────────────────────────
   const hasPendingPlayers = players.some((p) => p.status === "PENDING");
-  const isMultiCategory = genderFilter === "BOTH" || weightFilter === "ALL" || exactAgeFilter === "ALL" || ageFilter === "ALL";
+  const isMultiCategory = genderFilter === "BOTH" || weightFilter === "ALL" || ageFilter === "ALL";
 
   const filteredPlayers = players.filter((p) => {
     if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
@@ -994,7 +1045,10 @@ export default function TournamentDetailPage() {
               }
             }));
             showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
-            await fetchDraws();
+            // NOTE: Do NOT call fetchDraws() here. The local state is already correctly
+            // set under currentKey. fetchDraws() would overwrite it with server data
+            // keyed by exactAge=0→"ALL", causing a key mismatch that makes currentDraw
+            // undefined — which hides the bracket and list toggle.
           } else {
             showToast("Failed to auto-save draw", false);
           }
@@ -1700,7 +1754,7 @@ export default function TournamentDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl w-fit flex-wrap">
-        {(["overview", "players", "weigh-in", "draws", "matches", "results", "disqualify"] as Tab[]).map((tab) => {
+        {(["overview", "players", "mats", "weigh-in", "draws", "matches", "results", "disqualify"] as Tab[]).map((tab) => {
           // Results tab is ALWAYS accessible — even for expired/CLOSED tournaments
           // Draws and matches are locked once the tournament date has passed
           const lockedByExpiry = expired && (tab === "draws" || tab === "matches");
@@ -1806,6 +1860,141 @@ export default function TournamentDetailPage() {
               <p className="text-sm text-slate-500 font-semibold italic py-4">No active categories yet. Wait for approved players.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ══ MATS & REFEREES ═══════════════════════════════════════════════════ */}
+      {activeTab === "mats" && tournament && (
+        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
+          <div className="flex justify-between items-center border-b border-slate-50 pb-4">
+            <div>
+              <h3 className="font-black text-slate-800 text-base">Mats & Referees</h3>
+              <p className="text-xs text-slate-500 font-semibold mt-1">Assign Referees to mats using their TNJA ID (Permanent or Temp)</p>
+            </div>
+            <button
+              onClick={async () => {
+                setSavingMats(true);
+                try {
+                  const token = localStorage.getItem("token");
+                  const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                    body: JSON.stringify({ assignments: tournamentMats })
+                  });
+                  if (res.ok) showToast("Mat assignments saved!", true);
+                  else showToast("Failed to save assignments", false);
+                } catch (e) {
+                  showToast("Error saving assignments", false);
+                } finally {
+                  setSavingMats(false);
+                }
+              }}
+              disabled={savingMats}
+              className="bg-[#FF7400] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-all flex items-center gap-2"
+            >
+              {savingMats ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save Assignments
+            </button>
+          </div>
+
+          {loadingMats ? (
+            <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-slate-300" size={32} /></div>
+          ) : !matsConfirmed ? (
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center max-w-sm mx-auto space-y-4 mt-8">
+              <h4 className="font-black text-slate-800 text-lg">Set Total Mats</h4>
+              <p className="text-sm text-slate-500 font-semibold">How many mats are available for this tournament?</p>
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={matsCountInput} 
+                  onChange={(e) => setMatsCountInput(e.target.value)} 
+                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:border-[#FF7400]" 
+                  placeholder="e.g. 4" 
+                />
+                <button 
+                  onClick={() => {
+                    const count = parseInt(matsCountInput);
+                    if (count > 0) setMatsConfirmed(true);
+                    else showToast("Please enter a valid number", false);
+                  }} 
+                  className="bg-[#FF7400] text-white px-5 py-2.5 rounded-xl font-bold hover:scale-105 transition-all"
+                >
+                  Proceed
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {Array.from({ length: parseInt(matsCountInput) || 1 }).map((_, i) => {
+                const matNumber = i + 1;
+                const matData = tournamentMats.find(m => m.matNumber === matNumber) || { matNumber, refereeId: "", refereeName: "" };
+                
+                return (
+                  <div key={matNumber} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col gap-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs">
+                        {matNumber}
+                      </div>
+                      <h4 className="font-black text-slate-700">Mat {matNumber}</h4>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Enter Referee ID..."
+                        value={matData.refereeId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTournamentMats(prev => {
+                            const clone = [...prev];
+                            const idx = clone.findIndex(m => m.matNumber === matNumber);
+                            if (idx >= 0) { clone[idx].refereeId = val; clone[idx].refereeName = ""; }
+                            else clone.push({ matNumber, refereeId: val, refereeName: "" });
+                            return clone;
+                          });
+                        }}
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!matData.refereeId) return;
+                          try {
+                            const res = await fetch(`${API_BASE}/referees/search?id=${matData.refereeId}`);
+                            const data = await res.json();
+                            if (res.ok) {
+                              setTournamentMats(prev => {
+                                const clone = [...prev];
+                                const idx = clone.findIndex(m => m.matNumber === matNumber);
+                                if (idx >= 0) clone[idx].refereeName = data.name;
+                                return clone;
+                              });
+                            } else {
+                              showToast(data.error || "Referee not found", false);
+                            }
+                          } catch (e) {
+                            showToast("Error checking referee", false);
+                          }
+                        }}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                      >
+                        Check
+                      </button>
+                    </div>
+
+                    {matData.refereeName ? (
+                      <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl text-xs font-bold border border-emerald-100">
+                        <CheckCircle2 size={14} /> Assigned: {matData.refereeName}
+                      </div>
+                    ) : matData.refereeId ? (
+                      <p className="text-[10px] text-slate-400 font-semibold px-1">Click Check to verify referee.</p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-semibold px-1">No referee assigned.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -2109,6 +2298,10 @@ export default function TournamentDetailPage() {
               </div>
             ) : (
               <>
+                <button onClick={fetchDraws}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all">
+                  <RefreshCw size={16} /> Refresh Live Bracket
+                </button>
                 <button onClick={() => setShowSeedModal(true)}
                   disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                   className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
@@ -2212,29 +2405,194 @@ export default function TournamentDetailPage() {
           <AnimatePresence mode="wait">
             {isMultiCategory ? (
               <motion.div
-                key="multi-category-placeholder"
+                key="multi-category-view"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="bg-white rounded-3xl border border-slate-100 shadow-sm p-16 text-center space-y-4"
+                className="space-y-6"
               >
-                <Grid size={48} className="mx-auto text-slate-200" />
-                <div>
-                  <p className="text-slate-500 font-bold text-lg">Multi-Category View</p>
-                  <p className="text-slate-400 text-sm mt-1 max-w-md mx-auto">
-                    To view or manually draw a bracket, please select a specific Age Group, Gender, and Weight category above.
-                  </p>
-                </div>
+                {(() => {
+                  const map: Record<string, { ageGroup: string; gender: string; weight: string; weightLabel: string; catDrawPlayers: RegisteredPlayer[] }> = {};
+                  eligiblePlayers.forEach(p => {
+                    const key = categoryKey(p.ageGroup, p.exactAge ? String(p.exactAge) : "ALL", p.gender, String(p.weight));
+                    if (!map[key]) {
+                      map[key] = {
+                        ageGroup: p.ageGroup,
+                        gender: p.gender,
+                        weight: String(p.weight),
+                        weightLabel: p.weightLabel || String(p.weight),
+                        catDrawPlayers: [],
+                      };
+                    }
+                    map[key].catDrawPlayers.push(p);
+                  });
+                  const categories = Object.entries(map).map(([key, data]) => ({ key, ...data })).sort((a, b) => a.key.localeCompare(b.key));
+                  
+                  if (categories.length === 0) {
+                    return (
+                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-16 text-center space-y-4">
+                        <Grid size={48} className="mx-auto text-slate-200" />
+                        <div>
+                          <p className="text-slate-500 font-bold text-lg">No Categories Found</p>
+                          <p className="text-slate-400 text-sm mt-1 max-w-md mx-auto">
+                            There are no approved players matching the current filters.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return categories.map(({ key, ageGroup, gender, weight, weightLabel, catDrawPlayers }) => {
+                    const draw = draws[key];
+                    return (
+                      <div key={key} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6">
+                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                          <h3 className="font-black text-slate-800 flex items-center gap-2">
+                            <Trophy size={16} className="text-[#FF7400]" />
+                            {ageGroup} · {gender === "FEMALE" ? "Girls" : "Boys"} · {weightLabel} {weightLabel !== "Under 50" && !weightLabel.includes("kg") ? "kg" : ""}
+                          </h3>
+                          {draw && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
+                              <select 
+                                value={draw.matNumber || 1}
+                                onChange={async (e) => {
+                                  const newMat = Number(e.target.value);
+                                  const updatedDraw = { ...draw, matNumber: newMat };
+                                  setDraws(prev => ({ ...prev, [key]: updatedDraw }));
+                                  
+                                  try {
+                                    await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+                                      method: "POST",
+                                      headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+                                      body: JSON.stringify({
+                                        ageGroup: updatedDraw.ageGroup,
+                                        exactAge: updatedDraw.exactAge,
+                                        gender: updatedDraw.gender,
+                                        weightCategory: updatedDraw.weightCategory,
+                                        matNumber: updatedDraw.matNumber,
+                                        rounds: updatedDraw.rounds,
+                                      })
+                                    });
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
+                              >
+                                {[1,2,3,4,5,6,7,8].map(m => (
+                                  <option key={m} value={m}>MAT {m}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="p-5 border-b border-slate-50">
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="font-black text-slate-800">
+                              {catDrawPlayers.length} Players Ready
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {catDrawPlayers.map((p, i) => (
+                              <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm hover:shadow-md transition-shadow cursor-default">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white shrink-0 ${p.gender === "FEMALE" ? "bg-pink-400" : "bg-blue-500"}`}>
+                                    {p.name.charAt(0)}
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="text-xs font-black text-slate-800 truncate leading-tight">{p.name}</p>
+                                    <p className="text-[9px] text-slate-400 truncate">{p.gender === "FEMALE" ? "Female" : "Male"} · {p.club || p.district}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {draw?.generated && (
+                          <div className="border-t border-slate-50">
+                            {/* Bracket View */}
+                            <div className="p-5 bg-slate-50/30 overflow-auto border-b border-slate-50">
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Bracket</h4>
+                              <BracketView
+                                rounds={draw.rounds}
+                                onOpenScoreboard={openScoreboard}
+                                players={catDrawPlayers}
+                              />
+                            </div>
+                            
+                            {/* Match List View */}
+                            <div className="p-5 bg-white">
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Match List</h4>
+                              <div className="divide-y divide-slate-50">
+                                {draw.rounds.map((round, ri) => (
+                                  <div key={ri} className="py-3">
+                                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">
+                                      {roundName(ri, draw.rounds.length)}
+                                    </h5>
+                                    <div className="space-y-2">
+                                      {round.map((match, mi) => {
+                                        const isBronze = ri === draw.rounds.length - 1 && mi === 1;
+                                        return (
+                                          <motion.div
+                                            key={match.matchId}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: ri * 0.15 + mi * 0.04, type: "spring", stiffness: 300, damping: 25 }}
+                                            className={`flex items-center justify-between p-3 rounded-2xl transition-colors ${
+                                              isBronze ? "bg-amber-50/50 border border-amber-200" : "bg-slate-50 hover:bg-orange-50/30"
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-4">
+                                              <span className="text-[10px] font-black text-slate-400 min-w-[80px] flex flex-col gap-0.5">
+                                                <span>Mat {draw.matNumber || 1} · #{match.matchNumber}</span>
+                                                {isBronze && <span className="text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded inline-block w-max mt-1">🥉 BRONZE</span>}
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <span className={`text-sm font-bold flex items-center gap-1 ${match.slotA.isBye ? "text-slate-300" : match.winnerId === match.slotA.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                                  {match.slotA.playerName}
+                                                  {match.winnerId && match.winnerId === match.slotA.playerId && <Trophy size={12} />}
+                                                </span>
+                                                <span className="text-[10px] font-black text-slate-300">vs</span>
+                                                <span className={`text-sm font-bold flex items-center gap-1 ${match.slotB.isBye ? "text-slate-300" : match.winnerId === match.slotB.playerId ? "text-emerald-600" : match.status === "COMPLETED" ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                                  {match.winnerId && match.winnerId === match.slotB.playerId && <Trophy size={12} />}
+                                                  {match.slotB.playerName}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && !match.slotA.isBye && !match.slotB.isBye && match.status !== "COMPLETED" && (
+                                              <button onClick={() => openScoreboard(match)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
+                                                <Monitor size={11} /> Scoreboard
+                                              </button>
+                                            )}
+                                          </motion.div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </motion.div>
-            ) : !currentDraw?.generated ? (
-              /* Player cards list — pre-draw */
+            ) : (
               <motion.div
-                key="player-list"
+                key="single-category-view"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0, x: 100, transition: { duration: 0.3 } }}
-                className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+                className="space-y-6"
               >
+                {/* Player cards list */}
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 {drawPlayers.length === 0 ? (
                   <div className="py-16 text-center space-y-4">
                     <Target size={48} className="mx-auto text-slate-200" />
@@ -2249,7 +2607,7 @@ export default function TournamentDetailPage() {
                       <p className="font-black text-slate-800">
                         {drawPlayers.length} Players Ready
                         <span className="ml-2 text-xs font-semibold text-slate-400">
-                          — assign seeds then click Generate Draw
+                          {currentDraw?.generated ? "— assign seeds then click Re-Shuffle Bracket" : "— assign seeds then click Generate Draw"}
                         </span>
                       </p>
                     </div>
@@ -2316,16 +2674,17 @@ export default function TournamentDetailPage() {
                     </div>
                   </div>
                 )}
-              </motion.div>
-            ) : (
-              /* Bracket — post-generate */
-              <motion.div
-                key={`bracket-${currentKey}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
-              >
+                </div>
+
+                {/* Bracket — post-generate */}
+                {currentDraw?.generated && (
+                  <motion.div
+                    key={`bracket-${currentKey}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+                  >
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                   <h3 className="font-black text-slate-800">
                     Draw — {filteredPlayers.length} Players
@@ -2428,6 +2787,8 @@ export default function TournamentDetailPage() {
                       players={filteredPlayers}
                     />
                   </div>
+                )}
+                  </motion.div>
                 )}
               </motion.div>
             )}

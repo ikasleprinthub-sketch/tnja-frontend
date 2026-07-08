@@ -22,6 +22,7 @@ import {
   Hourglass,
   Send,
   MessageSquare,
+  Edit2,
 } from "lucide-react";
 import FileUpload from "@/components/common/FileUpload";
 
@@ -208,6 +209,11 @@ export default function AdminTournamentsPage() {
   const [formData, setFormData] = useState({ ...emptyForm });
   const [submitLoading, setSubmitLoading] = useState(false);
 
+  // Edit modal
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
+  const [editFormData, setEditFormData] = useState({ ...emptyForm });
+  const [editLoading, setEditLoading] = useState(false);
+
   // Reject modal
   const [rejectModal, setRejectModal] = useState<{ id: string } | null>(null);
   const [rejectRemark, setRejectRemark] = useState("");
@@ -380,6 +386,63 @@ export default function AdminTournamentsPage() {
       showToast(err.message || "Something went wrong", "error");
     } finally {
       setReplyLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  // ── Open edit modal pre-filled ────────────────────────────────────────────
+  const openEditModal = (t: Tournament) => {
+    setEditingTournament(t);
+    const dateFrom = t.date ? new Date(t.date).toISOString().split("T")[0] : "";
+    const dateTo = t.dateTo ? new Date(t.dateTo).toISOString().split("T")[0] : "";
+    const categoryArr = t.category ? t.category.split(", ").map(s => s.trim()).filter(Boolean) : [];
+    setEditFormData({
+      title: t.title || "",
+      dateFrom,
+      dateTo,
+      location: t.location || "",
+      description: "",
+      entryFee: String(t.entryFee ?? ""),
+      totalSlots: String((t as any).totalSlots ?? ""),
+      numberOfMats: String((t as any).numberOfMats ?? "1"),
+      ageFrom: String(t.ageFrom ?? "0"),
+      ageTo: String(t.ageTo ?? "100"),
+      category: categoryArr,
+      gender: t.gender || "BOTH",
+      allowBPL: t.allowBPL ?? false,
+      beltEligibility: t.beltEligibility || "",
+      level: t.level || "DISTRICT",
+      zoneId: "",
+      bannerImage: t.bannerImage || "",
+    });
+  };
+
+  // ── Edit tournament ──────────────────────────────────────────────────────────
+  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingTournament) return;
+    setEditLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${editingTournament.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...editFormData,
+          category: editFormData.category.join(", "),
+          entryFee: Number(editFormData.entryFee),
+          totalSlots: Number(editFormData.totalSlots),
+          numberOfMats: Number(editFormData.numberOfMats),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update");
+      showToast("Tournament updated successfully!", "success");
+      setEditingTournament(null);
+      fetchTabData("mine", userRole);
+    } catch (err: any) {
+      showToast(err.message || "Something went wrong", "error");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -956,24 +1019,33 @@ export default function AdminTournamentsPage() {
                           )}
                         </div>
 
-                        {/* Manage button — conditionally visible */}
-                        {!t.hasPendingPlayers && (
-                          <Link
-                            href={`/dashboard/admin/tournaments/${t.id}`}
-                            className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
-                          >
-                            <Trophy size={14} /> Manage Tournament
-                            <ChevronRight size={14} />
-                          </Link>
-                        )}
-                        {t.hasPendingPlayers && (
+                        {/* Action buttons */}
+                        <div className="mt-3 flex gap-2">
+                          {/* Edit button — only creator can edit */}
                           <button
-                            disabled
-                            className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm transition-all cursor-not-allowed"
+                            onClick={() => openEditModal(t)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm transition-all border border-slate-200 hover:border-slate-300 shrink-0"
+                            title="Edit tournament details"
                           >
-                            <AlertCircle size={14} /> Resolve Pending Players
+                            <Edit2 size={14} /> Edit
                           </button>
-                        )}
+                          {!t.hasPendingPlayers ? (
+                            <Link
+                              href={`/dashboard/admin/tournaments/${t.id}`}
+                              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
+                            >
+                              <Trophy size={14} /> Manage
+                              <ChevronRight size={14} />
+                            </Link>
+                          ) : (
+                            <button
+                              disabled
+                              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-sm transition-all cursor-not-allowed"
+                            >
+                              <AlertCircle size={14} /> Resolve Pending Players
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -1166,8 +1238,6 @@ export default function AdminTournamentsPage() {
                   </div>
 
 
-
-
                   <div className="md:col-span-2 flex items-center gap-3">
                     <input
                       type="checkbox" id="bpl_create" checked={formData.allowBPL}
@@ -1210,6 +1280,201 @@ export default function AdminTournamentsPage() {
                     {submitLoading
                       ? <Loader2 size={20} className="animate-spin" />
                       : <><Calendar size={18} /> Submit Tournament</>}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════════ EDIT TOURNAMENT MODAL ════════════ */}
+      <AnimatePresence>
+        {editingTournament && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-2xl bg-white rounded-[2.5rem] p-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-800">Edit Tournament</h2>
+                  <p className="text-slate-500 text-sm mt-1">
+                    Update details for <span className="font-bold text-[#FF7400]">{editingTournament.title}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingTournament(null)}
+                  className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-full transition-all"
+                >
+                  <XCircle size={26} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEdit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Tournament Title *</label>
+                    <input
+                      required type="text" value={editFormData.title}
+                      onChange={e => setEditFormData({ ...editFormData, title: e.target.value })}
+                      placeholder="e.g. District Championship 2026"
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
+                    <select
+                      value={editFormData.level}
+                      onChange={e => setEditFormData({ ...editFormData, level: e.target.value })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                    >
+                      <option value="CLUB">Club</option>
+                      <option value="DISTRICT">District</option>
+                      <option value="ZONE">Zonal</option>
+                      <option value="STATE">State</option>
+                      <option value="NATIONAL">National</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
+                    <select
+                      value={editFormData.gender}
+                      onChange={e => setEditFormData({ ...editFormData, gender: e.target.value })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                    >
+                      <option value="BOTH">Both</option>
+                      <option value="MALE">Male Only</option>
+                      <option value="FEMALE">Female Only</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start Date *</label>
+                    <input
+                      required type="date" lang="en-GB" value={editFormData.dateFrom}
+                      onChange={e => setEditFormData({ ...editFormData, dateFrom: e.target.value })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End Date (optional)</label>
+                    <input
+                      type="date" lang="en-GB" min={editFormData.dateFrom} value={editFormData.dateTo}
+                      onChange={e => setEditFormData({ ...editFormData, dateTo: e.target.value })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                        <input
+                          type="checkbox"
+                          className="w-5 h-5 accent-[#FF7400]"
+                          checked={Array.isArray(editFormData.category) && editFormData.category.length === AVAILABLE_CATEGORIES.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditFormData({ ...editFormData, category: [...AVAILABLE_CATEGORIES] });
+                            } else {
+                              setEditFormData({ ...editFormData, category: [] });
+                            }
+                          }}
+                        />
+                        All
+                      </label>
+                      {AVAILABLE_CATEGORIES.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-200 cursor-pointer hover:bg-slate-100 hover:border-[#FF7400]/30 transition-all">
+                          <input
+                            type="checkbox"
+                            className="w-5 h-5 accent-[#FF7400]"
+                            checked={Array.isArray(editFormData.category) && editFormData.category.includes(cat)}
+                            onChange={(e) => {
+                              const current = Array.isArray(editFormData.category) ? editFormData.category : [];
+                              if (e.target.checked) {
+                                setEditFormData({ ...editFormData, category: [...current, cat] });
+                              } else {
+                                setEditFormData({ ...editFormData, category: current.filter((c: string) => c !== cat) });
+                              }
+                            }}
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Venue / Location *</label>
+                    <input
+                      required type="text" value={editFormData.location}
+                      onChange={e => setEditFormData({ ...editFormData, location: e.target.value.replace(/[^a-zA-Z0-9\s,.'-]/g, '') })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Belt Eligibility</label>
+                    <input
+                      type="text" value={editFormData.beltEligibility}
+                      onChange={e => setEditFormData({ ...editFormData, beltEligibility: e.target.value })}
+                      placeholder="e.g. Yellow belt and above"
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Entry Fee (₹)</label>
+                    <input
+                      required type="text" maxLength={5} value={editFormData.entryFee}
+                      onChange={e => setEditFormData({ ...editFormData, entryFee: e.target.value.replace(/\D/g, '') })}
+                      disabled={editFormData.allowBPL}
+                      className={`w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 ${editFormData.allowBPL ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+
+                  <div className="md:col-span-2 flex items-center gap-3">
+                    <input
+                      type="checkbox" id="bpl_edit" checked={editFormData.allowBPL}
+                      onChange={e => {
+                        const isChecked = e.target.checked;
+                        setEditFormData({
+                          ...editFormData,
+                          allowBPL: isChecked,
+                          entryFee: isChecked ? "0" : editFormData.entryFee
+                        });
+                      }}
+                      className="w-5 h-5 accent-[#FF7400]"
+                    />
+                    <label htmlFor="bpl_edit" className="text-sm font-bold text-slate-700">
+                      Allow BPL Students to Register for Free
+                    </label>
+                  </div>
+
+                </div>
+
+                <div className="flex gap-4 pt-2">
+                  <button
+                    type="button" onClick={() => setEditingTournament(null)}
+                    className="flex-1 py-5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit" disabled={editLoading}
+                    className="flex-1 py-5 bg-[#FF7400] text-white font-bold rounded-2xl shadow-xl shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 flex items-center justify-center gap-2 transition-all"
+                  >
+                    {editLoading
+                      ? <Loader2 size={20} className="animate-spin" />
+                      : <><Edit2 size={18} /> Save Changes</>}
                   </button>
                 </div>
               </form>

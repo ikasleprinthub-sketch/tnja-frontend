@@ -27,7 +27,9 @@ export default function TournamentSetupPage() {
   const [players, setPlayers] = useState<RegisteredPlayer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [matAssignments, setMatAssignments] = useState<{id: string, matNumber: string, refereeName: string}[]>([]);
+  const [matAssignments, setMatAssignments] = useState<{
+    refereeId: any;id: string, matNumber: string, refereeName: string
+}[]>([]);
   const [setupTotalMats, setSetupTotalMats] = useState("");
   const [setupRefereeName, setSetupRefereeName] = useState("");
   const [editingMatId, setEditingMatId] = useState<string | null>(null);
@@ -43,20 +45,31 @@ export default function TournamentSetupPage() {
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
 
-  useEffect(() => {
-    if (!tournamentId) return;
-    const saved = localStorage.getItem(`tournament_${tournamentId}_mats`);
-    if (saved) {
-      try {
-        setMatAssignments(JSON.parse(saved));
-      } catch (e) {}
+  const [savingMats, setSavingMats] = useState(false);
+  const [checkingReferee, setCheckingReferee] = useState(false);
+  
+  const fetchMats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mats && data.mats.length > 0) {
+          setMatAssignments(data.mats.map((m: any) => ({
+            id: m.id || Date.now().toString(),
+            matNumber: m.matNumber.toString(),
+            refereeId: m.refereeId || "",
+            refereeName: m.referee?.fullName || ""
+          })));
+          setTotalMatsCount(data.mats.length);
+          setMatsConfirmed(true);
+        }
+      }
+    } catch (e) {
+      console.error(e);
     }
-  }, [tournamentId]);
-
-  useEffect(() => {
-    if (!tournamentId) return;
-    localStorage.setItem(`tournament_${tournamentId}_mats`, JSON.stringify(matAssignments));
-  }, [matAssignments, tournamentId]);
+  }, [tournamentId, token]);
 
   const fetchTournament = useCallback(async () => {
     try {
@@ -101,6 +114,7 @@ export default function TournamentSetupPage() {
       setLoading(true);
       await fetchTournament();
       await fetchPlayers();
+      await fetchMats();
       setLoading(false);
     };
     load();
@@ -283,23 +297,36 @@ export default function TournamentSetupPage() {
                               </button>
                             )}
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!setupRefereeName) return;
-                                if (editingMatId) {
-                                  setMatAssignments(prev => prev.map(m => m.id === editingMatId ? { ...m, refereeName: setupRefereeName } : m));
-                                  setEditingMatId(null);
-                                } else {
-                                  // Remove any existing assignment for this mat first just in case
-                                  setMatAssignments(prev => {
-                                    const filtered = prev.filter(m => Number(m.matNumber) !== selectedMatForAssignment);
-                                    return [...filtered, { id: Date.now().toString(), matNumber: selectedMatForAssignment.toString(), refereeName: setupRefereeName }];
-                                  });
+                                setCheckingReferee(true);
+                                try {
+                                  const res = await fetch(`${API_BASE}/referees/search?id=${setupRefereeName}`);
+                                  const data = await res.json();
+                                  if (res.ok) {
+                                    if (editingMatId) {
+                                      setMatAssignments(prev => prev.map(m => m.id === editingMatId ? { ...m, refereeId: data.id, refereeName: data.name } : m));
+                                      setEditingMatId(null);
+                                    } else {
+                                      setMatAssignments(prev => {
+                                        const filtered = prev.filter(m => Number(m.matNumber) !== selectedMatForAssignment);
+                                        return [...filtered, { id: Date.now().toString(), matNumber: selectedMatForAssignment!.toString(), refereeId: data.id, refereeName: data.name }];
+                                      });
+                                    }
+                                    setSetupRefereeName("");
+                                  } else {
+                                    showToast(data.error || "Referee not found", false);
+                                  }
+                                } catch (e) {
+                                  showToast("Error checking referee", false);
+                                } finally {
+                                  setCheckingReferee(false);
                                 }
-                                setSetupRefereeName("");
                               }}
-                              disabled={!setupRefereeName}
-                              className="py-2.5 px-8 bg-[#FF7400] text-white font-black rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-md"
+                              disabled={!setupRefereeName || checkingReferee}
+                              className="py-2.5 px-8 bg-[#FF7400] text-white font-black rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-md flex items-center gap-2"
                             >
+                              {checkingReferee ? <Loader2 size={16} className="animate-spin" /> : null}
                               {editingMatId ? "Update Assignment" : "Assign Referee"}
                             </button>
                           </div>
@@ -324,9 +351,39 @@ export default function TournamentSetupPage() {
         {/* Proceed Action */}
         <div className="pt-6">
           <button
-            onClick={() => router.push(`/dashboard/admin/tournaments/${tournamentId}`)}
+            onClick={async () => {
+              setSavingMats(true);
+              try {
+                // Ensure every configured mat up to totalMatsCount is present in the payload
+                const payloadMats: any[] = [];
+                const maxMats = Number(totalMatsCount) || 1;
+                for (let i = 1; i <= maxMats; i++) {
+                  const assigned = matAssignments.find(m => Number(m.matNumber) === i);
+                  payloadMats.push({
+                    matNumber: i,
+                    refereeId: assigned ? assigned.refereeId : ""
+                  });
+                }
+                const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                  body: JSON.stringify({ assignments: payloadMats })
+                });
+                if (res.ok) {
+                  router.push(`/dashboard/admin/tournaments/${tournamentId}`);
+                } else {
+                  showToast("Failed to save assignments before proceeding", false);
+                  setSavingMats(false);
+                }
+              } catch (e) {
+                showToast("Error saving assignments", false);
+                setSavingMats(false);
+              }
+            }}
+            disabled={savingMats}
             className="w-full py-4 bg-slate-900 text-white font-black text-lg rounded-2xl hover:bg-slate-800 hover:scale-[1.02] transition-all shadow-xl flex items-center justify-center gap-2"
           >
+            {savingMats ? <Loader2 className="animate-spin" size={20} /> : null}
             Proceed to Tournament Hub ↗
           </button>
         </div>

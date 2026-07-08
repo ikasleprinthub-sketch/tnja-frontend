@@ -123,6 +123,27 @@ function ScoreboardInner() {
     if (!tournamentId || !matchId) return;
     const token = localStorage.getItem("token");
 
+    const statusVal = currentWinner ? "COMPLETED" : running ? "IN_PROGRESS" : dbMatchStatus;
+
+    if (!currentWinner) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/matches/${matchId}/state`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scoreA: currentScoreA,
+            scoreB: currentScoreB,
+            logs: currentLogs,
+            timeLeft: timeLeft,
+            status: statusVal
+          })
+        });
+      } catch (err) {
+        console.error("Error syncing match state", err);
+      }
+      return;
+    }
+
     try {
       const getRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000/api"}/tournaments/${tournamentId}/draws`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -139,7 +160,7 @@ function ScoreboardInner() {
           if (m.matchId === matchId) {
             matchFound = true;
             const winnerIdVal = currentWinner ? (currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId")) : null;
-            return { ...m, winnerId: winnerIdVal, status: currentWinner ? "COMPLETED" : running ? "IN_PROGRESS" : m.status, scoreA: currentScoreA, scoreB: currentScoreB, winMethod: currentWinMethod, logs: currentLogs, timeLeft };
+            return { ...m, winnerId: winnerIdVal, status: statusVal, scoreA: currentScoreA, scoreB: currentScoreB, winMethod: currentWinMethod, logs: currentLogs, timeLeft };
           }
           return m;
         }));
@@ -196,7 +217,8 @@ function ScoreboardInner() {
         showToast("Failed to save match: " + errText);
       } else {
         if (currentWinner) {
-          showToast("Match saved successfully!");
+          const winnerName = currentWinner === "A" ? fighterAName : fighterBName;
+          showToast(`Match saved! Winner: ${winnerName} 🏆`);
         }
       }
     } catch (err: any) {
