@@ -878,6 +878,7 @@ export default function TournamentDetailPage() {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const hasPendingPlayers = players.some((p) => p.status === "PENDING");
+  const isMultiCategory = genderFilter === "BOTH" || weightFilter === "ALL" || exactAgeFilter === "ALL" || ageFilter === "ALL";
 
   const filteredPlayers = players.filter((p) => {
     if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
@@ -926,7 +927,7 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const isMultiCategory = genderFilter === "BOTH" || weightFilter === "ALL" || exactAgeFilter === "ALL";
+    // isMultiCategory is now defined globally
 
     if (!isMultiCategory) {
       const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
@@ -2209,7 +2210,23 @@ export default function TournamentDetailPage() {
 
           {/* ── Main content: players list OR bracket ── */}
           <AnimatePresence mode="wait">
-            {!currentDraw?.generated ? (
+            {isMultiCategory ? (
+              <motion.div
+                key="multi-category-placeholder"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-3xl border border-slate-100 shadow-sm p-16 text-center space-y-4"
+              >
+                <Grid size={48} className="mx-auto text-slate-200" />
+                <div>
+                  <p className="text-slate-500 font-bold text-lg">Multi-Category View</p>
+                  <p className="text-slate-400 text-sm mt-1 max-w-md mx-auto">
+                    To view or manually draw a bracket, please select a specific Age Group, Gender, and Weight category above.
+                  </p>
+                </div>
+              </motion.div>
+            ) : !currentDraw?.generated ? (
               /* Player cards list — pre-draw */
               <motion.div
                 key="player-list"
