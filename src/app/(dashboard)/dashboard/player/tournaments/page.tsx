@@ -550,7 +550,7 @@ export default function PlayerTournamentsPage() {
 
                     <div className="mt-auto pt-4 border-t border-slate-100">
                       {/* ── CLOSED: Show placement + Download Certificate ── */}
-                      {tournament.status === "CLOSED" && myReg ? (
+                      {(tournament.status === "CLOSED" || myReg?.isCategoryConcluded) && myReg ? (
                         <div className="space-y-2">
                           {/* Placement badge */}
                           {(() => {

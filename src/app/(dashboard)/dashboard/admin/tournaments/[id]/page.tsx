@@ -53,6 +53,7 @@ interface BracketMatch {
 interface DrawCategory {
   ageGroup: string; exactAge?: number; gender: string; weightCategory: string; matNumber?: number;
   rounds: BracketMatch[][]; generated: boolean; saved: boolean;
+  isConcluded?: boolean;
 }
 
 interface Seeds {
@@ -562,6 +563,7 @@ export default function TournamentDetailPage() {
   const [editingMetrics, setEditingMetrics] = useState<{ regId: string, weight: string, height: string } | null>(null);
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [isConcludeModalOpen, setIsConcludeModalOpen] = useState(false);
+  const [concludingCategoryKey, setConcludingCategoryKey] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; action?: () => void }>({ isOpen: false, title: "", message: "" });
 
   // ── Messaging / Reply State ─────────────────────────────────────────────────
@@ -701,6 +703,54 @@ export default function TournamentDetailPage() {
       }
     } catch {
       showToast("Error submitting results", false);
+    } finally {
+      setSubmittingResults(false);
+    }
+  };
+
+  const handleConcludeCategory = async (key: string, catPlayers: any[]) => {
+    setConcludingCategoryKey(null);
+
+    const draw = draws[key];
+    if (!draw) return;
+
+    const results = catPlayers.map((p) => ({
+      regId: p.id,
+      playerId: p.playerId,
+      placement: placements[p.id] || "PARTICIPATION",
+    }));
+
+    setSubmittingResults(true);
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/results`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          results,
+          ageGroup: draw.ageGroup,
+          exactAge: draw.exactAge || 0,
+          gender: draw.gender,
+          weightCategory: draw.weightCategory,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Category concluded successfully! Certificates are now available for download. 🏆");
+        setDraws(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key]!,
+            isConcluded: true
+          }
+        }));
+        fetchTournament();
+        fetchDraws();
+      } else {
+        showToast(data.error || "Failed to submit category results", false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error submitting category results", false);
     } finally {
       setSubmittingResults(false);
     }
@@ -1179,6 +1229,75 @@ export default function TournamentDetailPage() {
 
   const handleShuffle = () => handleGenerateAndSaveDraw(true);
   const handleGenerateDraw = () => handleGenerateAndSaveDraw(false);
+
+  const handleIndividualShuffleAndSaveDraw = async (
+    key: string,
+    catDrawPlayers: any[],
+    isShuffle = false,
+    isConfirmed = false
+  ) => {
+    const parts = key.split("_");
+    const ageGroup = parts[0];
+    const exactAge = Number(parts[1] || 0);
+    const gender = parts[2];
+    const weightCategory = parts[3];
+
+    const draw = draws[key];
+
+    const hasActiveMatches = draw?.rounds && (draw.rounds as BracketMatch[][]).some(round => 
+      round.some(m => m.status === "IN_PROGRESS" || m.status === "COMPLETED")
+    );
+
+    if (hasActiveMatches) {
+      showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+      return;
+    }
+
+    if (isShuffle && draw?.generated && !isConfirmed) {
+      setConfirmModal({
+        isOpen: true,
+        title: "Re-shuffle Bracket",
+        message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
+        action: () => handleIndividualShuffleAndSaveDraw(key, catDrawPlayers, isShuffle, true)
+      });
+      return;
+    }
+
+    const catSeeds: Seeds = {
+      1: catDrawPlayers.find(p => p.seedNumber === 1) || null,
+      2: catDrawPlayers.find(p => p.seedNumber === 2) || null,
+      3: catDrawPlayers.find(p => p.seedNumber === 3) || null,
+      4: catDrawPlayers.find(p => p.seedNumber === 4) || null,
+    };
+
+    const rawRounds = generateIJFBracket(catDrawPlayers, catSeeds);
+    const rounds = processByeMatches(rawRounds);
+
+    try {
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ageGroup,
+          exactAge,
+          gender,
+          weightCategory,
+          matNumber: draw?.matNumber || 1,
+          rounds,
+        }),
+      });
+
+      if (res.ok) {
+        showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
+        await fetchDraws();
+      } else {
+        showToast("Failed to save individual draw", false);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error saving draw", false);
+    }
+  };
 
   const handleAutoGenerateAllDraws = async () => {
     if (players.length === 0) {
