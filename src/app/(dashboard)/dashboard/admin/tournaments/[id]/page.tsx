@@ -770,6 +770,7 @@ export default function TournamentDetailPage() {
 
   // ── Fetch tournament ────────────────────────────────────────────────────────
   const fetchTournament = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -805,6 +806,7 @@ export default function TournamentDetailPage() {
 
   // ── Fetch registered players ────────────────────────────────────────────────
   const fetchPlayers = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -941,6 +943,7 @@ export default function TournamentDetailPage() {
 
   // ── Fetch existing draws ────────────────────────────────────────────────────
   const fetchDraws = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1054,377 +1057,87 @@ export default function TournamentDetailPage() {
 
     // isMultiCategory is now defined globally
 
-    if (!isMultiCategory) {
-      const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
-      if (hasActive) {
-        showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+    if (isMultiCategory) {
+      showToast("Please select a specific category (Age, Gender, Weight) to Generate or Shuffle the draw.", false);
+      return;
+    }
+
+    const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+    if (hasActive) {
+      showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
+      return;
+    }
+
+    if (isShuffle && currentDraw?.generated) {
+      if (!isConfirmed) {
+        setConfirmModal({
+          isOpen: true,
+          title: "Re-shuffle Bracket",
+          message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
+          action: () => handleGenerateAndSaveDraw(isShuffle, true)
+        });
         return;
       }
-
-      if (isShuffle && currentDraw?.generated) {
-        if (!isConfirmed) {
-          setConfirmModal({
-            isOpen: true,
-            title: "Re-shuffle Bracket",
-            message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
-            action: () => handleGenerateAndSaveDraw(isShuffle, true)
-          });
-          return;
-        }
-      }
-
-      setDrawPhase(isShuffle ? "shuffling" : "dealing");
-      if (isShuffle) setShuffleKey(k => k + 1);
-      
-      const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
-      const rounds = processByeMatches(rawRounds);
-      
-      setTimeout(async () => {
-        const newDraw = {
-          ageGroup: ageFilter, gender: genderFilter,
-          weightCategory: weightFilter, rounds, generated: true, saved: false,
-        };
-
-        setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
-        setDrawPhase("done");
-        
-        setSaving(true);
-        try {
-          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ageGroup: newDraw.ageGroup, 
-              exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
-              gender: newDraw.gender,
-              weightCategory: newDraw.weightCategory, 
-              matNumber: currentDraw?.matNumber || 1,
-              rounds: newDraw.rounds,
-            }),
-          });
-          if (res.ok) {
-            const updatedDraw = await res.json();
-            let backendRounds = updatedDraw.draw?.rounds || newDraw.rounds;
-            if (typeof backendRounds === "string") {
-              try { backendRounds = JSON.parse(backendRounds); } catch (err) {}
-            }
-            if (!Array.isArray(backendRounds)) backendRounds = newDraw.rounds;
-
-            setDraws((prev) => ({
-              ...prev,
-              [currentKey]: {
-                ...newDraw,
-                rounds: backendRounds,
-                saved: true
-              }
-            }));
-            showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
-            // NOTE: Do NOT call fetchDraws() here. The local state is already correctly
-            // set under currentKey. fetchDraws() would overwrite it with server data
-            // keyed by exactAge=0→"ALL", causing a key mismatch that makes currentDraw
-            // undefined — which hides the bracket and list toggle.
-          } else {
-            showToast("Failed to auto-save draw", false);
-          }
-        } catch { showToast("Error auto-saving draw", false); }
-        finally { setSaving(false); }
-      }, isShuffle ? 900 : 700);
-      return;
     }
 
-    // MULTI-CATEGORY LOGIC
-    const categoryGroups: Record<string, any[]> = {};
-    eligiblePlayers.forEach((p) => {
-      const key = categoryKey(p.ageGroup, String(p.exactAge || 0), p.gender, String(p.weight));
-      if (!categoryGroups[key]) categoryGroups[key] = [];
-      categoryGroups[key].push(p);
-    });
-
-    let skippedActive = 0;
-    const groupsToProcess = Object.entries(categoryGroups).filter(([catKey, catPlayers]) => {
-      if (catPlayers.length < 2) return false;
-      const draw = draws[catKey];
-      const hasActive = draw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
-      if (hasActive) {
-        skippedActive++;
-        return false;
-      }
-      return true;
-    });
-
-    if (groupsToProcess.length === 0) {
-      showToast(skippedActive > 0 ? "All eligible categories already have active matches." : "No categories found with 2 or more players", false);
-      return;
-    }
-
-    let confirmMsg = `This will generate/shuffle draws for ${groupsToProcess.length} sub-categories simultaneously.`;
-    if (skippedActive > 0) confirmMsg += `\n\n(Skipped ${skippedActive} categories because they have active matches.)`;
+    setDrawPhase(isShuffle ? "shuffling" : "dealing");
+    if (isShuffle) setShuffleKey(k => k + 1);
     
-    if (!isConfirmed) {
-      setConfirmModal({
-        isOpen: true,
-        title: "Bulk Generate / Shuffle",
-        message: confirmMsg,
-        action: () => handleGenerateAndSaveDraw(isShuffle, true)
-      });
-      return;
-    }
+    const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
+    const rounds = processByeMatches(rawRounds);
+    
+    setTimeout(async () => {
+      const newDraw = {
+        ageGroup: ageFilter, gender: genderFilter,
+        weightCategory: weightFilter, rounds, generated: true, saved: false,
+      };
 
-    setAutoGenerating(true);
-    let successCount = 0;
-    const matsCount = tournament?.numberOfMats || 1;
-    const matLoads = new Array(matsCount).fill(0);
-
-    try {
-      const sortedCategories = groupsToProcess.sort((a, b) => b[1].length - a[1].length);
-
-      for (const [key, catPlayers] of sortedCategories) {
-        const firstPlayer = catPlayers[0];
-        const ageGroup = firstPlayer.ageGroup;
-        const exactAge = firstPlayer.exactAge || 0;
-        const gender = firstPlayer.gender;
-        const weightCategory = String(firstPlayer.weight);
-        const displayLabel = `${ageGroup} (${exactAge}y) ${gender} ${weightCategory}kg`;
-
-        setAutoGenProgress(`Generating & saving draw for ${displayLabel}...`);
-
-        const emptySeeds = { 1: null, 2: null, 3: null, 4: null };
-        const rounds = processByeMatches(generateIJFBracket(catPlayers, emptySeeds));
-
-        let minLoad = Infinity;
-        let assignedMatIdx = 0;
-        for (let i = 0; i < matsCount; i++) {
-          if (matLoads[i] < minLoad) {
-            minLoad = matLoads[i];
-            assignedMatIdx = i;
+      setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
+      setDrawPhase("done");
+      
+      setSaving(true);
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ageGroup: newDraw.ageGroup, 
+            exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
+            gender: newDraw.gender,
+            weightCategory: newDraw.weightCategory, 
+            matNumber: currentDraw?.matNumber || 1,
+            rounds: newDraw.rounds,
+          }),
+        });
+        if (res.ok) {
+          const updatedDraw = await res.json();
+          let backendRounds = updatedDraw.draw?.rounds || newDraw.rounds;
+          if (typeof backendRounds === "string") {
+            try { backendRounds = JSON.parse(backendRounds); } catch (err) {}
           }
-        }
-        matLoads[assignedMatIdx] += Math.max(1, catPlayers.length - 1);
-        const matNumber = assignedMatIdx + 1;
+          if (!Array.isArray(backendRounds)) backendRounds = newDraw.rounds;
 
-        try {
-          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ageGroup, exactAge, gender, weightCategory, matNumber, rounds,
-            }),
-          });
-          if (res.ok) successCount++;
-        } catch (err) {
-          console.error(`Error saving draw for ${key}:`, err);
+          setDraws((prev) => ({
+            ...prev,
+            [currentKey]: {
+              ...newDraw,
+              rounds: backendRounds,
+              saved: true
+            }
+          }));
+          showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
+        } else {
+          showToast("Failed to auto-save draw", false);
         }
-      }
-
-      showToast(`Successfully generated/shuffled draws for ${successCount} categories!`);
-      await fetchDraws();
-    } catch (err) {
-      console.error("Error in bulk shuffle:", err);
-      showToast("An error occurred during bulk generation", false);
-    } finally {
-      setAutoGenerating(false);
-      setAutoGenProgress("");
-    }
+      } catch { showToast("Error auto-saving draw", false); }
+      finally { setSaving(false); }
+    }, isShuffle ? 900 : 700);
   };
 
   const handleShuffle = () => handleGenerateAndSaveDraw(true);
   const handleGenerateDraw = () => handleGenerateAndSaveDraw(false);
 
-  const handleIndividualShuffleAndSaveDraw = async (
-    key: string,
-    catDrawPlayers: any[],
-    isShuffle = false,
-    isConfirmed = false
-  ) => {
-    const parts = key.split("_");
-    const ageGroup = parts[0];
-    const exactAge = Number(parts[1] || 0);
-    const gender = parts[2];
-    const weightCategory = parts[3];
 
-    const draw = draws[key];
-
-    const hasActiveMatches = draw?.rounds && (draw.rounds as BracketMatch[][]).some(round => 
-      round.some(m => m.status === "IN_PROGRESS" || m.status === "COMPLETED")
-    );
-
-    if (hasActiveMatches) {
-      showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
-      return;
-    }
-
-    if (isShuffle && draw?.generated && !isConfirmed) {
-      setConfirmModal({
-        isOpen: true,
-        title: "Re-shuffle Bracket",
-        message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
-        action: () => handleIndividualShuffleAndSaveDraw(key, catDrawPlayers, isShuffle, true)
-      });
-      return;
-    }
-
-    const catSeeds: Seeds = {
-      1: catDrawPlayers.find(p => p.seedNumber === 1) || null,
-      2: catDrawPlayers.find(p => p.seedNumber === 2) || null,
-      3: catDrawPlayers.find(p => p.seedNumber === 3) || null,
-      4: catDrawPlayers.find(p => p.seedNumber === 4) || null,
-    };
-
-    const rawRounds = generateIJFBracket(catDrawPlayers, catSeeds);
-    const rounds = processByeMatches(rawRounds);
-
-    try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ageGroup,
-          exactAge,
-          gender,
-          weightCategory,
-          matNumber: draw?.matNumber || 1,
-          rounds,
-        }),
-      });
-
-      if (res.ok) {
-        showToast(isShuffle ? "Bracket re-shuffled and auto-saved! 🏆" : "Draw generated and auto-saved! 🏆");
-        await fetchDraws();
-      } else {
-        showToast("Failed to save individual draw", false);
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Error saving draw", false);
-    }
-  };
-
-  const handleAutoGenerateAllDraws = async () => {
-    if (players.length === 0) {
-      showToast("No players registered in the tournament", false);
-      return;
-    }
-
-    // Filter players based on current age and gender dropdowns (ignore weight filter to generate all weights)
-    const targetPlayers = players.filter((p) => {
-      if (p.status !== "APPROVED") return false;
-      if (ageFilter !== "ALL" && p.ageGroup !== ageFilter) return false;
-      if (exactAgeFilter !== "ALL" && String(p.exactAge) !== exactAgeFilter) return false;
-      if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
-      return true;
-    });
-
-    if (targetPlayers.length === 0) {
-      showToast("No players found for the selected Age and Gender.", false);
-      return;
-    }
-
-    // Group players by category
-    const categoryGroups: Record<string, RegisteredPlayer[]> = {};
-    targetPlayers.forEach((p) => {
-      const key = categoryKey(p.ageGroup, String(p.exactAge || 0), p.gender, String(p.weight));
-      if (!categoryGroups[key]) categoryGroups[key] = [];
-      categoryGroups[key].push(p);
-    });
-
-    // Filter categories with 2 or more players AND no active matches
-    let skippedActive = 0;
-    const eligibleCategories = Object.entries(categoryGroups).filter(([catKey, catPlayers]) => {
-      if (catPlayers.length < 2) return false;
-      const draw = draws[catKey];
-      const hasActive = draw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
-      if (hasActive) {
-        skippedActive++;
-        return false;
-      }
-      return true;
-    });
-
-    if (eligibleCategories.length === 0) {
-      showToast(skippedActive > 0 ? "All eligible categories already have active matches." : "No categories found with 2 or more players", false);
-      return;
-    }
-
-    let confirmMsg = `Found ${eligibleCategories.length} eligible categories. This will auto-shuffle and generate draws for them.`;
-    if (skippedActive > 0) confirmMsg += `\n\n(Skipped ${skippedActive} categories because they already have active matches.)`;
-    confirmMsg += `\n\nProceed?`;
-    
-    if (!window.confirm(confirmMsg)) return;
-
-    setAutoGenerating(true);
-    let successCount = 0;
-    
-    // Distribute matches evenly across available mats
-    const matsCount = tournament?.numberOfMats || 1;
-    const matLoads = new Array(matsCount).fill(0); // Track estimated matches per mat
-
-    try {
-      // Sort categories by size descending for better packing
-      const sortedCategories = eligibleCategories.sort((a, b) => b[1].length - a[1].length);
-
-      for (const [key, catPlayers] of sortedCategories) {
-        const firstPlayer = catPlayers[0];
-        const ageGroup = firstPlayer.ageGroup;
-        const exactAge = firstPlayer.exactAge || 0;
-        const gender = firstPlayer.gender;
-        const weightCategory = String(firstPlayer.weight);
-        const displayLabel = `${ageGroup} (${exactAge}y) ${gender} ${weightCategory}kg`;
-
-        setAutoGenProgress(`Generating & saving draw for ${displayLabel}...`);
-
-        const emptySeeds: Seeds = { 1: null, 2: null, 3: null, 4: null };
-        const rounds = processByeMatches(generateIJFBracket(catPlayers, emptySeeds));
-
-        // Find mat with least load
-        let minLoad = Infinity;
-        let assignedMatIdx = 0;
-        for (let i = 0; i < matsCount; i++) {
-          if (matLoads[i] < minLoad) {
-            minLoad = matLoads[i];
-            assignedMatIdx = i;
-          }
-        }
-        
-        // Add estimated matches to this mat's load (approx N-1 matches for knockout)
-        matLoads[assignedMatIdx] += Math.max(1, catPlayers.length - 1);
-        const matNumber = assignedMatIdx + 1;
-
-        try {
-          const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ageGroup,
-              exactAge,
-              gender,
-              weightCategory,
-              matNumber,
-              rounds,
-            }),
-          });
-          if (res.ok) {
-            successCount++;
-          } else {
-            console.error(`Failed to save draw for ${key}`);
-          }
-        } catch (err) {
-          console.error(`Error saving draw for ${key}:`, err);
-        }
-      }
-
-      showToast(`Successfully auto-generated and saved draws for ${successCount} categories!`);
-      await fetchDraws();
-    } catch (err) {
-      console.error("Error in bulk draw generation:", err);
-      showToast("An error occurred during bulk generation", false);
-    } finally {
-      setAutoGenerating(false);
-      setAutoGenProgress("");
-    }
-  };
 
   const openScoreboard = (match: BracketMatch) => {
     const p = new URLSearchParams({
@@ -1560,6 +1273,15 @@ export default function TournamentDetailPage() {
     }
   }, [genderFilter, availableAgeGroupsGlobal.join(",")]);
 
+  const groupPlayersGlobal = players.filter(p => (genderFilter === "BOTH" || p.gender === genderFilter) && p.ageGroup === ageFilter);
+  const availableWeightsGlobal = [...new Set(groupPlayersGlobal.map(p => String(p.weight)))].sort((a, b) => +a - +b);
+
+  useEffect(() => {
+    if (availableWeightsGlobal.length > 0 && !availableWeightsGlobal.includes(weightFilter) && weightFilter !== "ALL") {
+      setWeightFilter("ALL");
+    }
+  }, [ageFilter, genderFilter, availableWeightsGlobal.join(",")]);
+
   // ── Category filters UI ─────────────────────────────────────────────────────
   const renderCategoryFilters = () => {
     // 1. Gender Selection
@@ -1573,8 +1295,8 @@ export default function TournamentDetailPage() {
     const availableAgeGroups = availableAgeGroupsGlobal;
 
     // 3. Weights and Exact Ages for selected gender + ageGroup
-    const groupPlayers = players.filter(p => (genderFilter === "BOTH" || p.gender === genderFilter) && p.ageGroup === ageFilter);
-    const availableWeights = [...new Set(groupPlayers.map(p => String(p.weight)))].sort((a, b) => +a - +b);
+    const groupPlayers = groupPlayersGlobal;
+    const availableWeights = availableWeightsGlobal;
     const availableExactAges = [...new Set(groupPlayers.map(p => String(p.exactAge || 0)))].sort((a, b) => +a - +b);
     
     // Remove "0" from exact ages if it's there
@@ -2466,15 +2188,6 @@ export default function TournamentDetailPage() {
                       : <><Zap size={16} /> Generate & Save Bracket</>}
                   </button>
                 )}
-                <button onClick={handleAutoGenerateAllDraws}
-                  disabled={players.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {autoGenerating ? (
-                    <><Loader2 size={15} className="animate-spin" /> Generating All...</>
-                  ) : (
-                    <><Zap size={16} /> Auto-Generate {ageFilter === "ALL" ? "All Categories" : ageFilter}</>
-                  )}
-                </button>
                 {currentDraw?.saved && (
                   <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
                     <Check size={16} /> Auto-Saved ✓
@@ -2483,14 +2196,6 @@ export default function TournamentDetailPage() {
               </>
             )}
           </div>
-
-          {/* Progress status for bulk auto generation */}
-          {autoGenerating && (
-            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center gap-3">
-              <Loader2 className="animate-spin text-indigo-600 shrink-0" size={18} />
-              <span className="text-sm font-bold text-indigo-700">{autoGenProgress}</span>
-            </div>
-          )}
 
           {/* Seed pills */}
           <div className="flex flex-wrap gap-2">

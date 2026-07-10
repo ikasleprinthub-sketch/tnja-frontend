@@ -49,6 +49,7 @@ export default function TournamentSetupPage() {
   const [checkingReferee, setCheckingReferee] = useState(false);
   
   const fetchMats = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -72,6 +73,7 @@ export default function TournamentSetupPage() {
   }, [tournamentId, token]);
 
   const fetchTournament = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -81,6 +83,7 @@ export default function TournamentSetupPage() {
   }, [tournamentId, token]);
 
   const fetchPlayers = useCallback(async () => {
+    if (!tournamentId) return;
     try {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations`, {
         headers: { Authorization: `Bearer ${token}` },
