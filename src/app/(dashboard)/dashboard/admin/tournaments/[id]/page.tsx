@@ -98,6 +98,30 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
+function clubSeparatedShuffle(players: RegisteredPlayer[]): RegisteredPlayer[] {
+  const shuffled = shuffleArray(players);
+  const clubGroups: Record<string, RegisteredPlayer[]> = {};
+  for (const p of shuffled) {
+    if (!clubGroups[p.club]) clubGroups[p.club] = [];
+    clubGroups[p.club].push(p);
+  }
+  
+  const sortedClubs = Object.values(clubGroups).sort((a, b) => b.length - a.length);
+  const result: RegisteredPlayer[] = [];
+  
+  let hasMore = true;
+  while (hasMore) {
+    hasMore = false;
+    for (const group of sortedClubs) {
+      if (group.length > 0) {
+        result.push(group.shift()!);
+        hasMore = true;
+      }
+    }
+  }
+  return result;
+}
+
 // ─── IJF Bracket Generator ────────────────────────────────────────────────────
 function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketMatch[][] {
   const N = nextPow2(Math.max(players.length, 2));
@@ -114,7 +138,7 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
   const seededIds = new Set(
     [seeds[1], seeds[2], seeds[3], seeds[4]].filter(Boolean).map((p) => p!.id)
   );
-  const nonSeeded = shuffleArray(players.filter((p) => !seededIds.has(p.id)));
+  const nonSeeded = clubSeparatedShuffle(players.filter((p) => !seededIds.has(p.id)));
 
   // Determine which matches get a BYE to distribute them evenly and avoid BYE vs BYE
   const byeMatches = new Set<number>();

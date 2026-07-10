@@ -76,16 +76,23 @@ export default function PlayerTournamentsPage() {
   const [physicalDetails, setPhysicalDetails] = useState({ height: "", weight: "", category: "" });
   const [coaches, setCoaches] = useState<any[]>([]);
 
-  const getEligibleCategories = (age: number): string[] => {
+  const getEligibleCategoriesByBirthYear = (dobString?: string): string[] => {
+    if (!dobString) return [];
+    const birthYear = new Date(dobString).getFullYear();
     const eligible: string[] = [];
-    if (age >= 6 && age <= 7) eligible.push("Mini Sub-Junior Age Group 1");
-    if (age >= 8 && age <= 9) eligible.push("Mini Sub-Junior Age Group 2");
-    if (age >= 10 && age <= 11) eligible.push("Mini Sub-Junior Age Group 3");
-    if (age >= 12 && age <= 14) eligible.push("Sub-Junior");
-    if (age >= 15 && age <= 17) eligible.push("Cadet");
-    if (age >= 15 && age <= 20) eligible.push("Junior");
-    if (age >= 15) eligible.push("Senior");
-    if (age >= 35) eligible.push("Veteran");
+    
+    if (birthYear === 2018 || birthYear === 2019) eligible.push("Mini Sub-Junior Age Group 1");
+    if (birthYear === 2016 || birthYear === 2017) eligible.push("Mini Sub-Junior Age Group 2");
+    if (birthYear === 2014 || birthYear === 2015) eligible.push("Mini Sub-Junior Age Group 3");
+    
+    if (birthYear >= 2011 && birthYear <= 2013) eligible.push("Sub-Junior");
+    if (birthYear >= 2008 && birthYear <= 2010) eligible.push("Cadet");
+    if (birthYear >= 2005 && birthYear <= 2010) eligible.push("Junior");
+    if (birthYear <= 2010) eligible.push("Senior");
+    
+    const currentYear = new Date().getFullYear();
+    if (currentYear - birthYear >= 35) eligible.push("Veteran");
+    
     return eligible;
   };
 
@@ -426,7 +433,12 @@ export default function PlayerTournamentsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence mode="wait">
             {currentList.map((tournament) => {
-              const myReg = tournament.myRegistration;
+              const myRegs = tournament.myRegistrations || (tournament.myRegistration ? [tournament.myRegistration] : []);
+              const myReg = myRegs.length > 0 ? myRegs[0] : null;
+              const eligibleCats = playerData?.dob ? getEligibleCategoriesByBirthYear(playerData.dob) : [];
+              const availableCats = eligibleCats.filter(cat => !myRegs.some((r: any) => r.ageGroup === cat));
+              const isFullyRegistered = eligibleCats.length > 0 && availableCats.length === 0;
+
               const isFull = tournament.registrationClosed;
               const isPayingThis = paying === tournament.id;
               const isFree = tournament.entryFee === 0 || (tournament.allowBPL && playerData?.isBPL);
@@ -569,15 +581,6 @@ export default function PlayerTournamentsPage() {
                         <div className="w-full py-3 text-center text-sm font-bold rounded-xl bg-slate-100 text-slate-400 border border-slate-200">
                           Tournament Closed
                         </div>
-                      ) : myReg ? (
-                        /* APPROVED — registered */
-                        <div
-                          className={`w-full py-3 text-center text-sm font-bold rounded-xl border ${
-                            regStatusConfig[myReg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"
-                          }`}
-                        >
-                          {regStatusConfig[myReg.status]?.label || myReg.status}
-                        </div>
                       ) : !isMemberPaid ? (
                         <div className="w-full py-3 flex items-center justify-center gap-2 text-sm font-bold rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
                           <Lock size={14} /> Pay Membership to Join
@@ -587,26 +590,35 @@ export default function PlayerTournamentsPage() {
                           Tournament Full
                         </div>
                       ) : (
-                        <button
-                          onClick={() => {
-                            setRegisterModal(tournament);
-                            setPhysicalDetails({
-                              height: playerData?.height || "",
-                              weight: playerData?.weight || "",
-                              category: "",
-                            });
-                          }}
-                          disabled={isPayingThis}
-                          className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                        >
-                          {isPayingThis ? (
-                            <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                          ) : isFree ? (
-                            <>Register (Free) <ArrowRight size={16} /></>
-                          ) : (
-                            <>Pay &#x20B9;{tournament.entryFee} &amp; Register <ArrowRight size={16} /></>
+                        <div className="flex flex-col gap-2">
+                          {myRegs.map((reg: any) => (
+                            <div key={reg.id} className={`w-full py-2 text-center text-xs font-bold rounded-xl border ${regStatusConfig[reg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                              {reg.ageGroup} - {regStatusConfig[reg.status]?.label || reg.status}
+                            </div>
+                          ))}
+                          {!isFullyRegistered && (
+                            <button
+                              onClick={() => {
+                                setRegisterModal(tournament);
+                                setPhysicalDetails({
+                                  height: playerData?.height || "",
+                                  weight: playerData?.weight || "",
+                                  category: "",
+                                });
+                              }}
+                              disabled={isPayingThis}
+                              className="w-full py-3 bg-[#FF7400] text-white text-sm font-bold rounded-xl shadow-md shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                            >
+                              {isPayingThis ? (
+                                <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                              ) : isFree ? (
+                                <>Register (Free) <ArrowRight size={16} /></>
+                              ) : (
+                                <>Pay &#x20B9;{tournament.entryFee} &amp; Register <ArrowRight size={16} /></>
+                              )}
+                            </button>
                           )}
-                        </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -651,17 +663,24 @@ export default function PlayerTournamentsPage() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
                     Age Group Category
                   </label>
-                  <select
-                    value={physicalDetails.category}
-                    onChange={(e) => setPhysicalDetails({ ...physicalDetails, category: e.target.value })}
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all text-slate-700 font-semibold"
-                  >
-                    <option value="" disabled>Select your category...</option>
-                    {(playerData?.age ? getEligibleCategories(playerData.age) : []).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
+                  <div className="flex flex-wrap gap-2 justify-start">
+                    {(playerData?.dob ? getEligibleCategoriesByBirthYear(playerData.dob) : [])
+                      .filter(cat => !(registerModal?.myRegistrations || (registerModal?.myRegistration ? [registerModal.myRegistration] : [])).some((r: any) => r.ageGroup === cat))
+                      .map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setPhysicalDetails({ ...physicalDetails, category: cat })}
+                          className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                            physicalDetails.category === cat
+                              ? "bg-slate-800 text-white border-slate-800 shadow-lg"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                          }`}
+                        >
+                          {cat}
+                        </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
