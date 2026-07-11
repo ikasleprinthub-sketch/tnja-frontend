@@ -25,6 +25,7 @@ import {
   UserCheck,
   Download,
   Bell,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { exportMatchToPDF } from "@/utils/pdfExport";
@@ -69,6 +70,10 @@ export default function PlayerDashboard() {
   const [playerNotifications, setPlayerNotifications] = useState<any[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<any[]>([]);
   const [completedMatches, setCompletedMatches] = useState<any[]>([]);
+  const [registeredCategories, setRegisteredCategories] = useState<{ tournamentId: string; tournamentName: string; category: string; status: string; ageGroup: string; gender: string; weightCategory: string; }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [categoryParticipants, setCategoryParticipants] = useState<any[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [tournamentWins, setTournamentWins] = useState<{ tournamentId: string; tournamentName: string; category: string }[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>({});
@@ -177,6 +182,25 @@ export default function PlayerDashboard() {
     };
   }, []);
 
+  const handleCategoryClick = async (cat: any) => {
+    setSelectedCategory(cat);
+    setLoadingParticipants(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/player/category-participants?tournamentId=${cat.tournamentId}&ageGroup=${cat.ageGroup}&gender=${cat.gender}&weightCategory=${cat.weightCategory}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategoryParticipants(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingParticipants(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -242,8 +266,33 @@ export default function PlayerDashboard() {
 
         const matches: any[] = [];
         const completed: any[] = [];
+        const cats: { tournamentId: string; tournamentName: string; category: string; status: string; ageGroup: string; gender: string; weightCategory: string; }[] = [];
 
           for (const trn of tournaments) {
+            if (trn.myRegistrations && trn.myRegistrations.length > 0) {
+              trn.myRegistrations.forEach((reg: any) => {
+                cats.push({
+                  tournamentId: trn.id,
+                  tournamentName: trn.title,
+                  category: `${reg.ageGroup} ${reg.gender} - ${reg.weightCategory}kg`,
+                  status: reg.status,
+                  ageGroup: reg.ageGroup,
+                  gender: reg.gender,
+                  weightCategory: reg.weightCategory
+                });
+              });
+            } else if (trn.myRegistration) {
+              cats.push({
+                tournamentId: trn.id,
+                tournamentName: trn.title,
+                category: `${trn.myRegistration.ageGroup} ${trn.myRegistration.gender} - ${trn.myRegistration.weightCategory}kg`,
+                status: trn.myRegistration.status,
+                ageGroup: trn.myRegistration.ageGroup,
+                gender: trn.myRegistration.gender,
+                weightCategory: trn.myRegistration.weightCategory
+              });
+            }
+
             if (trn.myRegistration && (trn.myRegistration.status === "APPROVED" || trn.myRegistration.status === "PENDING")) {
               const drawRes = await fetch(`${API_BASE}/tournaments/${trn.id}/draws`, {
                 headers: { "Authorization": `Bearer ${token}` }
@@ -281,7 +330,10 @@ export default function PlayerDashboard() {
                           rawMatch: match,
                           winnerSlot: match.winnerId === match.slotA.playerId ? match.slotA : match.slotB,
                           loserSlot: match.winnerId === match.slotA.playerId ? match.slotB : match.slotA,
-                          nextMatchInfo: null // simple stub
+                          nextMatchInfo: null, // simple stub
+                          weightCategory: draw.weightCategory,
+                          ageGroup: draw.ageGroup,
+                          gender: draw.gender
                         };
 
                         if (match.status !== "COMPLETED") {
@@ -306,6 +358,7 @@ export default function PlayerDashboard() {
           }
           setUpcomingMatches(matches);
           setCompletedMatches(completed.sort((a, b) => new Date(b.tournamentDate).getTime() - new Date(a.tournamentDate).getTime()));
+          setRegisteredCategories(cats);
 
           // Detect tournament wins (player won the final round)
           const wins: { tournamentId: string; tournamentName: string; category: string }[] = [];
@@ -499,8 +552,9 @@ export default function PlayerDashboard() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <>
+      <div className="max-w-6xl mx-auto space-y-8 pb-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Player Dashboard</h1>
           <p className="text-slate-500">Welcome back, {playerData.fullName.split(" ")[0]}</p>
@@ -865,6 +919,11 @@ export default function PlayerDashboard() {
                           </div>
                           
                           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                            {match.ageGroup && match.weightCategory && (
+                              <div className="flex items-center gap-1.5 bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg border border-orange-100 shadow-sm font-black">
+                                <Scale size={14} /> {match.ageGroup} {match.gender} - {match.weightCategory}kg
+                              </div>
+                            )}
                             {match.rawMatch?.status === "LIVE" && (
                               <div className="flex items-center gap-1.5 bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 text-red-700 font-black shadow-sm">
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span> LIVE
@@ -956,6 +1015,11 @@ export default function PlayerDashboard() {
                             <h4 className="font-bold text-slate-800 text-lg leading-tight">{match.tournamentName}</h4>
                             
                             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                              {match.ageGroup && match.weightCategory && (
+                                <span className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-100 shadow-sm font-black">
+                                  <Scale size={14} /> {match.ageGroup} {match.gender} - {match.weightCategory}kg
+                                </span>
+                              )}
                               <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><Calendar size={14} className="text-[#FF7400]"/> {new Date(match.tournamentDate).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</span>
                               <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"><MapPin size={14} className="text-[#FF7400]" /> {match.tournamentLocation}</span>
                               <span className="flex items-center gap-1.5 text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md"><Hash size={14} /> Round {match.roundNum}</span>
@@ -1044,6 +1108,43 @@ export default function PlayerDashboard() {
           )}
         {/* Additional Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          {/* Registered Categories Card */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm md:col-span-2">
+            <h4 className="font-bold text-[#1A1A1A] mb-4 flex items-center gap-2">
+              <Scale size={20} className="text-[#FF7400]" /> 
+              Registered Weight Categories
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {registeredCategories.length > 0 ? (
+                registeredCategories.map((cat, idx) => (
+                  <div key={idx} onClick={() => handleCategoryClick(cat)} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer hover:border-[#FF7400] hover:shadow-md transition-all group">
+                    <p className="text-sm font-bold text-slate-800 mb-1">{cat.tournamentName}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs font-semibold px-2 py-1 bg-orange-100 text-orange-700 rounded-md whitespace-nowrap">
+                        {cat.category}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider whitespace-nowrap ${
+                        cat.status === "APPROVED" ? "bg-green-100 text-green-700" :
+                        cat.status === "REJECTED" ? "bg-red-100 text-red-700" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {cat.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-xs font-bold text-[#FF7400] flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Users size={14} /> View Participants
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-6">
+                  <p className="text-sm text-gray-500">No categories registered yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
             <h4 className="font-bold text-[#1A1A1A] mb-4">Membership Status</h4>
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl mb-4">
@@ -1091,6 +1192,86 @@ export default function PlayerDashboard() {
         </div>
       </div>
       </div>
-    </div>
+      </div>
+
+      <AnimatePresence>
+        {selectedCategory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <Users size={24} className="text-[#FF7400]" />
+                    Participants List
+                  </h3>
+                  <p className="text-sm font-bold text-slate-500 mt-1">{selectedCategory.tournamentName}</p>
+                  <span className="inline-block mt-2 px-3 py-1 bg-orange-100 text-[#FF7400] text-xs font-black rounded-lg uppercase tracking-wider">
+                    {selectedCategory.category}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="p-2 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors"
+                >
+                  <XCircle size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto bg-white flex-1">
+                {loadingParticipants ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+                    <Loader2 size={32} className="animate-spin text-[#FF7400]" />
+                    <p className="text-sm font-bold">Loading participants...</p>
+                  </div>
+                ) : categoryParticipants.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+                    <Users size={48} className="opacity-20" />
+                    <p className="font-bold text-lg text-slate-500">No participants yet</p>
+                    <p className="text-sm text-slate-400 text-center max-w-sm">No one else has registered for this weight category yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-2 mb-2">
+                      <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Player Info</span>
+                      <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{categoryParticipants.length} Participants</span>
+                    </div>
+                    {categoryParticipants.map((p, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 hover:border-[#FF7400]/30 hover:bg-orange-50/10 transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 font-bold flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-800">{p.name}</h4>
+                            <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 mt-1">
+                              <MapPin size={12} /> {p.district} • {p.club}
+                            </p>
+                          </div>
+                        </div>
+                        {p.name === playerData.fullName && (
+                          <span className="px-3 py-1 bg-[#FF7400]/10 text-[#FF7400] text-xs font-bold rounded-lg border border-[#FF7400]/20 self-start sm:self-auto">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

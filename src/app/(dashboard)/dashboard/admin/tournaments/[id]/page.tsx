@@ -1048,33 +1048,42 @@ export default function TournamentDetailPage() {
     setAssigningSeed(null);
   };
 
-  const handleGenerateAndSaveDraw = async (isShuffle = false, isConfirmed = false) => {
+  const handleGenerateAndSaveDraw = async (
+    isShuffle = false,
+    isConfirmed = false,
+    explicitCat?: { ageGroup: string; exactAge: string; gender: string; weightCategory: string; players: RegisteredPlayer[]; key: string; draw: DrawCategory | undefined }
+  ) => {
+    const activeKey = explicitCat ? explicitCat.key : currentKey;
+    const activeDraw = explicitCat ? explicitCat.draw : currentDraw;
+    const activePlayers = explicitCat ? explicitCat.players : eligiblePlayers;
+    const activeAgeGrp = explicitCat ? explicitCat.ageGroup : ageFilter;
+    const activeExactAge = explicitCat ? explicitCat.exactAge : exactAgeFilter;
+    const activeGender = explicitCat ? explicitCat.gender : genderFilter;
+    const activeWeight = explicitCat ? explicitCat.weightCategory : weightFilter;
 
-    if (eligiblePlayers.length < 2) {
+    if (activePlayers.length < 2) {
       showToast("Need at least 2 approved players to generate a draw", false);
       return;
     }
 
-    // isMultiCategory is now defined globally
-
-    if (isMultiCategory) {
+    if (!explicitCat && isMultiCategory) {
       showToast("Please select a specific category (Age, Gender, Weight) to Generate or Shuffle the draw.", false);
       return;
     }
 
-    const hasActive = currentDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
+    const hasActive = activeDraw?.rounds?.some(r => r.some(m => m.status === "COMPLETED" || m.status === "IN_PROGRESS"));
     if (hasActive) {
       showToast("Cannot shuffle or re-generate because matches have already started or completed in this category!", false);
       return;
     }
 
-    if (isShuffle && currentDraw?.generated) {
+    if (isShuffle && activeDraw?.generated) {
       if (!isConfirmed) {
         setConfirmModal({
           isOpen: true,
           title: "Re-shuffle Bracket",
           message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
-          action: () => handleGenerateAndSaveDraw(isShuffle, true)
+          action: () => handleGenerateAndSaveDraw(isShuffle, true, explicitCat)
         });
         return;
       }
@@ -1083,16 +1092,16 @@ export default function TournamentDetailPage() {
     setDrawPhase(isShuffle ? "shuffling" : "dealing");
     if (isShuffle) setShuffleKey(k => k + 1);
     
-    const rawRounds = generateIJFBracket(eligiblePlayers, seeds);
+    const rawRounds = generateIJFBracket(activePlayers, seeds);
     const rounds = processByeMatches(rawRounds);
     
     setTimeout(async () => {
       const newDraw = {
-        ageGroup: ageFilter, gender: genderFilter,
-        weightCategory: weightFilter, rounds, generated: true, saved: false,
+        ageGroup: activeAgeGrp, gender: activeGender,
+        weightCategory: activeWeight, rounds, generated: true, saved: false,
       };
 
-      setDraws((prev) => ({ ...prev, [currentKey]: newDraw }));
+      setDraws((prev) => ({ ...prev, [activeKey]: newDraw }));
       setDrawPhase("done");
       
       setSaving(true);
@@ -1102,10 +1111,10 @@ export default function TournamentDetailPage() {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             ageGroup: newDraw.ageGroup, 
-            exactAge: currentDraw?.exactAge || (exactAgeFilter === "ALL" ? 0 : Number(exactAgeFilter)),
+            exactAge: activeDraw?.exactAge || (activeExactAge === "ALL" ? 0 : Number(activeExactAge)),
             gender: newDraw.gender,
             weightCategory: newDraw.weightCategory, 
-            matNumber: currentDraw?.matNumber || 1,
+            matNumber: activeDraw?.matNumber || 1,
             rounds: newDraw.rounds,
           }),
         });
@@ -1119,7 +1128,7 @@ export default function TournamentDetailPage() {
 
           setDraws((prev) => ({
             ...prev,
-            [currentKey]: {
+            [activeKey]: {
               ...newDraw,
               rounds: backendRounds,
               saved: true
@@ -2009,9 +2018,9 @@ export default function TournamentDetailPage() {
       {activeTab === "players" && (
         <div className="space-y-4">
           {renderCategoryFilters()}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="space-y-6">
             {filteredPlayers.length === 0 ? (
-              <div className="py-16 text-center space-y-4">
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden py-16 text-center space-y-4">
                 <Users size={40} className="mx-auto text-slate-200" />
                 <div>
                   <p className="text-slate-500 font-bold text-base">No players registered yet</p>
@@ -2019,101 +2028,126 @@ export default function TournamentDetailPage() {
                 </div>
               </div>
             ) : (
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    {["#", "Name", "Club", "District", "Weight", "Age Group", "Belt", "Status"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPlayers.map((p, i) => (
-                    <React.Fragment key={p.id}>
-                      <tr className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
-                        <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
-                        <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
-                        <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
-                          {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
-                          {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
-                          {p.status === "DISQUALIFIED" && <span className="text-red-800 bg-red-100 px-2 py-0.5 rounded uppercase text-[10px]">Disqualified</span>}
-                          {p.status === "PENDING" && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-amber-600">Pending</span>
-                              <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
-                              <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => {
-                              const newExpanded = expandedPlayerId === p.id ? null : p.id;
-                              setExpandedPlayerId(newExpanded);
-                              if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
-                            }}
-                            className="ml-2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-2 text-xs transition-colors"
-                          >
-                            <MessageSquare size={14} /> Reply
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedPlayerId === p.id && p.regId && (
-                        <tr>
-                          <td colSpan={8} className="p-0 border-b border-slate-200 bg-slate-50/80">
-                            <div className="p-4 flex flex-col items-center">
-                              <div className="w-full max-w-3xl space-y-4">
-                                {/* Chat thread */}
-                                {messages[p.regId]?.length > 0 && (
-                                  <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
-                                    {messages[p.regId].map((msg) => (
-                                      <div key={msg.id} className="flex items-start gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
-                                          <span className="text-[10px] font-black text-[#FF7400]">A</span>
-                                        </div>
-                                        <div className="flex-grow">
-                                          <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
-                                          <p className="text-[10px] text-slate-400 mt-0.5">
-                                            {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                          </p>
+              (() => {
+                const map: Record<string, { label: string; players: RegisteredPlayer[] }> = {};
+                filteredPlayers.forEach(p => {
+                  const key = `${p.ageGroup} | ${p.gender === "FEMALE" ? "Girls" : "Boys"} | ${p.weightLabel || p.weight + " kg"}`;
+                  if (!map[key]) {
+                    map[key] = { label: key, players: [] };
+                  }
+                  map[key].players.push(p);
+                });
+                
+                return Object.values(map).sort((a, b) => a.label.localeCompare(b.label)).map(category => (
+                  <div key={category.label} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                      <h4 className="font-black text-slate-800 flex items-center gap-2">
+                        <Users size={16} className="text-[#FF7400]" />
+                        {category.label.split(" | ").join(" • ")}
+                      </h4>
+                      <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                        {category.players.length} Player{category.players.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-white border-b border-slate-100">
+                          <tr>
+                            {["#", "Name", "Club", "District", "Weight", "Belt", "Status"].map((h) => (
+                              <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {category.players.map((p, i) => (
+                            <React.Fragment key={p.id}>
+                              <tr className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
+                                <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
+                                <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
+                                <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
+                                <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
+                                  {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
+                                  {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
+                                  {p.status === "DISQUALIFIED" && <span className="text-red-800 bg-red-100 px-2 py-0.5 rounded uppercase text-[10px]">Disqualified</span>}
+                                  {p.status === "PENDING" && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-amber-600">Pending</span>
+                                      <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
+                                      <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      const newExpanded = expandedPlayerId === p.id ? null : p.id;
+                                      setExpandedPlayerId(newExpanded);
+                                      if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
+                                    }}
+                                    className="ml-2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-2 text-xs transition-colors"
+                                  >
+                                    <MessageSquare size={14} /> Reply
+                                  </button>
+                                </td>
+                              </tr>
+                              {expandedPlayerId === p.id && p.regId && (
+                                <tr>
+                                  <td colSpan={7} className="p-0 border-b border-slate-200 bg-slate-50/80">
+                                    <div className="p-4 flex flex-col items-center">
+                                      <div className="w-full max-w-3xl space-y-4">
+                                        {/* Chat thread */}
+                                        {messages[p.regId]?.length > 0 && (
+                                          <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
+                                            {messages[p.regId].map((msg) => (
+                                              <div key={msg.id} className="flex items-start gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                  <span className="text-[10px] font-black text-[#FF7400]">A</span>
+                                                </div>
+                                                <div className="flex-grow">
+                                                  <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
+                                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                                    {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        
+                                        {/* Reply Input */}
+                                        <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                                          <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
+                                            <input
+                                              type="text"
+                                              placeholder={`Send message to ${p.name}...`}
+                                              value={replyTexts[p.regId!] || ""}
+                                              onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
+                                              onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
+                                              className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
+                                            />
+                                            <button
+                                              onClick={() => handleSendReply(p.regId!)}
+                                              disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
+                                              className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
+                                            >
+                                              {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {/* Reply Input */}
-                                <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
-                                  <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
-                                    <input
-                                      type="text"
-                                      placeholder={`Send message to ${p.name}...`}
-                                      value={replyTexts[p.regId!] || ""}
-                                      onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
-                                      onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
-                                      className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
-                                    />
-                                    <button
-                                      onClick={() => handleSendReply(p.regId!)}
-                                      disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
-                                      className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
-                                    >
-                                      {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ));
+              })()
             )}
           </div>
         </div>
@@ -2260,12 +2294,14 @@ export default function TournamentDetailPage() {
                 className="space-y-6"
               >
                 {(() => {
-                  const map: Record<string, { ageGroup: string; gender: string; weight: string; weightLabel: string; catDrawPlayers: RegisteredPlayer[] }> = {};
+                  const map: Record<string, { ageGroup: string; exactAge: string; gender: string; weight: string; weightLabel: string; catDrawPlayers: RegisteredPlayer[] }> = {};
                   eligiblePlayers.forEach(p => {
-                    const key = categoryKey(p.ageGroup, p.exactAge ? String(p.exactAge) : "ALL", p.gender, String(p.weight));
+                    const exactAgeStr = p.exactAge ? String(p.exactAge) : "ALL";
+                    const key = categoryKey(p.ageGroup, exactAgeStr, p.gender, String(p.weight));
                     if (!map[key]) {
                       map[key] = {
                         ageGroup: p.ageGroup,
+                        exactAge: exactAgeStr,
                         gender: p.gender,
                         weight: String(p.weight),
                         weightLabel: p.weightLabel || String(p.weight),
@@ -2290,7 +2326,7 @@ export default function TournamentDetailPage() {
                     );
                   }
 
-                  return categories.map(({ key, ageGroup, gender, weight, weightLabel, catDrawPlayers }) => {
+                  return categories.map(({ key, ageGroup, exactAge, gender, weight, weightLabel, catDrawPlayers }) => {
                     const draw = draws[key];
                     return (
                       <div key={key} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6">
@@ -2299,41 +2335,66 @@ export default function TournamentDetailPage() {
                             <Trophy size={16} className="text-[#FF7400]" />
                             {ageGroup} · {gender === "FEMALE" ? "Girls" : "Boys"} · {weightLabel} {weightLabel !== "Under 50" && !weightLabel.includes("kg") ? "kg" : ""}
                           </h3>
-                          {draw && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
-                              <select 
-                                value={draw.matNumber || 1}
-                                onChange={async (e) => {
-                                  const newMat = Number(e.target.value);
-                                  const updatedDraw = { ...draw, matNumber: newMat };
-                                  setDraws(prev => ({ ...prev, [key]: updatedDraw }));
-                                  
-                                  try {
-                                    await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-                                      method: "POST",
-                                      headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
-                                      body: JSON.stringify({
-                                        ageGroup: updatedDraw.ageGroup,
-                                        exactAge: updatedDraw.exactAge,
-                                        gender: updatedDraw.gender,
-                                        weightCategory: updatedDraw.weightCategory,
-                                        matNumber: updatedDraw.matNumber,
-                                        rounds: updatedDraw.rounds,
-                                      })
-                                    });
-                                  } catch (err) {
-                                    console.error(err);
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => {
+                                handleGenerateAndSaveDraw(
+                                  draw?.generated ? true : false,
+                                  false,
+                                  {
+                                    ageGroup: ageGroup,
+                                    exactAge: exactAge,
+                                    gender: gender,
+                                    weightCategory: weight,
+                                    players: catDrawPlayers,
+                                    key: key,
+                                    draw: draw
                                   }
-                                }}
-                                className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
-                              >
-                                {[1,2,3,4,5,6,7,8].map(m => (
-                                  <option key={m} value={m}>MAT {m}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                                );
+                              }}
+                              disabled={catDrawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg font-bold text-xs shadow-md shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {drawPhase === "shuffling" || drawPhase === "dealing"
+                                ? <><Loader2 size={13} className="animate-spin" /> Processing...</>
+                                : <><Shuffle size={13} /> {draw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
+                            </button>
+                            {draw && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
+                                <select 
+                                  value={draw.matNumber || 1}
+                                  onChange={async (e) => {
+                                    const newMat = Number(e.target.value);
+                                    const updatedDraw = { ...draw, matNumber: newMat };
+                                    setDraws(prev => ({ ...prev, [key]: updatedDraw }));
+                                    
+                                    try {
+                                      await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+                                        method: "POST",
+                                        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          ageGroup: updatedDraw.ageGroup,
+                                          exactAge: updatedDraw.exactAge,
+                                          gender: updatedDraw.gender,
+                                          weightCategory: updatedDraw.weightCategory,
+                                          matNumber: updatedDraw.matNumber,
+                                          rounds: updatedDraw.rounds,
+                                        })
+                                      });
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }}
+                                  className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
+                                >
+                                  {[1,2,3,4,5,6,7,8].map(m => (
+                                    <option key={m} value={m}>MAT {m}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="p-5 border-b border-slate-50">

@@ -105,8 +105,7 @@ function ScoreboardInner() {
   const osaMilestones = useRef({ wazaAri: false, yuko: false });
 
   const [confirmWinner, setConfirmWinner] = useState<Fighter | null>(null);
-  const [undoPrompt, setUndoPrompt] = useState<{ fighter: Fighter, type: "last" | "specific", field?: keyof Score } | null>(null);
-  const [undoComment, setUndoComment] = useState("");
+
   const [showResetPrompt, setShowResetPrompt] = useState(false);
   const [resetComment, setResetComment] = useState("");
   const [showEditTimerModal, setShowEditTimerModal] = useState(false);
@@ -447,42 +446,12 @@ function ScoreboardInner() {
     }
   }, [winner, isMatchEnded, fighterAName, fighterBName, logs, saveMatchToDB, scoreA, scoreB, dbMatchStatus]);
 
-  const undoScore = (fighter: Fighter, field: keyof Score) => {
-    if (dbMatchStatus === "COMPLETED") {
-      showToast("This match is already completed and locked. You cannot change the winner.");
-      return;
-    }
-    if (winner) return;
-    setUndoPrompt({ fighter, type: "specific", field });
-  };
-
-  const undoLastScore = (fighter: Fighter) => {
-    if (dbMatchStatus === "COMPLETED") {
-      showToast("This match is already completed and locked. You cannot change the winner.");
-      return;
-    }
-    if (winner) return;
-    const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
-    if (fighterLogs.length === 0) {
-      showToast("No score or penalty logs found to undo.");
-      return;
-    }
-    setUndoPrompt({ fighter, type: "last" });
-  };
-
-  const confirmUndo = () => {
-    if (!undoPrompt) return;
-    if (!undoComment.trim()) {
-      showToast("Reason is required to undo a score.");
-      return;
-    }
-    const { fighter, type, field } = undoPrompt;
+  const performUndo = (fighter: Fighter, type: "specific" | "last", field?: keyof Score) => {
     const fighterName = fighter === "A" ? fighterAName : fighterBName;
-    const reasonText = undoComment.trim() ? ` - Reason: ${undoComment.trim()}` : "";
 
     if (type === "specific" && field) {
       const label = field === "wazaAri" ? "Waza-ari" : field.toUpperCase();
-      const nextLogs = [...logs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})${reasonText}`, type: "system" as const, fighter }];
+      const nextLogs = [...logs, { id: `${Date.now()}_undo_${fighter}_${field}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
       setLogs(nextLogs);
 
       if (fighter === "A") {
@@ -526,7 +495,7 @@ function ScoreboardInner() {
       if (parsedField) {
         const filteredLogs = logs.filter(l => l.id !== lastAction.id);
         const label = parsedField === "wazaAri" ? "Waza-ari" : parsedField.toUpperCase();
-        const nextLogs = [...filteredLogs, { id: `${Date.now()}_undo_${fighter}_${parsedField}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})${reasonText}`, type: "system" as const, fighter }];
+        const nextLogs = [...filteredLogs, { id: `${Date.now()}_undo_${fighter}_${parsedField}`, timestamp: Date.now(), text: `Undo: ${fighterName} score decreased (${label})`, type: "system" as const, fighter }];
         setLogs(nextLogs);
 
         if (fighter === "A") {
@@ -558,9 +527,29 @@ function ScoreboardInner() {
         }
       }
     }
-    
-    setUndoPrompt(null);
-    setUndoComment("");
+  };
+
+  const undoScore = (fighter: Fighter, field: keyof Score) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
+    if (winner) return;
+    performUndo(fighter, "specific", field);
+  };
+
+  const undoLastScore = (fighter: Fighter) => {
+    if (dbMatchStatus === "COMPLETED") {
+      showToast("This match is already completed and locked. You cannot change the winner.");
+      return;
+    }
+    if (winner) return;
+    const fighterLogs = logs.filter(l => l.fighter === fighter && (l.type === "score" || l.type === "penalty"));
+    if (fighterLogs.length === 0) {
+      showToast("No score or penalty logs found to undo.");
+      return;
+    }
+    performUndo(fighter, "last");
   };
 
   const applyTechnique = (fighter: Fighter, tech: string, desc: string) => {
@@ -1417,55 +1406,6 @@ function ScoreboardInner() {
         )}
       </AnimatePresence>
 
-      {/* ── UNDO SCORE OVERLAY MODAL ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {undoPrompt && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.9, opacity: 0, y: 20 }} 
-              className="bg-[#1a1a1a] border-2 border-[#333] p-6 sm:p-8 mx-4 rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden"
-            >
-              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
-              <h2 className="text-xl sm:text-2xl font-black text-white mb-2 text-center">Undo Score</h2>
-              <p className="text-gray-400 mb-6 font-semibold text-xs sm:text-sm text-center">
-                Please provide a <span className="text-red-500 font-bold">mandatory</span> reason for undoing this score.
-              </p>
-              
-              <input
-                type="text"
-                placeholder="Reason (Required)"
-                value={undoComment}
-                onChange={(e) => setUndoComment(e.target.value)}
-                className="w-full bg-[#111] text-white px-4 py-3 rounded-lg border border-[#333] focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all mb-6"
-                autoFocus
-                onKeyDown={(e) => { if (e.key === "Enter") confirmUndo(); }}
-              />
-
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <button onClick={() => { setUndoPrompt(null); setUndoComment(""); }} className="flex-1 bg-transparent hover:bg-[#333] text-gray-300 border-2 border-[#444] font-black py-3 rounded-xl transition-all">
-                  Cancel
-                </button>
-                <button 
-                  onClick={confirmUndo} 
-                  disabled={!undoComment.trim()}
-                  className={`flex-1 font-black py-3 rounded-xl shadow-lg transition-all ${
-                    undoComment.trim() 
-                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-500/20' 
-                      : 'bg-[#333] text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Confirm Undo
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── EDIT TIMER MODAL ─────────────────────────────────────────── */}
       <AnimatePresence>
