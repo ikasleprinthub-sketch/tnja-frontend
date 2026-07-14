@@ -8,7 +8,9 @@ import {
   Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal, Edit2,
   AlertCircle, Clock, Download, BarChart3, MessageSquare, Send,
-  PlayCircle, Lock, Search, CheckCircle2, XCircle, RefreshCw, Printer
+  PlayCircle, Lock, Search, CheckCircle2, XCircle, RefreshCw, Printer,
+  ChevronLeft, ChevronRight, Eye, FilterX,
+  LayoutList, Flag, Scale, Lightbulb, Info
 } from "lucide-react";
 import { FaMale, FaFemale } from "react-icons/fa";
 
@@ -152,6 +154,7 @@ function generateRoundRobin(players: RegisteredPlayer[]): BracketMatch[][] {
           matchNumber: m + 1,
           matNumber: 1,
           status: "PENDING",
+          winnerId: null,
           slotA: { playerId: p1.id, playerName: p1.name, club: p1.club, isBye: false },
           slotB: { playerId: p2.id, playerName: p2.name, club: p2.club, isBye: false },
         });
@@ -675,7 +678,7 @@ export default function TournamentDetailPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [players, setPlayers] = useState<RegisteredPlayer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = useState<Tab>("players");
   const [viewMode, setViewMode] = useState<ViewMode>("bracket"); // default bracket
 
   const [ageFilter, setAgeFilter] = useState("ALL");
@@ -727,6 +730,23 @@ export default function TournamentDetailPage() {
   const [loadingMats, setLoadingMats] = useState(false);
   const [matsCountInput, setMatsCountInput] = useState<string>("");
   const [matsConfirmed, setMatsConfirmed] = useState(false);
+  const [wizardStep, setWizardStep] = useState<0|1|2|3>(0);
+  const [setupRefereeName, setSetupRefereeName] = useState("");
+  const [selectedMatForAssignment, setSelectedMatForAssignment] = useState<number | null>(null);
+  const [editingMatId, setEditingMatId] = useState<number | null>(null);
+  const [checkingReferee, setCheckingReferee] = useState(false);
+
+  // ── Registrations Tab State ────────────────────────────────────────────────
+  const [regSearchQuery, setRegSearchQuery] = useState("");
+  const [regDistrictFilter, setRegDistrictFilter] = useState("All Districts");
+  const [regClubFilter, setRegClubFilter] = useState("All Clubs");
+  const [regGenderFilter, setRegGenderFilter] = useState("All Genders");
+  const [regCategoryFilter, setRegCategoryFilter] = useState("All Categories");
+  const [regBeltFilter, setRegBeltFilter] = useState("All Belts");
+  const [regPaymentFilter, setRegPaymentFilter] = useState("All Payment Status");
+  const [regStatusFilter, setRegStatusFilter] = useState("All Approval Status");
+  const [regCurrentPage, setRegCurrentPage] = useState(1);
+  const [regItemsPerPage, setRegItemsPerPage] = useState(10);
 
   const fetchMats = useCallback(async () => {
     if (!tournamentId) return;
@@ -1663,7 +1683,7 @@ export default function TournamentDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
 
       {/* Toast */}
       <AnimatePresence>
@@ -1675,88 +1695,75 @@ export default function TournamentDetailPage() {
             {toast.msg}
           </motion.div>
         )}
-      </AnimatePresence>
-
-      {/* Back + header */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => router.back()}
-          className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-          <ArrowLeft size={20} className="text-slate-600" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">{tournament?.title || "Tournament"}</h1>
-          <p className="text-sm text-slate-500 font-semibold mt-0.5">Tournament Management Hub</p>
-        </div>
-      </div>
-
-      {/* Summary banner */}
-      {tournament && (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: Calendar, label: "Date", value: new Date(tournament.date).toLocaleDateString("en-GB") },
-              { icon: MapPin, label: "Location", value: tournament.location },
-              { icon: Users, label: "Players", value: `${players.length}` },
-              { icon: Trophy, label: "Level", value: tournament.level },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
-                  <Icon size={18} className="text-orange-400" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{label}</p>
-                  <p className="text-sm font-extrabold">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* CLOSED badge */}
-          {tournament.status === "CLOSED" && (
-            <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-400/30 rounded-xl">
-                <Check size={15} className="text-emerald-400" />
-                <span className="text-emerald-300 font-black text-sm">Tournament Concluded — Certificates Available</span>
-              </div>
+      </AnimatePresence>      {/* Full-width dark header */}
+      <div className="-mt-6 -mx-6 md:-mt-8 md:-mx-8 mb-6 bg-[#1A202C] text-white shadow-md">
+        <div className="px-6 pt-6 pb-4 md:px-8 md:pt-8 md:pb-5">
+          <div className="flex items-start gap-3 mb-6">
+            <button onClick={() => router.back()}
+              className="mt-1 text-slate-400 hover:text-white transition-colors">
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="text-[28px] font-black text-white leading-none tracking-tight">{tournament?.title || "Tournament"}</h1>
+              <p className="text-[12px] text-slate-400 font-bold mt-1.5 tracking-wide">Tournament Management Hub</p>
             </div>
-          )}
-          {/* Start Tournament Action */}
-          {tournament.status !== "CLOSED" && (
-            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between gap-3">
-              <div className="text-sm font-bold text-slate-300">
-                {tournament.registrationClosed ? "Registrations are currently closed." : "Registrations are open."}
+          </div>
+
+          {tournament && (
+            <div>
+              <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-6 px-2">
+                {[
+                  { icon: Calendar, label: "DATE", value: new Date(tournament.date).toLocaleDateString("en-GB") },
+                  { icon: MapPin, label: "LOCATION", value: tournament.location },
+                  { icon: Users, label: "PLAYERS", value: `${players.length}` },
+                  { icon: Trophy, label: "LEVEL", value: tournament.level },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
+                      <Icon size={16} className="text-[#FF7400]" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-black tracking-widest uppercase mb-0.5">{label}</p>
+                      <p className="text-[13px] font-bold text-white">{value}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              {!tournament.registrationClosed ? (
-                <button
-                  onClick={async () => {
-                    if (!confirm("Are you sure you want to start this tournament? This will close all registrations immediately.")) return;
-                    try {
-                      const token = localStorage.getItem("token");
-                      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
-                        method: "PUT",
-                        headers: { Authorization: `Bearer ${token}` }
-                      });
-                      const json = await res.json();
-                      if (!res.ok) throw new Error(json.error || "Failed to start tournament");
-                      showToast("Tournament started! Registrations are now closed.", true);
-                      fetchTournament();
-                      fetchPlayers();
-                    } catch (err: any) {
-                      showToast(err.message || "Something went wrong", false);
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all shadow-lg"
-                >
-                  <PlayCircle size={16} /> Start Tournament (Close Registrations)
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700 text-slate-400 font-bold rounded-xl">
-                  <Lock size={16} /> Registrations Closed
+              
+              {/* CLOSED badge */}
+              {tournament.status === "CLOSED" && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 px-2">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-400/30 rounded-xl">
+                    <Check size={15} className="text-emerald-400" />
+                    <span className="text-emerald-300 font-black text-sm">Tournament Concluded — Certificates Available</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Start Tournament Action */}
+              {tournament.status !== "CLOSED" && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between gap-3 px-2">
+                  <div className="text-[11px] font-bold text-slate-400">
+                    {tournament.registrationClosed ? "Registrations are currently closed." : "Registrations are open."}
+                  </div>
+                  {!tournament.registrationClosed ? (
+                    <button
+                      onClick={() => setActiveTab("mats")}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-white font-bold rounded-lg transition-all text-xs"
+                    >
+                      <PlayCircle size={14} /> Start Tournament (Close Registrations)
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 text-slate-300 font-bold rounded-lg text-xs">
+                      <Lock size={14} /> Registrations Closed
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Expired banner */}
       {expired && (
@@ -1794,232 +1801,518 @@ export default function TournamentDetailPage() {
               }`}
             >
               {lockedByExpiry && <span className="text-[10px]">🔒</span>}
-              {tab === "players" ? `Players (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab === "weigh-in" ? "Weigh-In" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "players" ? `Registrations (${players.length})` : tab === "draws" ? "Draw Generation" : tab === "results" ? "Results & Reports" : tab === "weigh-in" ? "Weigh-In" : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           );
         })}
       </div>
 
       {/* ══ OVERVIEW ══════════════════════════════════════════════════════════ */}
-      {activeTab === "overview" && tournament && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-1">
-            <h3 className="font-black text-slate-800 text-base mb-4">Tournament Info</h3>
-            {[
-              { l: "Title", v: tournament.title },
-              { l: "Level", v: tournament.level },
-              { l: "Gender", v: tournament.gender },
-              { l: "Category", v: tournament.category || "N/A" },
-              { l: "Entry Fee", v: `₹${tournament.entryFee}` },
-              { l: "Status", v: tournament.status },
-              { l: "Belt", v: tournament.beltEligibility || "All belts" },
-              { l: "BPL Allowed", v: tournament.allowBPL ? "Yes" : "No" },
-            ].map(({ l, v }) => (
-              <div key={l} className="flex justify-between py-2.5 border-b border-slate-50 last:border-0">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{l}</span>
-                <span className="text-sm font-extrabold text-slate-700">{v}</span>
-              </div>
-            ))}
-          </div>
+      {activeTab === "overview" && tournament && (() => {
+        const isRegClosed = tournament.registrationClosed;
+        const isMatsConfigured = tournamentMats.length > 0;
+        const isOfficialsAssigned = tournamentMats.length > 0 && tournamentMats.every(m => m.refereeName);
+        const isWeighInComplete = tournament.status === "STARTED" || tournament.status === "CLOSED";
+        const isDrawGenerated = tournament.status === "STARTED" || tournament.status === "CLOSED";
+        const isTournamentStarted = tournament.status === "STARTED" || tournament.status === "CLOSED";
 
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-1">
-            <h3 className="font-black text-slate-800 text-base mb-4">Approval Status</h3>
-            {[
-              { l: "District", v: tournament.districtApproval },
-              { l: "State", v: tournament.stateApproval },
-              { l: "Super Admin", v: tournament.superAdminApproval },
-              { l: "CEO", v: tournament.ceoApproval },
-              { l: "Overall", v: tournament.status },
-            ]
-              .filter((item) => tournament.status !== "APPROVED" || item.l === "Overall")
-              .map(({ l, v }) => (
-              <div key={l} className="flex justify-between items-center py-2.5 border-b border-slate-50 last:border-0">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{l}</span>
-                <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
-                  v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
-                  v === "REJECTED" ? "bg-red-100 text-red-700" :
-                  v === "NOT_REQUIRED" ? "bg-slate-100 text-slate-400" :
-                  "bg-amber-100 text-amber-700"}`}>
-                  {v}
-                </span>
-              </div>
-            ))}
+        const progressSteps = [
+          { title: "Registration", status: isRegClosed ? "Closed" : "Open", completed: isRegClosed },
+          { title: "Mats", status: isMatsConfigured ? "Configured" : "Not Configured", completed: isMatsConfigured },
+          { title: "Officials", status: isOfficialsAssigned ? "Assigned" : "Not Assigned", completed: isOfficialsAssigned },
+          { title: "Weigh-In", status: isWeighInComplete ? "Complete" : "Pending", completed: isWeighInComplete },
+          { title: "Draw", status: isDrawGenerated ? "Generated" : "Not Generated", completed: isDrawGenerated },
+          { title: "Tournament", status: tournament.status === "CLOSED" ? "Completed" : tournament.status === "STARTED" ? "Started" : "Not Started", completed: isTournamentStarted }
+        ];
 
-            <div className="pt-4 p-4 bg-orange-50 rounded-2xl mt-4">
-              <p className="text-xs font-black text-orange-700 mb-2">Quick Actions</p>
-              <div className="flex gap-2">
-                <button onClick={() => setActiveTab("draws")}
-                  className="flex-1 py-2.5 bg-[#FF7400] text-white rounded-xl text-xs font-black hover:scale-105 transition-all">
-                  Generate Draw
-                </button>
-                <button onClick={() => setActiveTab("matches")}
-                  className="flex-1 py-2.5 bg-slate-700 text-white rounded-xl text-xs font-black hover:scale-105 transition-all">
-                  View Matches
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4 md:col-span-2">
-            <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
-              <Grid size={18} className="text-blue-500" /> Active Categories
-            </h3>
-            {groupedCategories.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {groupedCategories.map((c) => (
-                  <div key={c.label} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center">
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{c.ageGroup}</p>
-                      <p className="text-[10px] font-semibold text-slate-500">{c.gender} • {c.label.split(" | ")[2]}</p>
-                    </div>
-                    <div className="bg-blue-100 text-blue-700 text-xs font-black px-2.5 py-1 rounded-lg">
-                      {c.count} players
-                    </div>
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
+            {/* Left Column: Tournament Info */}
+            <div className="bg-white rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-sm space-y-6">
+              <h3 className="font-black text-slate-800 text-lg flex items-center gap-3">
+                <LayoutList size={20} className="text-slate-400" /> Tournament Info
+              </h3>
+              <div className="space-y-1">
+                {[
+                  { l: "TITLE", v: tournament.title },
+                  { l: "LEVEL", v: tournament.level },
+                  { l: "GENDER", v: tournament.gender },
+                  { l: "CATEGORY", v: tournament.category || "N/A" },
+                  { l: "ENTRY FEE", v: `₹${tournament.entryFee}` },
+                  { l: "STATUS", v: tournament.status },
+                  { l: "BELT", v: tournament.beltEligibility || "NA" },
+                  { l: "BPL ALLOWED", v: tournament.allowBPL ? "Yes" : "No" },
+                ].map(({ l, v }) => (
+                  <div key={l} className="flex justify-between py-4 border-b border-slate-50 last:border-0 items-center">
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{l}</span>
+                    {l === "STATUS" ? (
+                      <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                        v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
+                        v === "REJECTED" ? "bg-red-100 text-red-700" :
+                        v === "CLOSED" ? "bg-blue-100 text-blue-700" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {v}
+                      </span>
+                    ) : (
+                      <span className="text-sm font-black text-slate-800 text-right max-w-[60%]">{v}</span>
+                    )}
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-slate-500 font-semibold italic py-4">No active categories yet. Wait for approved players.</p>
-            )}
+            </div>
+
+            {/* Right Column: Tournament Progress & Actions */}
+            <div className="bg-white rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-sm space-y-8 flex flex-col">
+              <h3 className="font-black text-slate-800 text-lg flex items-center gap-3">
+                <Flag size={20} className="text-slate-400" /> Tournament Progress
+              </h3>
+
+              {/* Stepper */}
+              <div className="relative pt-4 pb-6">
+                <div className="absolute top-8 left-[8%] right-[8%] h-0.5 bg-slate-100 -z-10"></div>
+                <div className="flex justify-between relative z-0">
+                  {progressSteps.map((step, idx) => (
+                    <div key={step.title} className="flex flex-col items-center w-24 gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-white ${
+                        step.completed ? "border-emerald-400 text-emerald-500" : "border-slate-200 border-dashed text-slate-300"
+                      }`}>
+                        {step.completed ? <Check size={18} className="stroke-[3]" /> : <div className="w-2 h-2 rounded-full bg-slate-200"></div>}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-black text-slate-800">{step.title}</p>
+                        <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{step.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info Box */}
+              {!isTournamentStarted && (
+                <div className="bg-blue-50/50 text-blue-600 px-5 py-4 rounded-xl flex gap-3 text-xs font-bold items-center border border-blue-100/50">
+                  <Info size={18} className="shrink-0" />
+                  Complete the pending steps to generate the draw and start the tournament.
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div className="bg-[#FFF9F2] rounded-3xl p-6 lg:p-8 border border-[#FFE8CC]/50 flex-grow mt-2">
+                <h4 className="font-black text-slate-800 text-base flex items-center gap-2 mb-6">
+                  <Zap size={18} className="text-[#FF7400]" /> Quick Actions
+                </h4>
+                
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Configure Mats */}
+                  <button 
+                    onClick={() => setActiveTab("mats")}
+                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center mb-1">
+                      <LayoutList size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800">Configure Mats</p>
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Add & manage mats</p>
+                    </div>
+                  </button>
+
+                  {/* Assign Officials */}
+                  <button 
+                    onClick={() => setActiveTab("mats")}
+                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-1">
+                      <Users size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800">Assign Officials</p>
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Assign referees</p>
+                    </div>
+                  </button>
+
+                  {/* Start Weigh-In */}
+                  <button 
+                    onClick={() => setActiveTab("weigh-in")}
+                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center mb-1">
+                      <Scale size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800">Start Weigh-In</p>
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Record weigh-in</p>
+                    </div>
+                  </button>
+
+                  {/* Print Forms */}
+                  <button 
+                    onClick={() => {}}
+                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center mb-1">
+                      <Printer size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800">Print Forms</p>
+                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Download forms</p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 mt-6 text-[11px] font-bold text-slate-500">
+                  <Lightbulb size={14} className="text-slate-400" /> These actions will help you move to the next stage.
+                </div>
+              </div>
+
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══ MATS & REFEREES ═══════════════════════════════════════════════════ */}
-      {activeTab === "mats" && tournament && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-50 pb-4">
-            <div>
-              <h3 className="font-black text-slate-800 text-base">Mats & Referees</h3>
-              <p className="text-xs text-slate-500 font-semibold mt-1">Assign Referees to mats using their TNJA ID (Permanent or Temp)</p>
-            </div>
-            <button
-              onClick={async () => {
-                setSavingMats(true);
-                try {
-                  const token = localStorage.getItem("token");
-                  const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                    body: JSON.stringify({ assignments: tournamentMats })
-                  });
-                  if (res.ok) showToast("Mat assignments saved!", true);
-                  else showToast("Failed to save assignments", false);
-                } catch (e) {
-                  showToast("Error saving assignments", false);
-                } finally {
-                  setSavingMats(false);
-                }
-              }}
-              disabled={savingMats}
-              className="bg-[#FF7400] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 transition-all flex items-center gap-2"
-            >
-              {savingMats ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save Assignments
-            </button>
-          </div>
+      {activeTab === "mats" && tournament && (() => {
+        const totalMats = parseInt(matsCountInput) || 0;
+        const matsConfigured = totalMats > 0 && matsConfirmed;
+        const officialsAssigned = matsConfigured && tournamentMats.length === totalMats && tournamentMats.every(m => m.refereeName);
+        const isStarted = tournament.registrationClosed || tournament.status !== "PENDING";
 
-          {loadingMats ? (
-            <div className="py-12 flex justify-center"><Loader2 className="animate-spin text-slate-300" size={32} /></div>
-          ) : !matsConfirmed ? (
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center max-w-sm mx-auto space-y-4 mt-8">
-              <h4 className="font-black text-slate-800 text-lg">Set Total Mats</h4>
-              <p className="text-sm text-slate-500 font-semibold">How many mats are available for this tournament?</p>
-              <div className="flex gap-2">
-                <input 
-                  type="number" 
-                  min="1" 
-                  value={matsCountInput} 
-                  onChange={(e) => setMatsCountInput(e.target.value)} 
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold focus:outline-none focus:border-[#FF7400]" 
-                  placeholder="e.g. 4" 
-                />
-                <button 
-                  onClick={() => {
-                    const count = parseInt(matsCountInput);
-                    if (count > 0) setMatsConfirmed(true);
-                    else showToast("Please enter a valid number", false);
-                  }} 
-                  className="bg-[#FF7400] text-white px-5 py-2.5 rounded-xl font-bold hover:scale-105 transition-all"
-                >
-                  Proceed
-                </button>
+        const MatsManagementGrid = (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6 border-t border-slate-100">
+            {/* LEFT SIDE: MATS LIST */}
+            <div className="col-span-1 md:border-r border-slate-100 md:pr-6 space-y-2">
+              <h4 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4">Mats</h4>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {Array.from({ length: totalMats }).map((_, i) => {
+                  const matNum = i + 1;
+                  const isSelected = selectedMatForAssignment === matNum;
+                  const assigned = tournamentMats.find(m => m.matNumber === matNum && m.refereeName);
+                  return (
+                    <button
+                      key={matNum}
+                      onClick={() => setSelectedMatForAssignment(matNum)}
+                      className={`w-full text-left px-5 py-4 rounded-2xl font-black transition-all flex justify-between items-center ${
+                        isSelected 
+                          ? "bg-[#FF7400] text-white shadow-md scale-[1.02]" 
+                          : assigned 
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100" 
+                            : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      <span className="text-lg">Mat {matNum}</span>
+                      {assigned && <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-emerald-200 text-emerald-800'}`}>Assigned</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {Array.from({ length: parseInt(matsCountInput) || 1 }).map((_, i) => {
-                const matNumber = i + 1;
-                const matData = tournamentMats.find(m => m.matNumber === matNumber) || { matNumber, refereeId: "", refereeName: "" };
-                
-                return (
-                  <div key={matNumber} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col gap-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs">
-                        {matNumber}
-                      </div>
-                      <h4 className="font-black text-slate-700">Mat {matNumber}</h4>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Enter Referee ID..."
-                        value={matData.refereeId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTournamentMats(prev => {
-                            const clone = [...prev];
-                            const idx = clone.findIndex(m => m.matNumber === matNumber);
-                            if (idx >= 0) { clone[idx].refereeId = val; clone[idx].refereeName = ""; }
-                            else clone.push({ matNumber, refereeId: val, refereeName: "" });
-                            return clone;
-                          });
-                        }}
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-500"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!matData.refereeId) return;
-                          try {
-                            const res = await fetch(`${API_BASE}/referees/search?id=${matData.refereeId}`);
-                            const data = await res.json();
-                            if (res.ok) {
-                              setTournamentMats(prev => {
-                                const clone = [...prev];
-                                const idx = clone.findIndex(m => m.matNumber === matNumber);
-                                if (idx >= 0) clone[idx].refereeName = data.name;
-                                return clone;
-                              });
-                            } else {
-                              showToast(data.error || "Referee not found", false);
-                            }
-                          } catch (e) {
-                            showToast("Error checking referee", false);
-                          }
-                        }}
-                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
-                      >
-                        Check
-                      </button>
+            {/* RIGHT SIDE: REFEREE ASSIGNMENT */}
+            <div className="col-span-1 md:col-span-2 md:pl-2">
+              {selectedMatForAssignment ? (
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
+                  <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-[#FF7400] font-black text-xl">
+                      {selectedMatForAssignment}
                     </div>
-
-                    {matData.refereeName ? (
-                      <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl text-xs font-bold border border-emerald-100">
-                        <CheckCircle2 size={14} /> Assigned: {matData.refereeName}
-                      </div>
-                    ) : matData.refereeId ? (
-                      <p className="text-[10px] text-slate-400 font-semibold px-1">Click Check to verify referee.</p>
-                    ) : (
-                      <p className="text-[10px] text-slate-400 font-semibold px-1">No referee assigned.</p>
-                    )}
+                    <h4 className="font-black text-slate-800 text-xl">Assign Referee</h4>
                   </div>
-                );
-              })}
+                  
+                  {(() => {
+                    const assigned = tournamentMats.find(m => m.matNumber === selectedMatForAssignment && m.refereeName);
+                    return assigned && !editingMatId ? (
+                      <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Current Referee</p>
+                          <p className="font-black text-slate-800 text-2xl">{assigned.refereeName}</p>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button 
+                            onClick={() => {
+                              setEditingMatId(selectedMatForAssignment);
+                              setSetupRefereeName(assigned.refereeId);
+                            }}
+                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-3 bg-slate-100 text-slate-600 hover:text-[#FF7400] hover:bg-orange-50 rounded-xl transition-colors font-bold text-sm"
+                          >
+                            <Edit2 size={16} /> Edit
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm("Remove this referee assignment?")) {
+                                setTournamentMats(prev => prev.filter(m => m.matNumber !== selectedMatForAssignment));
+                              }
+                            }}
+                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors font-bold text-sm"
+                          >
+                            <X size={16} /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div>
+                          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Search Referee / ID</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={setupRefereeName}
+                              onChange={(e) => setSetupRefereeName(e.target.value)}
+                              placeholder="Type referee name or ID..."
+                              className="w-full px-5 py-4 bg-white border border-slate-300 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 shadow-sm text-slate-800 text-lg"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                          {editingMatId && (
+                            <button
+                              onClick={() => {
+                                setEditingMatId(null);
+                                setSetupRefereeName("");
+                              }}
+                              className="px-6 py-3 bg-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-300 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              if (!setupRefereeName) return;
+                              setCheckingReferee(true);
+                              try {
+                                const res = await fetch(`${API_BASE}/referees/search?id=${setupRefereeName}`);
+                                const data = await res.json();
+                                if (res.ok) {
+                                  setTournamentMats(prev => {
+                                    const filtered = prev.filter(m => m.matNumber !== selectedMatForAssignment);
+                                    return [...filtered, { matNumber: selectedMatForAssignment, refereeId: data.id || setupRefereeName, refereeName: data.name }];
+                                  });
+                                  setEditingMatId(null);
+                                  setSetupRefereeName("");
+                                } else {
+                                  showToast(data.error || "Referee not found", false);
+                                }
+                              } catch (e) {
+                                showToast("Error checking referee", false);
+                              } finally {
+                                setCheckingReferee(false);
+                              }
+                            }}
+                            disabled={!setupRefereeName || checkingReferee}
+                            className="py-3 px-8 bg-[#FF7400] text-white font-black rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-md flex items-center gap-2"
+                          >
+                            {checkingReferee ? <Loader2 size={18} className="animate-spin" /> : null}
+                            {editingMatId ? "Update Assignment" : "Assign Referee"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 font-bold p-8 bg-slate-50/50 rounded-3xl border-2 border-slate-200 border-dashed text-center">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                    <AlertCircle size={32} className="text-slate-300" />
+                  </div>
+                  <p className="text-lg text-slate-500">Select a mat from the left</p>
+                  <p className="text-sm font-normal mt-1">to search and assign a referee</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        );
 
+        if (isStarted) {
+          return (
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-2">
+                <h3 className="font-black text-slate-800 text-xl">Mats & Officials Management</h3>
+                <button
+                  onClick={async () => {
+                    setSavingMats(true);
+                    try {
+                      const token = localStorage.getItem("token");
+                      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                        body: JSON.stringify({ assignments: tournamentMats })
+                      });
+                      if (res.ok) showToast("Assignments saved!", true);
+                      else showToast("Failed to save assignments", false);
+                    } catch (e) {
+                      showToast("Error saving assignments", false);
+                    } finally {
+                      setSavingMats(false);
+                    }
+                  }}
+                  disabled={savingMats}
+                  className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-3 rounded-xl font-black transition-all flex items-center gap-2"
+                >
+                  {savingMats && <Loader2 className="animate-spin" size={16} />}
+                  Save Changes
+                </button>
+              </div>
+              {MatsManagementGrid}
+            </div>
+          );
+        }
+
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Step 0: Overview Checklist */}
+            {wizardStep === 0 && (
+              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
+                <div>
+                  <h3 className="font-black text-slate-800 text-xl mb-2">Tournament Setup</h3>
+                  <p className="text-slate-500 font-bold text-sm">Before starting the tournament complete the following steps.</p>
+                </div>
+                
+                <div className="space-y-4 pt-6 border-t border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 size={24} className="text-emerald-500" /> 
+                    <span className="font-black text-slate-700 text-lg">Registration Closed</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {matsConfigured ? <CheckCircle2 size={24} className="text-emerald-500" /> : <X size={24} className="text-red-500" />}
+                    <span className={`font-black text-lg ${matsConfigured ? 'text-slate-700' : 'text-slate-400'}`}>{matsConfigured ? 'Mats Configured' : 'Mats Not Configured'}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {officialsAssigned ? <CheckCircle2 size={24} className="text-emerald-500" /> : <X size={24} className="text-red-500" />}
+                    <span className={`font-black text-lg ${officialsAssigned ? 'text-slate-700' : 'text-slate-400'}`}>{officialsAssigned ? 'Officials Assigned' : 'Officials Not Assigned'}</span>
+                  </div>
+                </div>
+
+                <div className="pt-8">
+                  <button onClick={() => setWizardStep(1)} className="py-4 px-10 bg-[#FF7400] text-white font-black rounded-xl shadow-lg hover:scale-[1.02] transition-all">
+                    {matsConfigured ? "Update Mat Config" : "[ Configure Mats ]"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Configure Mats */}
+            {wizardStep === 1 && (
+              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
+                <div>
+                  <h3 className="font-black text-slate-800 text-xl mb-2">Step 1 — Configure Mats</h3>
+                  <p className="text-slate-500 font-bold text-sm">The organizer enters the total number of mats.</p>
+                </div>
+                <div className="pt-6 border-t border-slate-100">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Total Mats</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={matsCountInput}
+                    onChange={(e) => setMatsCountInput(e.target.value)}
+                    placeholder="[ 4 ]"
+                    className="w-full max-w-[200px] px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
+                  />
+                </div>
+                <div className="flex gap-4 pt-8">
+                  <button onClick={() => setWizardStep(0)} className="px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors">Back</button>
+                  <button 
+                    onClick={() => {
+                      if (parseInt(matsCountInput) > 0) {
+                        setMatsConfirmed(true);
+                        if (!selectedMatForAssignment) setSelectedMatForAssignment(1);
+                        setWizardStep(2);
+                      } else {
+                        showToast("Please enter a valid number of mats.", false);
+                      }
+                    }}
+                    disabled={!matsCountInput}
+                    className="px-10 py-4 bg-[#FF7400] text-white font-black rounded-xl shadow-lg disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  >
+                    [ Continue ]
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Assign Officials */}
+            {wizardStep === 2 && (
+              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-2">
+                  <h3 className="font-black text-slate-800 text-xl">Step 2 — Assign Officials</h3>
+                  <button onClick={() => setWizardStep(1)} className="text-sm text-[#FF7400] font-black hover:underline w-fit">Edit Total Mats</button>
+                </div>
+                
+                {MatsManagementGrid}
+                
+                <div className="pt-8 flex gap-4 border-t border-slate-100 mt-8">
+                  <button onClick={() => setWizardStep(1)} className="px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors">Back</button>
+                  <button
+                    onClick={async () => {
+                      setSavingMats(true);
+                      try {
+                        const token = localStorage.getItem("token");
+                        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                          body: JSON.stringify({ assignments: tournamentMats })
+                        });
+                        if (res.ok) {
+                          setWizardStep(3);
+                        } else {
+                          showToast("Failed to save assignments", false);
+                        }
+                      } catch (e) {
+                        showToast("Error saving assignments", false);
+                      } finally {
+                        setSavingMats(false);
+                      }
+                    }}
+                    disabled={savingMats}
+                    className="flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl shadow-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.01]"
+                  >
+                    {savingMats && <Loader2 className="animate-spin" size={20} />}
+                    Store this permanently.
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Success & Start Tournament */}
+            {wizardStep === 3 && (
+              <div className="bg-white rounded-3xl p-10 border border-slate-100 shadow-sm space-y-6 text-center">
+                <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 size={48} className="text-emerald-500" />
+                </motion.div>
+                <h3 className="font-black text-slate-800 text-3xl">Setup Complete!</h3>
+                <p className="text-slate-500 font-bold text-lg mb-8">All mats are configured and officials are assigned.</p>
+                
+                <div className="pt-8 border-t border-slate-100 max-w-md mx-auto flex gap-4">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const token = localStorage.getItem("token");
+                        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
+                          method: "PUT",
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                          showToast("Tournament started! Registrations closed.", true);
+                          fetchTournament();
+                          fetchPlayers();
+                          setActiveTab("overview");
+                          setWizardStep(0); // Reset wizard state
+                        } else {
+                          const err = await res.json();
+                          showToast(err.error || "Failed to start", false);
+                        }
+                      } catch (e) {
+                        showToast("Failed to start", false);
+                      }
+                    }}
+                    className="w-full py-5 bg-[#10B981] hover:bg-[#059669] text-white font-black text-xl rounded-2xl shadow-xl shadow-emerald-500/20 hover:scale-[1.03] transition-all"
+                  >
+                    Start Tournament Now
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {/* ══ WEIGH-IN & DISQUALIFICATION ═════════════════════════════════════════════════ */}
       {activeTab === "weigh-in" && (
         <div className="space-y-6">
@@ -2058,6 +2351,18 @@ export default function TournamentDetailPage() {
                 </div>
               )}
             </div>
+
+            {!selectedWeighInPlayer && weighInSearch.trim().length < 2 && (
+              <div className="bg-slate-50 rounded-3xl p-10 border border-slate-200 border-dashed text-center space-y-4">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-300">
+                  <Search size={32} />
+                </div>
+                <h4 className="text-xl font-black text-slate-700">Search to Start Weigh-In</h4>
+                <p className="text-sm font-semibold text-slate-500 max-w-sm mx-auto">
+                  Type a player's name or TNJA ID in the search box above to verify their scale weight and ensure they match their registered category.
+                </p>
+              </div>
+            )}
 
             {selectedWeighInPlayer && (
               <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
@@ -2162,141 +2467,290 @@ export default function TournamentDetailPage() {
         </div>
       )}
 
-      {/* ══ PLAYERS ═══════════════════════════════════════════════════════════ */}
+      {/* ══ REGISTRATIONS (PLAYERS) ═══════════════════════════════════════════════════════════ */}
       {activeTab === "players" && (
-        <div className="space-y-4">
-          {renderCategoryFilters()}
-          <div className="space-y-6">
-            {filteredPlayers.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden py-16 text-center space-y-4">
-                <Users size={40} className="mx-auto text-slate-200" />
-                <div>
-                  <p className="text-slate-500 font-bold text-base">No players registered yet</p>
-                  <p className="text-slate-400 text-sm mt-1">Players register via the Player dashboard.</p>
+        <div className="space-y-6">
+          {/* Top Layout: Stats + Filters */}
+          <div className="flex flex-col lg:flex-row gap-6">
+            
+            {/* Total Players Card */}
+            <div className="w-full lg:w-64 shrink-0 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
+                  <Users size={20} />
+                </div>
+                <p className="text-sm font-bold text-blue-500">Total Players</p>
+              </div>
+              <p className="text-4xl font-black text-slate-800">{players.length}</p>
+            </div>
+
+            {/* Filters Section */}
+            <div className="flex-grow min-w-0 bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between space-y-4 lg:space-y-0">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="relative flex-grow w-full">
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by Name, TNJA ID, Club..."
+                    value={regSearchQuery}
+                    onChange={e => { setRegSearchQuery(e.target.value); setRegCurrentPage(1); }}
+                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-sm shrink-0">
+                  <FilterX size={18} /> Filters
+                  <button 
+                    onClick={() => {
+                      setRegSearchQuery("");
+                      setRegDistrictFilter("All Districts");
+                      setRegClubFilter("All Clubs");
+                      setRegGenderFilter("All Genders");
+                      setRegCategoryFilter("All Categories");
+                      setRegBeltFilter("All Belts");
+                      setRegPaymentFilter("All Payment Status");
+                      setRegCurrentPage(1);
+                    }}
+                    className="text-red-500 hover:text-red-600 ml-4 text-xs"
+                  >
+                    Clear All
+                  </button>
                 </div>
               </div>
-            ) : (
-              (() => {
-                const map: Record<string, { label: string; players: RegisteredPlayer[] }> = {};
-                filteredPlayers.forEach(p => {
-                  const key = `${p.ageGroup} | ${p.gender === "FEMALE" ? "Girls" : "Boys"} | ${p.weightLabel || p.weight + " kg"}`;
-                  if (!map[key]) {
-                    map[key] = { label: key, players: [] };
-                  }
-                  map[key].players.push(p);
-                });
-                
-                return Object.values(map).sort((a, b) => a.label.localeCompare(b.label)).map(category => (
-                  <div key={category.label} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                      <h4 className="font-black text-slate-800 flex items-center gap-2">
-                        <Users size={16} className="text-[#FF7400]" />
-                        {category.label.split(" | ").join(" • ")}
-                      </h4>
-                      <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-                        {category.players.length} Player{category.players.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-white border-b border-slate-100">
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                {[
+                  { label: "District", value: regDistrictFilter, setter: setRegDistrictFilter, options: ["All Districts", ...new Set(players.map(p => p.district).filter(Boolean))] },
+                  { label: "Club", value: regClubFilter, setter: setRegClubFilter, options: ["All Clubs", ...new Set(players.map(p => p.club).filter(Boolean))] },
+                  { label: "Gender", value: regGenderFilter, setter: setRegGenderFilter, options: ["All Genders", "MALE", "FEMALE"] },
+                  { label: "Category", value: regCategoryFilter, setter: setRegCategoryFilter, options: ["All Categories", ...new Set(players.map(p => p.ageGroup).filter(Boolean))] },
+                  { label: "Belt", value: regBeltFilter, setter: setRegBeltFilter, options: ["All Belts", ...new Set(players.map(p => p.belt).filter(Boolean))] },
+                  { label: "Payment Status", value: regPaymentFilter, setter: setRegPaymentFilter, options: ["All Payment Status", "Paid", "Pending"] },
+                ].map(filter => (
+                  <div key={filter.label} className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500">{filter.label}</label>
+                    <select
+                      value={filter.value}
+                      onChange={(e) => { filter.setter(e.target.value); setRegCurrentPage(1); }}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-[#FF7400] transition-colors"
+                    >
+                      {filter.options.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    {["TNJA ID", "Name", "District", "Club", "Category", "Belt", "Payment Status", "Registration Date", "Actions"].map((h) => (
+                      <th key={h} className="px-5 py-4 text-left text-[11px] font-black text-slate-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {(() => {
+                    let filtered = players.filter(p => {
+                      if (regSearchQuery && !p.name.toLowerCase().includes(regSearchQuery.toLowerCase()) && !p.tnjaId?.toLowerCase().includes(regSearchQuery.toLowerCase()) && !p.club.toLowerCase().includes(regSearchQuery.toLowerCase())) return false;
+                      if (regDistrictFilter !== "All Districts" && p.district !== regDistrictFilter) return false;
+                      if (regClubFilter !== "All Clubs" && p.club !== regClubFilter) return false;
+                      if (regGenderFilter !== "All Genders" && p.gender !== regGenderFilter) return false;
+                      if (regCategoryFilter !== "All Categories" && p.ageGroup !== regCategoryFilter) return false;
+                      if (regBeltFilter !== "All Belts" && p.belt !== regBeltFilter) return false;
+                      return true;
+                    });
+                    
+                    const totalItems = filtered.length;
+                    const paginated = filtered.slice((regCurrentPage - 1) * regItemsPerPage, regCurrentPage * regItemsPerPage);
+
+                    if (paginated.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={9} className="px-5 py-10 text-center text-slate-400 font-bold">No players found matching your filters.</td>
+                        </tr>
+                      );
+                    }
+
+                    return paginated.map(p => {
+                      let dotColor = "bg-slate-300";
+                      const b = p.belt?.toLowerCase() || "";
+                      if (b.includes("blue")) dotColor = "bg-blue-500";
+                      else if (b.includes("brown")) dotColor = "bg-amber-800";
+                      else if (b.includes("green")) dotColor = "bg-green-600";
+                      else if (b.includes("yellow")) dotColor = "bg-yellow-400";
+                      else if (b.includes("black")) dotColor = "bg-black";
+                      else if (b.includes("orange")) dotColor = "bg-orange-500";
+
+                      return (
+                      <React.Fragment key={p.id}>
+                        <tr className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.tnjaId || "—"}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.club || "—"}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">
+                            {p.belt ? (
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
+                                {p.belt}
+                              </div>
+                            ) : "—"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="bg-emerald-50 text-emerald-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Paid</span>
+                          </td>
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">
+                            15/07/2026 10:30 AM
+                          </td>
+                          <td className="px-5 py-4 flex gap-2">
+                            <button 
+                              onClick={() => {
+                                const newExpanded = expandedPlayerId === p.id ? null : p.id;
+                                setExpandedPlayerId(newExpanded);
+                                if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
+                              }}
+                              className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors" title="View / Message"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Edit"><Edit2 size={16} /></button>
+                            <button className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Print"><Printer size={16} /></button>
+                          </td>
+                        </tr>
+                        {expandedPlayerId === p.id && p.regId && (
                           <tr>
-                            {["#", "Name", "Club", "District", "Weight", "Belt", "Status"].map((h) => (
-                              <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {category.players.map((p, i) => (
-                            <React.Fragment key={p.id}>
-                              <tr className="border-b border-slate-50 hover:bg-orange-50/30 transition-colors">
-                                <td className="px-4 py-3 text-sm font-bold text-slate-400">{i + 1}</td>
-                                <td className="px-4 py-3 text-sm font-extrabold text-slate-800">{p.name}</td>
-                                <td className="px-4 py-3 text-sm font-semibold text-slate-600">{p.club || "—"}</td>
-                                <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
-                                <td className="px-4 py-3 text-sm font-bold text-orange-600">{p.weight} kg</td>
-                                <td className="px-4 py-3 text-sm font-semibold text-slate-500">{p.belt || "—"}</td>
-                                <td className="px-4 py-3 text-sm font-bold flex items-center gap-2">
-                                  {p.status === "APPROVED" && <span className="text-emerald-600">Approved</span>}
-                                  {p.status === "REJECTED" && <span className="text-red-600">Rejected</span>}
-                                  {p.status === "DISQUALIFIED" && <span className="text-red-800 bg-red-100 px-2 py-0.5 rounded uppercase text-[10px]">Disqualified</span>}
-                                  {p.status === "PENDING" && (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-amber-600">Pending</span>
-                                      <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "APPROVED")} className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-xs transition-colors">Approve</button>
-                                      <button onClick={() => p.regId && handleUpdatePlayerStatus(p.regId, "REJECTED")} className="px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors">Reject</button>
-                                    </div>
-                                  )}
-                                  <button
-                                    onClick={() => {
-                                      const newExpanded = expandedPlayerId === p.id ? null : p.id;
-                                      setExpandedPlayerId(newExpanded);
-                                      if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
-                                    }}
-                                    className="ml-2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-2 text-xs transition-colors"
-                                  >
-                                    <MessageSquare size={14} /> Reply
-                                  </button>
-                                </td>
-                              </tr>
-                              {expandedPlayerId === p.id && p.regId && (
-                                <tr>
-                                  <td colSpan={7} className="p-0 border-b border-slate-200 bg-slate-50/80">
-                                    <div className="p-4 flex flex-col items-center">
-                                      <div className="w-full max-w-3xl space-y-4">
-                                        {/* Chat thread */}
-                                        {messages[p.regId]?.length > 0 && (
-                                          <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
-                                            {messages[p.regId].map((msg) => (
-                                              <div key={msg.id} className="flex items-start gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                  <span className="text-[10px] font-black text-[#FF7400]">A</span>
-                                                </div>
-                                                <div className="flex-grow">
-                                                  <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
-                                                  <p className="text-[10px] text-slate-400 mt-0.5">
-                                                    {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            ))}
+                            <td colSpan={9} className="p-0 border-b border-slate-200 bg-slate-50/80">
+                              <div className="p-4 flex flex-col items-center">
+                                <div className="w-full max-w-3xl space-y-4">
+                                  {/* Chat thread */}
+                                  {messages[p.regId]?.length > 0 && (
+                                    <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
+                                      {messages[p.regId].map((msg) => (
+                                        <div key={msg.id} className="flex items-start gap-2">
+                                          <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
+                                            <span className="text-[10px] font-black text-[#FF7400]">A</span>
                                           </div>
-                                        )}
-                                        
-                                        {/* Reply Input */}
-                                        <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
-                                          <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
-                                            <input
-                                              type="text"
-                                              placeholder={`Send message to ${p.name}...`}
-                                              value={replyTexts[p.regId!] || ""}
-                                              onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
-                                              onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
-                                              className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
-                                            />
-                                            <button
-                                              onClick={() => handleSendReply(p.regId!)}
-                                              disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
-                                              className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
-                                            >
-                                              {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                            </button>
+                                          <div className="flex-grow">
+                                            <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
+                                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                              {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                            </p>
                                           </div>
                                         </div>
-                                      </div>
+                                      ))}
                                     </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </tbody>
-                      </table>
+                                  )}
+                                  
+                                  {/* Reply Input */}
+                                  <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
+                                    <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
+                                      <input
+                                        type="text"
+                                        placeholder={`Send message to ${p.name}...`}
+                                        value={replyTexts[p.regId!] || ""}
+                                        onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
+                                        onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
+                                        className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
+                                      />
+                                      <button
+                                        onClick={() => handleSendReply(p.regId!)}
+                                        disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
+                                        className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
+                                      >
+                                        {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination UI */}
+            {(() => {
+              let filtered = players.filter(p => {
+                if (regSearchQuery && !p.name.toLowerCase().includes(regSearchQuery.toLowerCase()) && !p.tnjaId?.toLowerCase().includes(regSearchQuery.toLowerCase()) && !p.club.toLowerCase().includes(regSearchQuery.toLowerCase())) return false;
+                if (regDistrictFilter !== "All Districts" && p.district !== regDistrictFilter) return false;
+                if (regClubFilter !== "All Clubs" && p.club !== regClubFilter) return false;
+                if (regGenderFilter !== "All Genders" && p.gender !== regGenderFilter) return false;
+                if (regCategoryFilter !== "All Categories" && p.ageGroup !== regCategoryFilter) return false;
+                if (regBeltFilter !== "All Belts" && p.belt !== regBeltFilter) return false;
+                return true;
+              });
+              const totalItems = filtered.length;
+              const totalPages = Math.ceil(totalItems / regItemsPerPage) || 1;
+              if (totalItems === 0) return null;
+
+              return (
+                <div className="bg-white border-t border-slate-100 px-5 py-4 flex items-center justify-between">
+                  <p className="text-sm text-slate-500 font-semibold">
+                    Showing {(regCurrentPage - 1) * regItemsPerPage + 1} to {Math.min(regCurrentPage * regItemsPerPage, totalItems)} of {totalItems} entries
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 mr-4">
+                      <select 
+                        value={regItemsPerPage} 
+                        onChange={(e) => { setRegItemsPerPage(Number(e.target.value)); setRegCurrentPage(1); }}
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-none"
+                      >
+                        <option value={10}>10 / page</option>
+                        <option value={24}>24 / page</option>
+                        <option value={50}>50 / page</option>
+                      </select>
                     </div>
+                    <button 
+                      onClick={() => setRegCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={regCurrentPage === 1}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    
+                    <div className="flex gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                        if (page === 1 || page === totalPages || (page >= regCurrentPage - 1 && page <= regCurrentPage + 1)) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setRegCurrentPage(page)}
+                              className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors ${regCurrentPage === page ? "bg-[#FF7400] text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (page === regCurrentPage - 2 || page === regCurrentPage + 2) {
+                          return <span key={page} className="px-1 text-slate-400">...</span>;
+                        }
+                        return null;
+                      })}
+                    </div>
+
+                    <button 
+                      onClick={() => setRegCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={regCurrentPage === totalPages}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
-                ));
-              })()
-            )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -2779,7 +3233,7 @@ export default function TournamentDetailPage() {
                       ↺ Re-draw
                     </button>
                     <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                      {(filteredPlayers.length <= 5 ? ["list"] : ["bracket", "list"] as ViewMode[]).map((v) => (
+                      {(filteredPlayers.length <= 5 ? ["list"] as ViewMode[] : ["bracket", "list"] as ViewMode[]).map((v) => (
                         <button key={v} onClick={() => setViewMode(v)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${(filteredPlayers.length <= 5 ? "list" : viewMode) === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
                           {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
