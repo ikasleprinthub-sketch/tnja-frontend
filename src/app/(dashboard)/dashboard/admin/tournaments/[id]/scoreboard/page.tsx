@@ -688,13 +688,13 @@ function ScoreboardInner() {
           if (osaFor === "A") {
             setScoreA(p => { 
               const nx = { ...p, yuko: p.yuko + 1 }; 
-              saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL); 
+              setTimeout(() => saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL), 0); 
               return nx; 
             });
           } else {
             setScoreB(p => { 
               const nx = { ...p, yuko: p.yuko + 1 }; 
-              saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL); 
+              setTimeout(() => saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL), 0); 
               return nx; 
             });
           }
@@ -715,7 +715,7 @@ function ScoreboardInner() {
                 nx.ippon = 1;
                 nx.awaseteIppon = true;
               }
-              saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL); 
+              setTimeout(() => saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL), 0); 
               return nx; 
             });
           } else {
@@ -726,7 +726,7 @@ function ScoreboardInner() {
                 nx.ippon = 1;
                 nx.awaseteIppon = true;
               }
-              saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL); 
+              setTimeout(() => saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL), 0); 
               return nx; 
             });
           }
@@ -738,8 +738,8 @@ function ScoreboardInner() {
           const nL = [...logsRef.current, newLog];
           setLogs(nL); logsRef.current = nL;
           
-          if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL); return nx; }); }
-          else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL); return nx; }); }
+          if (osaFor === "A") { setScoreA(p => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => saveMatchToDBRef.current(nx, undefined, undefined, undefined, nL), 0); return nx; }); }
+          else                { setScoreB(p => { const nx = { ...p, ippon: p.ippon + 1 }; setTimeout(() => saveMatchToDBRef.current(undefined, nx, undefined, undefined, nL), 0); return nx; }); }
         }
       }, 1000);
     } else {
@@ -972,10 +972,10 @@ function ScoreboardInner() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreA.ippon} theme="white" onUndo={() => undoScore("A", "ippon")} />
-            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="white" onUndo={() => undoScore("A", "wazaAri")} />
-            <ScoreBox label="YUKO" value={scoreA.yuko} theme="white" onUndo={() => undoScore("A", "yuko")} />
-            <ScoreBox label={scoreA.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreA.shido >= 3 ? "H" : scoreA.shido} theme="white" onUndo={() => undoScore("A", "shido")} />
+            <ScoreBox label="IPPON" value={scoreA.ippon} theme="white" onUndo={() => undoScore("A", "ippon")} onAdd={() => addScore("A", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreA.wazaAri} theme="white" onUndo={() => undoScore("A", "wazaAri")} onAdd={() => addScore("A", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreA.yuko} theme="white" onUndo={() => undoScore("A", "yuko")} onAdd={() => addScore("A", "yuko")} />
+            <ScoreBox label={scoreA.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreA.shido >= 3 ? "H" : scoreA.shido} theme="white" onUndo={() => undoScore("A", "shido")} onAdd={() => addScore("A", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -1103,10 +1103,9 @@ function ScoreboardInner() {
               <button onClick={() => startOsaekomi("A")} className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold py-2.5 rounded border border-white/30">Osaekomi (P1)</button>
               <button onClick={() => startOsaekomi("B")} className="bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 text-xs font-bold py-2.5 rounded border border-blue-700">Osaekomi (P2)</button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={() => startOsaekomi(osaFor === "A" ? "B" : "A")} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-[10px] font-bold py-2.5 rounded transition-all">Switch Hold</button>
-              <button onClick={swapOsaekomi} disabled={!osaActive} className="bg-transparent border border-orange-500/50 hover:bg-orange-600/20 text-orange-400 disabled:opacity-40 disabled:hover:bg-transparent disabled:border-gray-700 disabled:text-gray-500 text-[10px] font-bold py-2.5 rounded transition-all">Swap Hold</button>
-              <button onClick={toketa} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-[10px] font-bold py-2.5 rounded transition-all">Toketa</button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={swapOsaekomi} disabled={!osaActive} className="bg-transparent border border-orange-500/50 hover:bg-orange-600/20 text-orange-400 disabled:opacity-40 disabled:hover:bg-transparent disabled:border-gray-700 disabled:text-gray-500 text-[10px] font-bold py-2.5 rounded transition-all">Swap P1 ⇄ P2 (Keep Time)</button>
+              <button onClick={toketa} className="bg-transparent border border-gray-600 hover:bg-gray-800 text-gray-300 text-[10px] font-bold py-2.5 rounded transition-all">Toketa (Stop Hold)</button>
             </div>
           </div>
 
@@ -1179,10 +1178,10 @@ function ScoreboardInner() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:gap-4 mb-4">
-            <ScoreBox label="IPPON" value={scoreB.ippon} theme="blue" onUndo={() => undoScore("B", "ippon")} />
-            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="blue" onUndo={() => undoScore("B", "wazaAri")} />
-            <ScoreBox label="YUKO" value={scoreB.yuko} theme="blue" onUndo={() => undoScore("B", "yuko")} />
-            <ScoreBox label={scoreB.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreB.shido >= 3 ? "H" : scoreB.shido} theme="blue" onUndo={() => undoScore("B", "shido")} />
+            <ScoreBox label="IPPON" value={scoreB.ippon} theme="blue" onUndo={() => undoScore("B", "ippon")} onAdd={() => addScore("B", "ippon")} />
+            <ScoreBox label="WAZA-ARI" value={scoreB.wazaAri} theme="blue" onUndo={() => undoScore("B", "wazaAri")} onAdd={() => addScore("B", "wazaAri")} />
+            <ScoreBox label="YUKO" value={scoreB.yuko} theme="blue" onUndo={() => undoScore("B", "yuko")} onAdd={() => addScore("B", "yuko")} />
+            <ScoreBox label={scoreB.shido >= 3 ? "HANSOKU" : "SHIDO"} value={scoreB.shido >= 3 ? "H" : scoreB.shido} theme="blue" onUndo={() => undoScore("B", "shido")} onAdd={() => addScore("B", "shido")} />
           </div>
 
           <div className="flex flex-col flex-grow">
@@ -1564,14 +1563,36 @@ function ScoreboardInner() {
   );
 }
 
-function ScoreBox({ label, value, theme, onUndo }: { label: string; value: number | string; theme: "white" | "blue"; onUndo?: () => void }) {
+import { Minus, Plus } from "lucide-react";
+
+function ScoreBox({ label, value, theme, onUndo, onAdd }: { label: string; value: number | string; theme: "white" | "blue"; onUndo?: () => void; onAdd?: () => void }) {
   const bgClass = theme === "white" 
     ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.15)] border-white/30" 
     : "bg-blue-600/20 shadow-[0_0_20px_rgba(37,99,235,0.3)] border-blue-500/40";
   return (
-    <div onClick={onUndo} className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border ${onUndo ? "cursor-pointer hover:bg-white/20 transition-colors" : ""}`}>
+    <div className={`${bgClass} rounded-lg flex flex-col items-center justify-center py-4 border relative group`}>
       <span className="text-xs text-white/50 font-bold tracking-widest mb-1">{label}</span>
       <span className="text-4xl text-white font-black">{value}</span>
+      <div className="absolute -bottom-2 right-1 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        {onUndo && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onUndo(); }} 
+            className="bg-red-600 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"
+            title="Undo Score"
+          >
+            <Minus size={14} strokeWidth={4} />
+          </button>
+        )}
+        {onAdd && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onAdd(); }} 
+            className="bg-green-600 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"
+            title="Add Score"
+          >
+            <Plus size={14} strokeWidth={4} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

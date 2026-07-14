@@ -1232,8 +1232,7 @@ export default function AdminTournamentsPage() {
                     <input
                       required type="text" maxLength={5} value={formData.entryFee}
                       onChange={e => setFormData({ ...formData, entryFee: e.target.value.replace(/\D/g, '') })}
-                      disabled={formData.allowBPL}
-                      className={`w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 ${formData.allowBPL ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
 
@@ -1242,11 +1241,9 @@ export default function AdminTournamentsPage() {
                     <input
                       type="checkbox" id="bpl_create" checked={formData.allowBPL}
                       onChange={e => {
-                        const isChecked = e.target.checked;
                         setFormData({ 
                           ...formData, 
-                          allowBPL: isChecked,
-                          entryFee: isChecked ? "0" : formData.entryFee
+                          allowBPL: e.target.checked
                         });
                       }}
                       className="w-5 h-5 accent-[#FF7400]"
@@ -1435,8 +1432,7 @@ export default function AdminTournamentsPage() {
                     <input
                       required type="text" maxLength={5} value={editFormData.entryFee}
                       onChange={e => setEditFormData({ ...editFormData, entryFee: e.target.value.replace(/\D/g, '') })}
-                      disabled={editFormData.allowBPL}
-                      className={`w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 ${editFormData.allowBPL ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                     />
                   </div>
 
@@ -1445,11 +1441,9 @@ export default function AdminTournamentsPage() {
                     <input
                       type="checkbox" id="bpl_edit" checked={editFormData.allowBPL}
                       onChange={e => {
-                        const isChecked = e.target.checked;
                         setEditFormData({
                           ...editFormData,
-                          allowBPL: isChecked,
-                          entryFee: isChecked ? "0" : editFormData.entryFee
+                          allowBPL: e.target.checked
                         });
                       }}
                       className="w-5 h-5 accent-[#FF7400]"

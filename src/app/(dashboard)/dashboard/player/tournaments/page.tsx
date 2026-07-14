@@ -67,6 +67,9 @@ export default function PlayerTournamentsPage() {
   const [districtMatches, setDistrictMatches] = useState<any[]>([]);
   const [zonalMatches, setZonalMatches] = useState<any[]>([]);
   const [stateNationalMatches, setStateNationalMatches] = useState<any[]>([]);
+  const [categoryParticipants, setCategoryParticipants] = useState<any[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [bracketModal, setBracketModal] = useState<{ isOpen: boolean; rounds: any[]; loading: boolean }>({ isOpen: false, rounds: [], loading: false });
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [paying, setPaying] = useState<string | null>(null);
@@ -101,11 +104,12 @@ export default function PlayerTournamentsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const handleDownloadCertificate = async (tournamentId: string, tournamentTitle: string) => {
+  const handleDownloadCertificate = async (tournamentId: string, tournamentTitle: string, regId?: string, catName?: string) => {
     try {
       const token = localStorage.getItem("token");
       showToast("Generating your certificate...", "success");
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/certificate`, {
+      const urlParams = regId ? `?registrationId=${regId}` : "";
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/certificate${urlParams}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -117,7 +121,7 @@ export default function PlayerTournamentsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${tournamentTitle.replace(/\s+/g, "_")}_certificate.pdf`;
+      a.download = `${tournamentTitle.replace(/\s+/g, "_")}_${catName ? catName.replace(/\s+/g, "_") : "certificate"}.pdf`;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -170,9 +174,38 @@ export default function PlayerTournamentsPage() {
     } catch (err) {
       console.error("Failed to load tournaments", err);
     } finally {
-      setLoading(false);
+      setLoadingParticipants(false);
     }
   }, []);
+
+  const handleViewBracket = async (tournamentId: string, ageGroup: string, gender: string, weightCategory: string) => {
+    setBracketModal({ isOpen: true, rounds: [], loading: true });
+    try {
+      const token = localStorage.getItem("token");
+      const drawRes = await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!drawRes.ok) throw new Error("Failed to load draws");
+      const draws = await drawRes.json();
+      const myDraw = draws.find((d: any) => d.ageGroup === ageGroup && d.gender === gender && d.weightCategory === weightCategory);
+      
+      let allRounds: any[] = [];
+      if (myDraw && myDraw.rounds) {
+        let roundsArr = myDraw.rounds;
+        if (typeof roundsArr === "string") {
+          try { roundsArr = JSON.parse(roundsArr); } catch { roundsArr = []; }
+        }
+        if (Array.isArray(roundsArr)) {
+          allRounds = roundsArr; 
+        }
+      }
+      setBracketModal({ isOpen: true, rounds: allRounds, loading: false });
+    } catch (err) {
+      console.error(err);
+      setBracketModal({ isOpen: false, rounds: [], loading: false });
+      showToast("Failed to load bracket data", "error");
+    }
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -437,7 +470,7 @@ export default function PlayerTournamentsPage() {
               const myReg = myRegs.length > 0 ? myRegs[0] : null;
               const eligibleCats = playerData?.dob ? getEligibleCategoriesByBirthYear(playerData.dob) : [];
               const availableCats = eligibleCats.filter(cat => !myRegs.some((r: any) => r.ageGroup === cat));
-              const isFullyRegistered = eligibleCats.length > 0 && availableCats.length === 0;
+              const isFullyRegistered = myRegs.length > 0;
 
               const isFull = tournament.registrationClosed;
               const isPayingThis = paying === tournament.id;
@@ -550,11 +583,10 @@ export default function PlayerTournamentsPage() {
 
                     <div className="mt-auto pt-4 border-t border-slate-100">
                       {/* ── CLOSED: Show placement + Download Certificate ── */}
-                      {(tournament.status === "CLOSED" || myReg?.isCategoryConcluded) && myReg ? (
-                        <div className="space-y-2">
-                          {/* Placement badge */}
-                          {(() => {
-                            const p = myReg.placement;
+                      {myRegs.length > 0 && (tournament.status === "CLOSED" || myRegs.some((r: any) => r.isCategoryConcluded)) ? (
+                        <div className="flex flex-col gap-3">
+                          {myRegs.filter((r: any) => tournament.status === "CLOSED" || r.isCategoryConcluded).map((r: any) => {
+                            const p = r.placement;
                             const cfg: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
                               FIRST:         { label: "1st Place — Gold",   cls: "bg-yellow-50 text-yellow-700 border-yellow-300", icon: <Trophy size={16} /> },
                               SECOND:        { label: "2nd Place — Silver", cls: "bg-slate-50 text-slate-700 border-slate-300", icon: <Medal size={16} /> },
@@ -562,19 +594,22 @@ export default function PlayerTournamentsPage() {
                               PARTICIPATION: { label: "Participation",      cls: "bg-blue-50 text-blue-700 border-blue-200", icon: <Award size={16} /> },
                             };
                             const entry = cfg[p] ?? cfg["PARTICIPATION"];
+
                             return (
-                              <div className={`w-full py-2.5 flex items-center justify-center gap-2 text-sm font-black rounded-xl border ${entry.cls}`}>
-                                {entry.icon} {entry.label}
+                              <div key={r.id} className="space-y-2 p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+                                <div className="text-xs font-black text-slate-500 uppercase tracking-wider text-center">{r.ageGroup}</div>
+                                <div className={`w-full py-2 flex items-center justify-center gap-2 text-sm font-black rounded-xl border ${entry.cls}`}>
+                                  {entry.icon} {entry.label}
+                                </div>
+                                <button
+                                  onClick={() => handleDownloadCertificate(tournament.id, tournament.title, r.id, r.ageGroup)}
+                                  className="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                >
+                                  <Award size={14} /> Download Certificate
+                                </button>
                               </div>
                             );
-                          })()}
-                          {/* Download Certificate */}
-                          <button
-                            onClick={() => handleDownloadCertificate(tournament.id, tournament.title)}
-                            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                          >
-                            <Award size={15} /> Download Certificate
-                          </button>
+                          })}
                         </div>
                       ) : tournament.status === "CLOSED" ? (
                         /* CLOSED but not registered */
@@ -592,8 +627,19 @@ export default function PlayerTournamentsPage() {
                       ) : (
                         <div className="flex flex-col gap-2">
                           {myRegs.map((reg: any) => (
-                            <div key={reg.id} className={`w-full py-2 text-center text-xs font-bold rounded-xl border ${regStatusConfig[reg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"}`}>
-                              {reg.ageGroup} - {regStatusConfig[reg.status]?.label || reg.status}
+                            <div key={reg.id} className="flex gap-2">
+                              <div className={`flex-1 py-2 text-center text-xs font-bold rounded-xl border ${regStatusConfig[reg.status]?.color || "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                                {reg.ageGroup} - {regStatusConfig[reg.status]?.label || reg.status}
+                              </div>
+                              {reg.status === "APPROVED" && (
+                                <button
+                                  onClick={() => handleViewBracket(tournament.id, reg.ageGroup, reg.gender, reg.weightCategory)}
+                                  className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-sm"
+                                  title="View Match Bracket"
+                                >
+                                  <Swords size={16} />
+                                </button>
+                              )}
                             </div>
                           ))}
                           {!isFullyRegistered && (
@@ -730,6 +776,78 @@ export default function PlayerTournamentsPage() {
                   {paying === registerModal.id ? <Loader2 size={16} className="animate-spin" /> : "Proceed"}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bracket Modal */}
+      <AnimatePresence>
+        {bracketModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-4xl bg-white rounded-3xl p-6 shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-slate-800">Match Bracket</h2>
+                <button
+                  onClick={() => setBracketModal({ isOpen: false, rounds: [], loading: false })}
+                  className="text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {bracketModal.loading ? (
+                <div className="py-20 flex justify-center">
+                  <Loader2 size={40} className="animate-spin text-[#FF7400]" />
+                </div>
+              ) : bracketModal.rounds.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-slate-100">
+                  Bracket has not been generated for this category yet.
+                </div>
+              ) : (
+                <div className="overflow-y-auto pr-2 custom-scrollbar space-y-8 pb-4">
+                  {bracketModal.rounds.map((round: any[], rIdx: number) => (
+                    <div key={rIdx} className="space-y-3">
+                      <h3 className="font-black text-slate-400 text-xs uppercase tracking-widest px-1">
+                        {rIdx === bracketModal.rounds.length - 1 ? "Final Round" : `Round ${rIdx + 1}`}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {round.map((match: any, mIdx: number) => {
+                          const isAWin = match.winnerId && match.winnerId === match.slotA?.playerId;
+                          const isBWin = match.winnerId && match.winnerId === match.slotB?.playerId;
+                          return (
+                            <div key={match.matchId || mIdx} className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden hover:border-orange-300 transition-colors">
+                              <div className="px-3 py-1.5 bg-white border-b border-slate-100 flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Match #{match.matchNumber}</span>
+                                {match.matNumber && <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 rounded-md">Mat {match.matNumber}</span>}
+                              </div>
+                              
+                              <div className={`px-4 py-2 flex items-center justify-between border-b border-slate-100 ${isAWin ? 'bg-emerald-50' : 'bg-white'}`}>
+                                <span className={`text-sm font-bold truncate ${match.slotA?.isBye ? 'text-slate-400 italic' : isAWin ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                  {match.slotA?.playerName || "TBD"} {match.slotA?.isBye ? "(Bye)" : ""}
+                                </span>
+                                {isAWin && <span className="text-emerald-500 text-xs font-black">WIN</span>}
+                              </div>
+                              
+                              <div className={`px-4 py-2 flex items-center justify-between ${isBWin ? 'bg-emerald-50' : 'bg-white'}`}>
+                                <span className={`text-sm font-bold truncate ${match.slotB?.isBye ? 'text-slate-400 italic' : isBWin ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                  {match.slotB?.playerName || "TBD"} {match.slotB?.isBye ? "(Bye)" : ""}
+                                </span>
+                                {isBWin && <span className="text-emerald-500 text-xs font-black">WIN</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </div>
         )}

@@ -87,6 +87,7 @@ export default function UserManagementPage() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL" | "PROMOTED">("ALL");
   const [genderFilter, setGenderFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("APPROVED");
   const [districtFilter, setDistrictFilter] = useState<string>("ALL");
   const [promotedRoleFilter, setPromotedRoleFilter] = useState<string>("ALL");
   const [selectedUser, setSelectedUser] = useState<TNJAUser | null>(null);
@@ -145,7 +146,7 @@ export default function UserManagementPage() {
       if (debouncedSearchQuery) params.append("search", debouncedSearchQuery);
       if (roleFilter !== "ALL" && roleFilter !== "PROMOTED") params.append("role", roleFilter);
       if (genderFilter !== "ALL") params.append("gender", genderFilter);
-      params.append("status", "APPROVED");
+      if (statusFilter !== "ALL") params.append("status", statusFilter);
 
       const res = await fetch(`${API_BASE}/users/all?${params.toString()}`, {
         headers: {
@@ -160,7 +161,7 @@ export default function UserManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchQuery, roleFilter, genderFilter]);
+  }, [debouncedSearchQuery, roleFilter, genderFilter, statusFilter]);
 
   const fetchCoaches = async () => {
     try {
@@ -255,6 +256,27 @@ export default function UserManagementPage() {
       
       showToast("User deleted successfully", "success");
       setDeleteModalOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBlockUser = async (u: TNJAUser) => {
+    if (!window.confirm(`Are you sure you want to block ${u.fullName}?`)) return;
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/users/${u.role}/${u.id}/block`, {
+        method: "PATCH",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to block user");
+      
+      showToast("User blocked successfully", "success");
       fetchUsers();
     } catch (err: any) {
       showToast(err.message, "error");
@@ -601,6 +623,18 @@ export default function UserManagementPage() {
             </select>
             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
           </div>
+          <div className="relative shrink-0 w-full sm:w-auto">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="appearance-none h-full w-full pl-5 pr-12 py-4 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400] hover:border-[#FF7400] hover:shadow-md transition-all text-slate-700 font-semibold shadow-sm cursor-pointer"
+            >
+              <option value="ALL">All Status</option>
+              <option value="APPROVED">Approved</option>
+              <option value="BLOCKED">Blocked</option>
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+          </div>
           
           <AnimatePresence>
             {roleFilter === "PROMOTED" && (
@@ -788,6 +822,15 @@ export default function UserManagementPage() {
                     >
                       <Edit size={12} /> Edit
                     </button>
+                    {u.status !== "BLOCKED" && ["SUPER_ADMIN", "CEO", "STATE_PRESIDENT", "STATE_SECRETARY", "ZONE_PRESIDENT", "ZONE_SECRETARY", "DISTRICT_PRESIDENT", "DISTRICT_SECRETARY"].includes(currentUserRole || "") && (
+                      <button
+                        onClick={() => handleBlockUser(u)}
+                        className="px-3 py-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1"
+                        title="Block User"
+                      >
+                        <Shield size={12} /> Block
+                      </button>
+                    )}
                     {(currentUserRole === "SUPER_ADMIN" || currentUserRole === "CEO") && (
                       <button
                         onClick={() => confirmDelete(u)}
