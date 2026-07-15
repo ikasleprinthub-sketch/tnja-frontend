@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 const presidentMessage = `I am honoured to be associated with the Tamil Nadu Judo Association 2/5/2017, an organization that reflects the true spirit of disciplines, resilience, and national pride. Sport has the power to transform lives, and for India to emerge as a global sporting nation, it is essential to build a strong foundation at the grassroots level through collective effort, professional expertise, and a scientific approach to training.
 
@@ -33,161 +34,159 @@ export default function VisionMission() {
 
       {/* ══════════════════════════════════
           VISION HALF
-          Layout: [VISION label] [photo+card on left half] [empty right half]
       ══════════════════════════════════ */}
-      <div className="flex min-h-0">
-
-        {/* VISION vertical label — far left */}
-        <div className="w-10 shrink-0 flex items-center justify-center">
+      <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10">
+        {/* VISION vertical label */}
+        <motion.div 
+          initial={{ opacity: 0, x: -50 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.8 }}
+          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center"
+        >
           <span
-            className="text-black font-black uppercase select-none"
+            className="text-black font-black uppercase select-none tracking-[0.45em]"
             style={{
               writingMode: "vertical-rl",
               transform: "rotate(180deg)",
-              fontSize: "clamp(0.9rem, 1.8vw, 1.5rem)",
-              letterSpacing: "0.45em",
+              fontSize: "clamp(1.5rem, 3vw, 2.5rem)",
             }}
           >
             VISION
           </span>
-        </div>
+        </motion.div>
 
-        {/* Content area split 50/50 */}
-        <div className="flex-1 flex py-10 px-4">
-
-          {/* LEFT half — photo stacked above card */}
-          <div className="w-1/2 flex flex-col gap-0 pr-6">
-
-            {/* Photo */}
-            <div
-              className="relative overflow-hidden w-full"
-              style={{ width: 400, height: 360 }}
-            >
+        {/* Content area */}
+        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl">
+          {/* Photo & Name */}
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex flex-col md:flex-row items-end gap-6 relative z-10 mb-[-3rem] md:ml-4"
+          >
+            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
               <Image
-                src="/homepage/philosophy/kano.png"
+                src="/president.png"
                 alt="Parth Jindal"
                 fill
                 className="object-cover object-top"
-                style={{ filter: "sepia(35%) contrast(1.05)" }}
               />
             </div>
-
-            {/* Name / title — below photo */}
-            <div className="mt-2 mb-4">
-              <p className="text-[#d4890a] font-extrabold text-base md:text-lg leading-tight">
+            <div className="mb-12">
+              <p className="text-[#FF7400] font-extrabold text-2xl md:text-3xl leading-tight">
                 Parth Jindal
               </p>
-              <p className="text-gray-600 text-[10px] uppercase tracking-[0.22em]">
+              <p className="text-black font-bold text-sm md:text-lg">
                 President
               </p>
             </div>
+          </motion.div>
 
-            {/* Message card — below name */}
-            <div className="w-full">
-              <div className="bg-[#d4890a] px-4 py-2">
-                <h2 className="text-white text-xs md:text-sm font-bold tracking-widest uppercase">
-                  President&apos;s Message
-                </h2>
-              </div>
-              <div className="bg-white/88 px-4 py-4 shadow">
-                <p className="text-gray-800 text-[10px] md:text-[11px] leading-relaxed whitespace-pre-line">
-                  {presidentMessage}
-                </p>
-              </div>
+          {/* Message card */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="relative z-20 bg-gradient-to-br from-[#FFFAF5] to-[#FFF0E5] border border-[#FFD0A8] rounded-2xl p-6 md:p-10 shadow-[0_8px_30px_rgba(255,116,0,0.1)] w-full max-w-[95%]"
+          >
+            <h2 className="text-[#FF7400] text-lg md:text-xl font-bold mb-4">
+              President's Message
+            </h2>
+            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium">
+              {presidentMessage}
             </div>
-          </div>
-
-          {/* RIGHT half — empty */}
-          <div className="w-1/2" />
+          </motion.div>
         </div>
-
-        {/* spacer right */}
-        <div className="w-10 shrink-0" />
       </div>
 
       {/* ══════════════════════════════════
-          & SYMBOL — centered between halves
+          & SYMBOL
       ══════════════════════════════════ */}
-      <div className="flex items-center justify-center py-16">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+        whileInView={{ opacity: 0.9, scale: 1, rotate: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.8, type: "spring", bounce: 0.4 }}
+        className="flex items-center justify-center py-8 -mt-20 md:-mt-32 relative z-0"
+      >
         <Image
           src="/missionvision/symbol.svg"
           alt="and"
-          width={240}
-          height={254}
+          width={300}
+          height={300}
         />
-      </div>
+      </motion.div>
 
       {/* ══════════════════════════════════
           MISSION HALF
-          Layout: [empty left half] [photo+card on right half] [MISSION label]
       ══════════════════════════════════ */}
-      <div className="flex min-h-0">
-
-        {/* spacer left */}
-        <div className="w-10 shrink-0" />
-
-        {/* Content area split 50/50 */}
-        <div className="flex-1 flex py-10 px-4">
-
-          {/* LEFT half — empty */}
-          <div className="w-1/2" />
-
-          {/* RIGHT half — same structure as top card */}
-          <div className="w-1/2 flex flex-col gap-0 pl-6">
-
-            {/* Photo */}
-            <div
-              className="relative overflow-hidden w-full self-end"
-              style={{ width: 400, height: 360 }}
-            >
-              <Image
-                src="/homepage/philosophy/kano.png"
-                alt="R. Vijaya Mohana Murali"
-                fill
-                className="object-cover object-top"
-                style={{ filter: "sepia(35%) contrast(1.05)" }}
-              />
-            </div>
-
-            {/* Name / title — below photo */}
-            <div className="mt-2 mb-4 text-right">
-              <p className="text-[#d4890a] font-extrabold text-base md:text-lg leading-tight">
+      <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10 mt-[-2rem] md:mt-[-6rem]">
+        {/* Content area */}
+        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-end">
+          {/* Photo & Name */}
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex flex-col-reverse md:flex-row items-end gap-6 relative z-10 mb-[-3rem] md:mr-4"
+          >
+            <div className="mb-12 text-right">
+              <p className="text-[#FF7400] font-extrabold text-2xl md:text-3xl leading-tight">
                 R. Vijaya Mohana Murali
               </p>
-              <p className="text-gray-600 text-[10px] uppercase tracking-[0.22em]">
+              <p className="text-black font-bold text-sm md:text-lg">
                 CEO
               </p>
             </div>
-
-            {/* Message card — below name */}
-            <div className="w-full">
-              <div className="bg-[#d4890a] px-4 py-2">
-                <h2 className="text-white text-xs md:text-sm font-bold tracking-widest uppercase">
-                  CEO&apos;s Message
-                </h2>
-              </div>
-              <div className="bg-white/88 px-4 py-4 shadow">
-                <p className="text-gray-800 text-[10px] md:text-[11px] leading-relaxed whitespace-pre-line">
-                  {ceoMessage}
-                </p>
-              </div>
+            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
+              <Image
+                src="/ceo.png"
+                alt="R. Vijaya Mohana Murali"
+                fill
+                className="object-cover object-top"
+              />
             </div>
-          </div>
+          </motion.div>
+
+          {/* Message card */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="relative z-20 bg-gradient-to-br from-[#FFFAF5] to-[#FFF0E5] border border-[#FFD0A8] rounded-2xl p-6 md:p-10 shadow-[0_8px_30px_rgba(255,116,0,0.1)] w-full max-w-[95%]"
+          >
+            <h2 className="text-[#FF7400] text-lg md:text-xl font-bold mb-4">
+              CEO's Message
+            </h2>
+            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium">
+              {ceoMessage}
+            </div>
+          </motion.div>
         </div>
 
-        {/* MISSION vertical label — far right */}
-        <div className="w-10 shrink-0 flex items-center justify-center">
+        {/* MISSION vertical label */}
+        <motion.div 
+          initial={{ opacity: 0, x: 50 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.8 }}
+          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center"
+        >
           <span
-            className="text-black font-black uppercase select-none"
+            className="text-black font-black uppercase select-none tracking-[0.45em]"
             style={{
               writingMode: "vertical-rl",
-              fontSize: "clamp(0.9rem, 1.8vw, 1.5rem)",
-              letterSpacing: "0.45em",
+              fontSize: "clamp(1.5rem, 3vw, 2.5rem)",
             }}
           >
             MISSION
           </span>
-        </div>
+        </motion.div>
       </div>
 
     </section>

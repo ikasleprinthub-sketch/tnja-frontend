@@ -5,26 +5,14 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const players = [
-  {
-    name: "DR. JIGORO KANO",
-    role: "FOUNDER & CEO",
-    quote: "Lorem ipsum dolor sit amet consectetur. Posuere lobortis integer vulputate enim sapien at mi. Leo ut maecenas ac facilisi feugiat. Nullam ante maecenas eu pellentesque varius magna vitae. Sagittis egestas non eget ut risus in tempor aliquam volutpat.",
-    image: "/homepage/kano.png"
-  },
-  {
-    name: "SENSEI N.T. BANGERA",
-    role: "CHIEF COACH",
-    quote: "Judo is the way to the most effective use of both physical and spiritual power. By training you in attacks and defenses, it refines your body and your soul and helps you make the spiritual essence of Judo a part of your very being.",
-    image: "/homepage/kano.png"
-  },
-  {
-    name: "SENSEI MUKESH",
-    role: "TECHNICAL DIRECTOR",
-    quote: "The objective of Judo is to understand the nature of things by cultivating wisdom through training. It is not just about winning on the mat, but about winning in life through discipline and respect.",
-    image: "/homepage/kano.png"
-  }
-];
+const playerImages = Array.from({ length: 19 }, (_, i) => `/talentplayer${i + 1}.png`);
+
+const players = playerImages.map((img, index) => ({
+  name: index === 0 ? "DR. JIGORO KANO" : `PLAYER ${index + 1}`,
+  role: index === 0 ? "FOUNDER & CEO" : "STAR ATHLETE",
+  quote: "Lorem ipsum dolor sit amet consectetur. Posuere lobortis integer vulputate enim sapien at mi. Leo ut maecenas ac facilisi feugiat. Nullam ante maecenas eu pellentesque varius magna vitae. Sagittis egestas non eget ut risus in tempor aliquam volutpat.",
+  image: img
+}));
 
 const TalentedPlayers = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -80,17 +68,29 @@ const TalentedPlayers = () => {
     <section className="w-full py-24 bg-white overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 text-center">
         {/* Section Header */}
-        <div className="mb-16">
+        <motion.div 
+          initial={{ opacity: 0, y: -30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.6 }}
+          className="mb-16"
+        >
           <h2 className="text-4xl md:text-5xl lg:text-5xl font-extrabold text-black mb-4 tracking-tight">
             Our <span className="text-[#FF7400]">Talented</span> Players
           </h2>
           <p className="text-gray-600 font-medium italic tracking-[0.35em] text-lg">
             Our Coaches, Our Pride
           </p>
-        </div>
+        </motion.div>
 
         {/* Carousel Container */}
-        <div className="relative flex items-center justify-center py-10 min-h-[600px]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="relative flex items-center justify-center py-10 min-h-[600px]"
+        >
           
           {/* Main Carousel Viewport */}
           <div className="relative w-full max-w-[900px] h-[500px] flex items-center justify-center">
@@ -200,21 +200,21 @@ const TalentedPlayers = () => {
             </div>
 
           </div>
-        </div>
+        </motion.div>
 
         {/* Navigation Arrows */}
         <div className="flex justify-center gap-6 mt-16">
           <button 
             onClick={prevSlide}
-            className="w-12 h-12 rounded-full border-2 border-[#FF7400] text-[#FF7400] flex items-center justify-center hover:bg-[#FF7400] hover:text-white transition-all duration-300 group"
+            className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[#FF7400] text-white flex items-center justify-center hover:bg-[#e06700] transition-all duration-300 shadow-md group"
           >
-            <ChevronLeft size={28} strokeWidth={3} className="transition-transform group-hover:-translate-x-1" />
+            <ChevronLeft size={24} strokeWidth={3} className="transition-transform group-hover:-translate-x-1" />
           </button>
           <button 
             onClick={nextSlide}
-            className="w-12 h-12 rounded-full bg-[#FF7400] text-white flex items-center justify-center hover:bg-black transition-all duration-300 shadow-lg shadow-orange-200 group"
+            className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[#FF7400] text-white flex items-center justify-center hover:bg-[#e06700] transition-all duration-300 shadow-md group"
           >
-            <ChevronRight size={28} strokeWidth={3} className="transition-transform group-hover:translate-x-1" />
+            <ChevronRight size={24} strokeWidth={3} className="transition-transform group-hover:translate-x-1" />
           </button>
         </div>
       </div>

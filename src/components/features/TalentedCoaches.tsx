@@ -5,20 +5,27 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const coaches = [
-  {
-    name: "DR. JIGORO KANO",
-    role: "FOUNDER & CEO",
-    quote: "Lorem ipsum dolor sit amet consectetur. Posuere lobortis integer vulputate enim sapien at mi. Leo ut maecenas ac facilisi feugiat. Nullam ante maecenas eu pellentesque varius magna vitae. Nibh mi bibendum ante id. Fermentum at gravida in nam pulvinar cras felis ultricies scelerisque. Facilisis sociis amet quis congue ultrices sed condimentum. Enim placerat quisque porttitor porttitor a. Tincidunt aenean et mauris quisque amet arcu gravida nulla.",
-    image: "/homepage/kano.png"
-  },
-  {
-    name: "SENSEI N.T. BANGERA",
-    role: "CHIEF COACH",
-    quote: "Judo is the way to the most effective use of both physical and spiritual power. By training you in attacks and defenses, it refines your body and your soul and helps you make the spiritual essence of Judo a part of your very being.",
-    image: "/homepage/kano.png"
-  }
+const coachImages = [
+  "/talent1.png",
+  "/talent2.png",
+  "/talent3.png",
+  "/talent4.png",
+  "/talent5.png",
+  "/talent6.png",
+  "/talent7.png",
+  "/talent8.png",
+  "/talent10.png",
+  "/talent11.png",
+  "/talent12.png",
+  "/talent13.png"
 ];
+
+const coaches = coachImages.map((img, index) => ({
+  name: index === 0 ? "DR. JIGORO KANO" : `COACH ${index + 1}`,
+  role: index === 0 ? "FOUNDER & CEO" : "EXPERT TRAINER",
+  quote: "Lorem ipsum dolor sit amet consectetur. Posuere lobortis integer vulputate enim sapien at mi. Leo ut maecenas ac facilisi feugiat. Nullam ante maecenas eu pellentesque varius magna vitae. Sagittis egestas non eget ut risus in tempor aliquam volutpat. Nibh mi bibendum ante id. Fermentum at gravida in nam pulvinar cras felis ultricies scelerisque. Facilisis sociis amet quis congue ultrices sed condimentum. Enim placerat quisque porttitor porttitor a. Tincidunt aenean et mauris quisque amet arcu gravida nulla.",
+  image: index === 0 ? "/homepage/kano.png" : img
+}));
 
 const TalentedCoaches = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -56,17 +63,29 @@ const TalentedCoaches = () => {
     <section className="w-full py-24 bg-white overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 text-center">
         {/* Section Header */}
-        <div className="mb-16">
+        <motion.div 
+          initial={{ opacity: 0, y: -30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.6 }}
+          className="mb-16"
+        >
           <h2 className="text-4xl md:text-5xl lg:text-5xl font-extrabold text-black mb-4 tracking-tight">
             Our <span className="text-[#FF7400]">Talented</span> Coaches
           </h2>
           <p className="text-gray-600 font-medium italic tracking-[0.35em] text-lg uppercase">
             Our Coaches, Our Pride
           </p>
-        </div>
+        </motion.div>
 
         {/* Carousel Container */}
-        <div className="relative flex items-center justify-between gap-4 min-h-[500px]">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="relative flex items-center justify-between gap-4 min-h-[500px]"
+        >
           
           {/* Left Peeking Image */}
           <div className="hidden xl:block w-[150px] h-[450px] relative rounded-[20px] overflow-hidden shadow-[0_0_30px_rgba(255,116,0,0.2)]">
@@ -136,7 +155,7 @@ const TalentedCoaches = () => {
             />
           </div>
 
-        </div>
+        </motion.div>
 
         {/* Custom Navigation & Progress Bar */}
         <div className="mt-20 max-w-[800px] mx-auto flex items-center gap-4">
