@@ -50,6 +50,7 @@ interface BracketMatch {
   matchId: string; round: number; matchNumber: number; matNumber: number;
   slotA: BracketSlot; slotB: BracketSlot;
   winnerId: string | null; status: "PENDING" | "IN_PROGRESS" | "COMPLETED";
+  scoreA?: any; scoreB?: any; winMethod?: string; elapsedSeconds?: number;
 }
 
 interface DrawCategory {
@@ -125,10 +126,64 @@ function clubSeparatedShuffle(players: RegisteredPlayer[]): RegisteredPlayer[] {
   return result;
 }
 
+function isDrawRoundRobin(draw: DrawCategory | undefined) {
+  if (!draw || !draw.rounds || draw.rounds.length === 0) return false;
+  const firstRound = draw.rounds[0];
+  if (!firstRound || firstRound.length === 0) return false;
+  const firstMatch = firstRound[0];
+  return firstMatch.matchId.startsWith("rr_");
+}
+
 // ─── Round Robin Bracket Generator (For <= 5 Players) ───────────────────────────
 function generateRoundRobin(players: RegisteredPlayer[]): BracketMatch[][] {
   const n = players.length;
   if (n < 2) return [];
+
+  // Special Case for exactly 3 players to enforce standard IJF schedule order:
+  // Round 1: 1 vs 2, Round 2: 2 vs 3, Round 3: 3 vs 1
+  if (n === 3) {
+    const p1 = players[0];
+    const p2 = players[1];
+    const p3 = players[2];
+    return [
+      [
+        {
+          matchId: `rr_r1_m1_${Date.now()}`,
+          round: 1,
+          matchNumber: 1,
+          matNumber: 1,
+          status: "PENDING",
+          winnerId: null,
+          slotA: { playerId: p1.id, playerName: p1.name, club: p1.club, isBye: false },
+          slotB: { playerId: p2.id, playerName: p2.name, club: p2.club, isBye: false },
+        }
+      ],
+      [
+        {
+          matchId: `rr_r2_m1_${Date.now()}`,
+          round: 2,
+          matchNumber: 1,
+          matNumber: 1,
+          status: "PENDING",
+          winnerId: null,
+          slotA: { playerId: p2.id, playerName: p2.name, club: p2.club, isBye: false },
+          slotB: { playerId: p3.id, playerName: p3.name, club: p3.club, isBye: false },
+        }
+      ],
+      [
+        {
+          matchId: `rr_r3_m1_${Date.now()}`,
+          round: 3,
+          matchNumber: 1,
+          matNumber: 1,
+          status: "PENDING",
+          winnerId: null,
+          slotA: { playerId: p3.id, playerName: p3.name, club: p3.club, isBye: false },
+          slotB: { playerId: p1.id, playerName: p1.name, club: p1.club, isBye: false },
+        }
+      ]
+    ];
+  }
   
   // If odd number of players, add a dummy BYE player
   const pList = [...players];
@@ -174,7 +229,7 @@ function generateRoundRobin(players: RegisteredPlayer[]): BracketMatch[][] {
 }
 
 // ─── IJF Bracket Generator ────────────────────────────────────────────────────
-function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketMatch[][] {
+function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds, shuffleMethod: "random" | "club-separated" = "club-separated"): BracketMatch[][] {
   const N = nextPow2(Math.max(players.length, 2));
   const M = N / 2; // Number of matches in Round 1
   const B = N - players.length; // Number of BYEs
@@ -189,7 +244,9 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds): BracketM
   const seededIds = new Set(
     [seeds[1], seeds[2], seeds[3], seeds[4]].filter(Boolean).map((p) => p!.id)
   );
-  const nonSeeded = clubSeparatedShuffle(players.filter((p) => !seededIds.has(p.id)));
+  const nonSeeded = shuffleMethod === "club-separated"
+    ? clubSeparatedShuffle(players.filter((p) => !seededIds.has(p.id)))
+    : shuffleArray(players.filter((p) => !seededIds.has(p.id)));
 
   // Determine which matches get a BYE to distribute them evenly and avoid BYE vs BYE
   const byeMatches = new Set<number>();
@@ -669,6 +726,331 @@ function exportAllMatchesToPDF(tournament: Tournament | null, allDraws: Record<s
   }
 }
 
+function exportRoundRobinPoolSheet(
+  tournament: Tournament | null,
+  categoryKey: string,
+  draw: DrawCategory,
+  players: RegisteredPlayer[]
+) {
+  if (!draw || !draw.rounds) return;
+
+  // Clean the category key for printing (e.g. "Senior_MALE_-60kg" -> "Senior MALE -60kg")
+  const catLabel = categoryKey.replace(/_/g, " ");
+  const parts = catLabel.split(" ");
+  const ageGroup = parts[0] || "";
+  const gender = parts[1] || "";
+  const weight = parts[2] || "";
+
+  const allMatches: any[] = [];
+  draw.rounds.forEach(roundMatches => {
+    roundMatches.forEach(m => {
+      if (!m.slotA.isBye && !m.slotB.isBye) {
+        allMatches.push(m);
+      }
+    });
+  });
+
+  // Approved active competitors
+  const activePlayers = players.filter(p => p.status === "APPROVED");
+  const pCount = activePlayers.length;
+
+  // Standings computation to show Place and Wins/Pts
+  const standingsMap: Record<string, {
+    playerId: string;
+    name: string;
+    club: string;
+    weight: string;
+    wins: number;
+    points: number;
+    totalWinningTime: number;
+  }> = {};
+
+  activePlayers.forEach(p => {
+    standingsMap[p.id] = {
+      playerId: p.id,
+      name: p.name,
+      club: p.club || "",
+      weight: p.weight ? String(p.weight) : "",
+      wins: 0,
+      points: 0,
+      totalWinningTime: 0,
+    };
+  });
+
+  allMatches.forEach(m => {
+    if (m.status === "COMPLETED") {
+      const ptsA = m.scoreA ? ( (m.scoreA.ippon || 0) * 100 + (m.scoreA.wazaAri || 0) * 10 + (m.scoreA.yuko || 0) * 1 ) : 0;
+      const ptsB = m.scoreB ? ( (m.scoreB.ippon || 0) * 100 + (m.scoreB.wazaAri || 0) * 10 + (m.scoreB.yuko || 0) * 1 ) : 0;
+
+      if (standingsMap[m.slotA.playerId]) standingsMap[m.slotA.playerId].points += Math.min(ptsA, 100);
+      if (standingsMap[m.slotB.playerId]) standingsMap[m.slotB.playerId].points += Math.min(ptsB, 100);
+
+      if (m.winnerId && standingsMap[m.winnerId]) {
+        standingsMap[m.winnerId].wins += 1;
+        standingsMap[m.winnerId].totalWinningTime += m.elapsedSeconds || 0;
+      }
+    }
+  });
+
+  const sortedPlayers = Object.values(standingsMap).sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b.points !== a.points) return b.points - a.points;
+
+    const tiedGroup = Object.values(standingsMap).filter(p => p.wins === a.wins && p.points === a.points);
+    if (tiedGroup.length === 2) {
+      const headToHead = allMatches.find(m => 
+        m.status === "COMPLETED" && 
+        ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+         (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+      );
+      if (headToHead && headToHead.winnerId) {
+        return headToHead.winnerId === a.playerId ? -1 : 1;
+      }
+    }
+    if (a.totalWinningTime !== b.totalWinningTime) {
+      return a.totalWinningTime - b.totalWinningTime;
+    }
+    return 0;
+  });
+
+  // Map to find Rank
+  const rankMap: Record<string, number> = {};
+  sortedPlayers.forEach((p, idx) => {
+    rankMap[p.playerId] = idx + 1;
+  });
+
+  // Competitor codes (01, 02, etc.) based on original activePlayers order
+  const codeMap: Record<string, string> = {};
+  activePlayers.forEach((p, idx) => {
+    codeMap[p.id] = (idx + 1).toString().padStart(2, "0");
+  });
+
+  // Construct head-to-head outcomes matrix
+  const grid: Record<string, Record<string, string>> = {};
+  activePlayers.forEach(pA => {
+    grid[pA.id] = {};
+    activePlayers.forEach(pB => {
+      grid[pA.id][pB.id] = "-"; // default
+    });
+  });
+
+  allMatches.forEach(m => {
+    if (m.status === "COMPLETED" && m.winnerId) {
+      const ptsA = m.scoreA ? ( (m.scoreA.ippon || 0) * 100 + (m.scoreA.wazaAri || 0) * 10 + (m.scoreA.yuko || 0) * 1 ) : 0;
+      const ptsB = m.scoreB ? ( (m.scoreB.ippon || 0) * 100 + (m.scoreB.wazaAri || 0) * 10 + (m.scoreB.yuko || 0) * 1 ) : 0;
+      
+      grid[m.slotA.playerId][m.slotB.playerId] = m.winnerId === m.slotA.playerId ? Math.min(ptsA, 100).toString() : "0";
+      grid[m.slotB.playerId][m.slotA.playerId] = m.winnerId === m.slotB.playerId ? Math.min(ptsB, 100).toString() : "0";
+    }
+  });
+
+  const formattedDate = tournament?.date ? new Date(tournament.date).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN");
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Round Robin Pool Sheet</title>
+      <style>
+        body { font-family: sans-serif; padding: 20px; color: #000; }
+        .official-header {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 5px;
+        }
+        .official-header td {
+          border: 1px solid #000;
+          padding: 8px;
+          font-size: 11px;
+          font-weight: bold;
+          vertical-align: middle;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        
+        .sub-header {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          font-weight: bold;
+          margin: 10px 0;
+          border-bottom: 2px solid #000;
+          padding-bottom: 4px;
+        }
+
+        .pool-title {
+          font-size: 20px;
+          font-weight: 900;
+          margin: 15px 0 5px 0;
+        }
+
+        .pool-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 25px;
+          font-size: 12px;
+        }
+        .pool-table th, .pool-table td {
+          border: 1px solid #000;
+          padding: 8px;
+          text-align: left;
+        }
+        .pool-table th {
+          background-color: #f5f5f5;
+          font-weight: bold;
+        }
+        .pool-table td.center, .pool-table th.center {
+          text-align: center;
+        }
+        .shaded-cell {
+          background-color: #e2e8f0;
+        }
+
+        .matches-title {
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+
+        .matches-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+        .matches-table th, .matches-table td {
+          border: 1px solid #000;
+          padding: 8px;
+          text-align: left;
+        }
+        .matches-table th {
+          background-color: #f5f5f5;
+          font-weight: bold;
+        }
+        .matches-table td.center {
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <table class="official-header">
+        <tr>
+          <td style="color: blue; font-size: 14px; width: 15%;" class="text-center">${gender.toUpperCase()} ${ageGroup.toUpperCase()}</td>
+          <td style="color: blue; font-size: 14px; width: 12%;" class="text-center">${weight}</td>
+          <td style="font-size: 11px; width: 35%;">${tournament?.title?.toUpperCase() || "TNJA CHAMPIONSHIP"}</td>
+          <td style="font-size: 11px; width: 18%;">${tournament?.location || "CHENNAI"}</td>
+          <td style="font-size: 11px; width: 10%;" class="text-center">${formattedDate}</td>
+          <td style="font-size: 11px; width: 5%;" class="text-center">${pCount}</td>
+          <td style="font-size: 11px; width: 5%;" class="text-center">Cmp</td>
+        </tr>
+      </table>
+
+      <div class="sub-header">
+        <span style="color: red;">Round Robin System for ${pCount} Competitors</span>
+        <span>4 min</span>
+        <span>Matte _</span>
+      </div>
+
+      <div class="pool-title">Poolk.</div>
+      <table class="pool-table">
+        <thead>
+          <tr>
+            <th style="width: 25%;">Nr. Name</th>
+            <th style="width: 25%;">Club</th>
+            ${activePlayers.map(p => `<th class="center" style="width: 8%;">${codeMap[p.id]}</th>`).join('')}
+            <th class="center" style="width: 12%;">Wins / Pts</th>
+            <th class="center" style="width: 10%;">Weight</th>
+            <th class="center" style="width: 8%;">Place</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${activePlayers.map(p => {
+            const code = codeMap[p.id];
+            const stats = standingsMap[p.id];
+            const rank = rankMap[p.id];
+            const placeEmoji = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `${rank}`;
+            return `
+              <tr>
+                <td><span style="color: blue;">${code}</span> ${p.name}</td>
+                <td>:${p.club || ""}</td>
+                ${activePlayers.map(opp => {
+                  if (opp.id === p.id) {
+                    return `<td class="shaded-cell"></td>`;
+                  }
+                  return `<td class="center">${grid[p.id][opp.id]}</td>`;
+                }).join('')}
+                <td class="center">${stats.wins} &nbsp;&nbsp;&nbsp;&nbsp; ${stats.points}</td>
+                <td class="center">${stats.weight} kg</td>
+                <td class="center" style="font-weight: bold; font-size: 14px;">${placeEmoji}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+
+      <div class="matches-title">Matches:</div>
+      <table class="matches-table">
+        <thead>
+          <tr>
+            <th style="width: 12%;" class="center">Round/Compe</th>
+            <th style="width: 28%;">Name ("white")</th>
+            <th style="width: 28%;">Name ("blue")</th>
+            <th style="width: 14%;">Winner</th>
+            <th style="width: 8%;" class="center">Pts.</th>
+            <th style="width: 10%;" class="center">Scores</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allMatches.map((m, idx) => {
+            const codeA = codeMap[m.slotA.playerId] || "??";
+            const codeB = codeMap[m.slotB.playerId] || "??";
+            const winnerName = m.winnerId === m.slotA.playerId ? m.slotA.playerName : m.winnerId === m.slotB.playerId ? m.slotB.playerName : "";
+            
+            const ptsVal = m.status === "COMPLETED" ? (
+              m.winnerId === m.slotA.playerId ? (
+                m.scoreA ? Math.min((m.scoreA.ippon * 100) + (m.scoreA.wazaAri * 10) + (m.scoreA.yuko), 100) : 0
+              ) : (
+                m.scoreB ? Math.min((m.scoreB.ippon * 100) + (m.scoreB.wazaAri * 10) + (m.scoreB.yuko), 100) : 0
+              )
+            ) : "";
+
+            const scoreA_str = m.scoreA ? `${m.scoreA.ippon}.${m.scoreA.wazaAri}.${m.scoreA.yuko}` : "0.0.0";
+            const scoreB_str = m.scoreB ? `${m.scoreB.ippon}.${m.scoreB.wazaAri}.${m.scoreB.yuko}` : "0.0.0";
+            const scoreDisplay = m.status === "COMPLETED" ? `${scoreA_str} / ${scoreB_str}` : "";
+
+            return `
+              <tr>
+                <td class="center" style="font-size: 14px; font-weight: bold; color: blue;">
+                  ${idx + 1} &nbsp;&nbsp;&nbsp;&nbsp; <span style="font-size:11px; font-weight:normal;">${codeA}-${codeB}</span>
+                </td>
+                <td>${m.slotA.playerName}</td>
+                <td>${m.slotB.playerName}</td>
+                <td style="font-weight: bold; color: green;">${winnerName}</td>
+                <td class="center" style="font-weight: bold;">${ptsVal}</td>
+                <td class="center">${scoreDisplay}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 250);
+  } else {
+    alert("Please allow popups to print.");
+  }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function TournamentDetailPage() {
   const params = useParams();
@@ -691,11 +1073,22 @@ export default function TournamentDetailPage() {
   const [seeds, setSeeds] = useState<Seeds>({ 1: null, 2: null, 3: null, 4: null });
   const [showSeedModal, setShowSeedModal] = useState(false);
   const [assigningSeed, setAssigningSeed] = useState<1 | 2 | 3 | 4 | null>(null);
-  const [champion, setChampion] = useState<{ name: string; club: string; categoryKey: string } | null>(null);
+  const [champion, setChampion] = useState<{
+    name: string;
+    club: string;
+    categoryKey: string;
+    secondPlaceName?: string;
+    secondPlaceClub?: string;
+    thirdPlaceName?: string;
+    thirdPlaceClub?: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
   const [shuffleKey, setShuffleKey] = useState(0);
+  type DrawMethodType = "round-robin" | "straight-elimination" | "single-repechage" | "double-repechage";
+  const [categoryDrawMethod, setCategoryDrawMethod] = useState<Record<string, DrawMethodType>>({});
+  const [detailDrawMethod, setDetailDrawMethod] = useState<DrawMethodType>("round-robin");
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [autoGenProgress, setAutoGenProgress] = useState("");
 
@@ -790,48 +1183,160 @@ export default function TournamentDetailPage() {
       const rounds = draw.rounds;
       if (!rounds || rounds.length === 0) continue;
 
-      const totalRounds = rounds.length;
+      const catPlayers = players.filter(p => 
+        p.status === "APPROVED" &&
+        p.ageGroup === draw.ageGroup &&
+        (draw.exactAge === 0 || p.exactAge === draw.exactAge) &&
+        p.gender === draw.gender &&
+        String(p.weight) === draw.weightCategory
+      );
 
-      // ── Final (last round) ──────────────────────────────────────────────────
-      const finalRound = rounds[totalRounds - 1];
-      let hasBronzeMatch = false;
+      const isRR = isDrawRoundRobin(draw);
 
-      if (finalRound && finalRound.length > 0) {
-        const finalMatch = finalRound[0];
-        if (finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
-          // 🥇 Gold: winner of the final
-          detected[finalMatch.winnerId] = "FIRST";
+      if (isRR) {
+        // Calculate Round Robin standings to detect Gold, Silver, Bronze
+        const standingsMap: Record<string, {
+          playerId: string;
+          name: string;
+          wins: number;
+          points: number;
+          totalWinningTime: number;
+        }> = {};
 
-          // 🥈 Silver: loser of the final
-          const silverPlayerId =
-            finalMatch.winnerId === finalMatch.slotA.playerId
-              ? finalMatch.slotB.playerId
-              : finalMatch.slotA.playerId;
-          if (silverPlayerId) detected[silverPlayerId] = "SECOND";
-        }
+        catPlayers.forEach(p => {
+          standingsMap[p.id] = { playerId: p.id, name: p.name, wins: 0, points: 0, totalWinningTime: 0 };
+        });
 
-        // 🥉 Bronze: winner of the bronze match (if it exists)
-        if (finalRound.length > 1) {
-          hasBronzeMatch = true;
-          const bronzeMatch = finalRound[1];
-          if (bronzeMatch.status === "COMPLETED" && bronzeMatch.winnerId) {
-            detected[bronzeMatch.winnerId] = "THIRD";
+        const allMatches: BracketMatch[] = [];
+        rounds.forEach(r => {
+          r.forEach(m => {
+            allMatches.push(m);
+            if (m.status === "COMPLETED") {
+              const elapsed = m.elapsedSeconds || 0;
+              const ptsA = m.scoreA ? ( (m.scoreA.ippon || 0) * 100 + (m.scoreA.wazaAri || 0) * 10 + (m.scoreA.yuko || 0) * 1 ) : 0;
+              const ptsB = m.scoreB ? ( (m.scoreB.ippon || 0) * 100 + (m.scoreB.wazaAri || 0) * 10 + (m.scoreB.yuko || 0) * 1 ) : 0;
+
+              if (m.slotA.playerId && standingsMap[m.slotA.playerId]) standingsMap[m.slotA.playerId].points += Math.min(ptsA, 100);
+              if (m.slotB.playerId && standingsMap[m.slotB.playerId]) standingsMap[m.slotB.playerId].points += Math.min(ptsB, 100);
+
+              if (m.winnerId && standingsMap[m.winnerId]) {
+                standingsMap[m.winnerId].wins += 1;
+                standingsMap[m.winnerId].totalWinningTime += elapsed;
+              }
+            }
+          });
+        });
+
+        const sortedPlayers = Object.values(standingsMap).sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.points !== a.points) return b.points - a.points;
+
+          const tiedGroup = Object.values(standingsMap).filter(p => p.wins === a.wins && p.points === a.points);
+          if (tiedGroup.length === 2) {
+            const headToHead = allMatches.find(m => 
+              m.status === "COMPLETED" && 
+              ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+               (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+            );
+            if (headToHead && headToHead.winnerId) {
+              return headToHead.winnerId === a.playerId ? -1 : 1;
+            }
+          }
+
+          if (a.totalWinningTime !== b.totalWinningTime) {
+            return a.totalWinningTime - b.totalWinningTime;
+          }
+
+          const headToHead = allMatches.find(m => 
+            m.status === "COMPLETED" && 
+            ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+             (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+          );
+          if (headToHead && headToHead.winnerId) {
+            return headToHead.winnerId === a.playerId ? -1 : 1;
+          }
+
+          return 0;
+        });
+
+        if (sortedPlayers.length > 0 && sortedPlayers[0].playerId) detected[sortedPlayers[0].playerId] = "FIRST";
+        if (sortedPlayers.length > 1 && sortedPlayers[1].playerId) detected[sortedPlayers[1].playerId] = "SECOND";
+        if (sortedPlayers.length > 2 && sortedPlayers[2].playerId) detected[sortedPlayers[2].playerId] = "THIRD";
+      } else {
+        const hasDoubleRepechage = rounds.some(r => r.some(m => m.matchId.startsWith("rr_rep1_m2")));
+        const hasSingleRepechage = !hasDoubleRepechage && rounds.some(r => r.some(m => m.matchId.startsWith("rr_rep")));
+        const totalMainRounds = (hasDoubleRepechage || hasSingleRepechage) ? rounds.length - 2 : rounds.length;
+
+        // Gold & Silver from the final match
+        if (totalMainRounds >= 1) {
+          const finalRound = rounds[totalMainRounds - 1];
+          if (finalRound && finalRound.length > 0) {
+            const finalMatch = finalRound[0];
+            if (finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
+              detected[finalMatch.winnerId] = "FIRST";
+              const silverId = finalMatch.winnerId === finalMatch.slotA.playerId ? finalMatch.slotB.playerId : finalMatch.slotA.playerId;
+              if (silverId) detected[silverId] = "SECOND";
+            }
           }
         }
-      }
 
-      // ── Semi-Finals (second-to-last round, if exists) ────────────────────────
-      if (totalRounds >= 2 && !hasBronzeMatch) {
-        const semiRound = rounds[totalRounds - 2];
-        for (const match of semiRound) {
-          if (match.status === "COMPLETED" && match.winnerId) {
-            // 🥉 Bronze fallback: loser of each semi-final (legacy)
-            const bronzePlayerId =
-              match.winnerId === match.slotA.playerId
-                ? match.slotB.playerId
-                : match.slotA.playerId;
-            if (bronzePlayerId && detected[bronzePlayerId] === "PARTICIPATION") {
-              detected[bronzePlayerId] = "THIRD";
+        if (hasDoubleRepechage) {
+          // Both winners of the two Bronze Matches in the last round get 3rd place (Bronze)
+          const bronzeRound = rounds[rounds.length - 1];
+          if (bronzeRound && bronzeRound.length >= 2) {
+            bronzeRound.forEach(m => {
+              if (m.status === "COMPLETED" && m.winnerId) {
+                detected[m.winnerId] = "THIRD";
+              }
+            });
+          }
+        } else if (hasSingleRepechage) {
+          // Winner of the single Bronze Match in the last round gets 3rd place (Bronze)
+          const bronzeRound = rounds[rounds.length - 1];
+          if (bronzeRound && bronzeRound.length >= 1) {
+            const bronzeMatch = bronzeRound[0];
+            if (bronzeMatch.status === "COMPLETED" && bronzeMatch.winnerId) {
+              detected[bronzeMatch.winnerId] = "THIRD";
+            }
+          }
+        } else {
+          // Standard Single Elimination (final + semi logic)
+          const totalRounds = rounds.length;
+          const finalRound = rounds[totalRounds - 1];
+          let hasBronzeMatch = false;
+
+          if (finalRound && finalRound.length > 0) {
+            const finalMatch = finalRound[0];
+            if (finalMatch.status === "COMPLETED" && finalMatch.winnerId) {
+              detected[finalMatch.winnerId] = "FIRST";
+              const silverPlayerId =
+                finalMatch.winnerId === finalMatch.slotA.playerId
+                  ? finalMatch.slotB.playerId
+                  : finalMatch.slotA.playerId;
+              if (silverPlayerId) detected[silverPlayerId] = "SECOND";
+            }
+
+            if (finalRound.length > 1) {
+              hasBronzeMatch = true;
+              const bronzeMatch = finalRound[1];
+              if (bronzeMatch.status === "COMPLETED" && bronzeMatch.winnerId) {
+                detected[bronzeMatch.winnerId] = "THIRD";
+              }
+            }
+          }
+
+          if (totalRounds >= 2 && !hasBronzeMatch) {
+            const semiRound = rounds[totalRounds - 2];
+            for (const match of semiRound) {
+              if (match.status === "COMPLETED" && match.winnerId) {
+                const bronzePlayerId =
+                  match.winnerId === match.slotA.playerId
+                    ? match.slotB.playerId
+                    : match.slotA.playerId;
+                if (bronzePlayerId && detected[bronzePlayerId] === "PARTICIPATION") {
+                  detected[bronzePlayerId] = "THIRD";
+                }
+              }
             }
           }
         }
@@ -1214,7 +1719,8 @@ export default function TournamentDetailPage() {
   const handleGenerateAndSaveDraw = async (
     isShuffle = false,
     isConfirmed = false,
-    explicitCat?: { ageGroup: string; exactAge: string; gender: string; weightCategory: string; players: RegisteredPlayer[]; key: string; draw: DrawCategory | undefined }
+    explicitCat?: { ageGroup: string; exactAge: string; gender: string; weightCategory: string; players: RegisteredPlayer[]; key: string; draw: DrawCategory | undefined },
+    drawMethod?: DrawMethodType
   ) => {
     const activeKey = explicitCat ? explicitCat.key : currentKey;
     const activeDraw = explicitCat ? explicitCat.draw : currentDraw;
@@ -1240,13 +1746,16 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    const defaultMethod = activePlayers.length <= 5 ? "round-robin" : "straight-elimination";
+    const selectedMethod = drawMethod || (explicitCat ? (categoryDrawMethod[activeKey] || defaultMethod) : (detailDrawMethod || defaultMethod));
+
     if (isShuffle && activeDraw?.generated) {
       if (!isConfirmed) {
         setConfirmModal({
           isOpen: true,
           title: "Re-shuffle Bracket",
           message: "Are you sure you want to completely re-shuffle this bracket? All unsaved matches will be lost.",
-          action: () => handleGenerateAndSaveDraw(isShuffle, true, explicitCat)
+          action: () => handleGenerateAndSaveDraw(isShuffle, true, explicitCat, selectedMethod)
         });
         return;
       }
@@ -1256,17 +1765,113 @@ export default function TournamentDetailPage() {
     if (isShuffle) setShuffleKey(k => k + 1);
     
     let rounds;
-    if (activePlayers.length <= 5) {
-      rounds = generateRoundRobin(isShuffle ? shuffleArray([...activePlayers]) : activePlayers);
+    if (selectedMethod === "round-robin") {
+      const shuffledPlayers = isShuffle ? shuffleArray(activePlayers) : activePlayers;
+      rounds = generateRoundRobin(shuffledPlayers);
     } else {
-      const rawRounds = generateIJFBracket(activePlayers, seeds);
+      const shuffledPlayers = isShuffle ? clubSeparatedShuffle(activePlayers) : activePlayers;
+      const rawRounds = generateIJFBracket(shuffledPlayers, seeds, "club-separated");
       rounds = processByeMatches(rawRounds);
+
+      if ((selectedMethod === "single-repechage" || selectedMethod === "double-repechage") && rounds.length >= 2) {
+        const totalRounds = rounds.length;
+
+        if (selectedMethod === "double-repechage") {
+          // Append Repechage Round 1 (2 matches)
+          const repRound: BracketMatch[] = [
+            {
+              matchId: `rr_rep1_m1_${Date.now()}`,
+              round: totalRounds + 1,
+              matchNumber: 1,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Loser of QF 1", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Loser of QF 2", club: "", isBye: false }
+            },
+            {
+              matchId: `rr_rep1_m2_${Date.now()}`,
+              round: totalRounds + 1,
+              matchNumber: 2,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Loser of QF 3", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Loser of QF 4", club: "", isBye: false }
+            }
+          ];
+
+          // Append Bronze Matches (2 matches)
+          const bronzeRound: BracketMatch[] = [
+            {
+              matchId: `rr_bronze1_${Date.now()}`,
+              round: totalRounds + 2,
+              matchNumber: 1,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Winner of Rep 1", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Loser of Semifinal 2", club: "", isBye: false }
+            },
+            {
+              matchId: `rr_bronze2_${Date.now()}`,
+              round: totalRounds + 2,
+              matchNumber: 2,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Winner of Rep 2", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Loser of Semifinal 1", club: "", isBye: false }
+            }
+          ];
+
+          rounds.push(repRound);
+          rounds.push(bronzeRound);
+        } else if (selectedMethod === "single-repechage") {
+          // Append Repechage Round 1 (1 match)
+          const repRound: BracketMatch[] = [
+            {
+              matchId: `rr_rep1_m1_${Date.now()}`,
+              round: totalRounds + 1,
+              matchNumber: 1,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Finalist's QF Loser", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Finalist's SF Loser", club: "", isBye: false }
+            }
+          ];
+
+          // Append Bronze Match (1 match)
+          const bronzeRound: BracketMatch[] = [
+            {
+              matchId: `rr_bronze1_${Date.now()}`,
+              round: totalRounds + 2,
+              matchNumber: 1,
+              matNumber: 1,
+              status: "PENDING",
+              winnerId: null,
+              slotA: { playerId: null, playerName: "Winner of Rep 1", club: "", isBye: false },
+              slotB: { playerId: null, playerName: "Loser of Finals (Runner-up)", club: "", isBye: false }
+            }
+          ];
+
+          rounds.push(repRound);
+          rounds.push(bronzeRound);
+        }
+      }
     }
     
     setTimeout(async () => {
       const newDraw = {
-        ageGroup: activeAgeGrp, gender: activeGender,
-        weightCategory: activeWeight, rounds, generated: true, saved: false,
+        ageGroup: activeAgeGrp,
+        exactAge: activeDraw?.exactAge !== undefined ? activeDraw.exactAge : (activeExactAge === "ALL" ? 0 : Number(activeExactAge)),
+        gender: activeGender,
+        weightCategory: activeWeight,
+        matNumber: activeDraw?.matNumber !== undefined ? activeDraw.matNumber : 1,
+        rounds,
+        generated: true,
+        saved: false,
       };
 
       setDraws((prev) => ({ ...prev, [activeKey]: newDraw }));
@@ -1279,10 +1884,10 @@ export default function TournamentDetailPage() {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             ageGroup: newDraw.ageGroup, 
-            exactAge: activeDraw?.exactAge || (activeExactAge === "ALL" ? 0 : Number(activeExactAge)),
+            exactAge: newDraw.exactAge,
             gender: newDraw.gender,
             weightCategory: newDraw.weightCategory, 
-            matNumber: activeDraw?.matNumber || 1,
+            matNumber: newDraw.matNumber,
             rounds: newDraw.rounds,
           }),
         });
@@ -1343,7 +1948,14 @@ export default function TournamentDetailPage() {
 
   // ── Handle match result from scoreboard tab ──────────────────────────────────
   const handleMatchResult = useCallback((
-    matchId: string, winnerId: string, winnerName: string, winnerClub: string
+    matchId: string, 
+    winnerId: string, 
+    winnerName: string, 
+    winnerClub: string,
+    scoreA?: any,
+    scoreB?: any,
+    winMethod?: string,
+    elapsedSeconds?: number
   ) => {
     const prev = drawsRef.current;
     const newDraws = { ...prev };
@@ -1367,19 +1979,234 @@ export default function TournamentDetailPage() {
         return;
       }
 
-      newRounds[foundRi][foundMi] = { ...newRounds[foundRi][foundMi], winnerId, status: "COMPLETED" };
+      newRounds[foundRi][foundMi] = { 
+        ...newRounds[foundRi][foundMi], 
+        winnerId, 
+        status: "COMPLETED",
+        scoreA: scoreA || newRounds[foundRi][foundMi].scoreA,
+        scoreB: scoreB || newRounds[foundRi][foundMi].scoreB,
+        winMethod: winMethod || newRounds[foundRi][foundMi].winMethod,
+        elapsedSeconds: elapsedSeconds !== undefined ? elapsedSeconds : newRounds[foundRi][foundMi].elapsedSeconds
+      };
 
-      if (foundRi + 1 < newRounds.length) {
-        const nextMatchIdx = Math.floor(foundMi / 2);
-        const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false, coachName: "" }; // coachName not really needed in next round display, but could be passed if tracked
-        const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
-        if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
-        else                   nextMatch.slotB = winnerSlot;
-        newRounds[foundRi + 1][nextMatchIdx] = nextMatch;
+      // Determine if this is a Round Robin category or single-elimination category
+      const isRR = isDrawRoundRobin(cat);
+      const allRoundsCompleted = newRounds.every(r => r.every(m => m.status === "COMPLETED"));
+
+      const hasDoubleRepechage = newRounds.some(r => r.some(m => m.matchId.startsWith("rr_rep1_m2")));
+      const hasSingleRepechage = !hasDoubleRepechage && newRounds.some(r => r.some(m => m.matchId.startsWith("rr_rep")));
+      const totalMainRounds = (hasDoubleRepechage || hasSingleRepechage) ? newRounds.length - 2 : newRounds.length;
+
+      if (!isRR) {
+        // Main single-elimination bracket progression:
+        if (foundRi + 1 < totalMainRounds) {
+          const nextMatchIdx = Math.floor(foundMi / 2);
+          const winnerSlot: BracketSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false, coachName: "" };
+          const nextMatch = { ...newRounds[foundRi + 1][nextMatchIdx] };
+          if (foundMi % 2 === 0) nextMatch.slotA = winnerSlot;
+          else                   nextMatch.slotB = winnerSlot;
+          newRounds[foundRi + 1][nextMatchIdx] = nextMatch;
+        }
+
+        // --- Double Repechage Progressions ---
+        if (hasDoubleRepechage) {
+          // Quarterfinals Loser -> Repechage Match
+          if (foundRi === totalMainRounds - 3) {
+            const repRoundIdx = totalMainRounds;
+            const repMatchIdx = Math.floor(foundMi / 2);
+            const currentMatch = newRounds[foundRi][foundMi];
+            const loserId = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerId : currentMatch.slotA.playerId;
+            const loserName = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerName : currentMatch.slotA.playerName;
+            const loserClub = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.club : currentMatch.slotA.club;
+
+            if (loserId) {
+              const loserSlot = { playerId: loserId, playerName: loserName, club: loserClub, isBye: false };
+              const targetMatch = { ...newRounds[repRoundIdx][repMatchIdx] };
+              if (foundMi % 2 === 0) targetMatch.slotA = loserSlot;
+              else                   targetMatch.slotB = loserSlot;
+              newRounds[repRoundIdx][repMatchIdx] = targetMatch;
+            }
+          }
+
+          // Semifinals Loser -> Crossover Bronze Match
+          if (foundRi === totalMainRounds - 2) {
+            const bronzeRoundIdx = totalMainRounds + 1;
+            const targetBronzeMatchIdx = foundMi === 0 ? 1 : 0;
+            const currentMatch = newRounds[foundRi][foundMi];
+            const loserId = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerId : currentMatch.slotA.playerId;
+            const loserName = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerName : currentMatch.slotA.playerName;
+            const loserClub = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.club : currentMatch.slotA.club;
+
+            if (loserId) {
+              const loserSlot = { playerId: loserId, playerName: loserName, club: loserClub, isBye: false };
+              const targetMatch = { ...newRounds[bronzeRoundIdx][targetBronzeMatchIdx] };
+              targetMatch.slotB = loserSlot;
+              newRounds[bronzeRoundIdx][targetBronzeMatchIdx] = targetMatch;
+            }
+          }
+
+          // Repechage Round 1 Winner -> Bronze Match slotA
+          if (foundRi === totalMainRounds) {
+            const bronzeRoundIdx = totalMainRounds + 1;
+            const targetBronzeMatchIdx = foundMi;
+            const winnerSlot = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
+            const targetMatch = { ...newRounds[bronzeRoundIdx][targetBronzeMatchIdx] };
+            targetMatch.slotA = winnerSlot;
+            newRounds[bronzeRoundIdx][targetBronzeMatchIdx] = targetMatch;
+          }
+        }
+
+        // --- Single Repechage Progressions ---
+        if (hasSingleRepechage) {
+          // Finals Completed -> Traces Champion's path for Repechage and runner-up for Bronze slotB
+          if (foundRi === totalMainRounds - 1) {
+            const currentMatch = newRounds[foundRi][foundMi];
+            const runnerUpId = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerId : currentMatch.slotA.playerId;
+            const runnerUpName = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.playerName : currentMatch.slotA.playerName;
+            const runnerUpClub = winnerId === currentMatch.slotA.playerId ? currentMatch.slotB.club : currentMatch.slotA.club;
+
+            const bronzeRoundIdx = totalMainRounds + 1;
+            const bronzeMatch = { ...newRounds[bronzeRoundIdx][0] };
+            bronzeMatch.slotB = { playerId: runnerUpId, playerName: runnerUpName, club: runnerUpClub, isBye: false };
+            newRounds[bronzeRoundIdx][0] = bronzeMatch;
+
+            // Trace SF Loser
+            const sfRoundIdx = totalMainRounds - 2;
+            const sfMatch = newRounds[sfRoundIdx].find(m => m.slotA.playerId === winnerId || m.slotB.playerId === winnerId);
+            if (sfMatch) {
+              const sfLoserId = winnerId === sfMatch.slotA.playerId ? sfMatch.slotB.playerId : sfMatch.slotA.playerId;
+              const sfLoserName = winnerId === sfMatch.slotA.playerId ? sfMatch.slotB.playerName : sfMatch.slotA.playerName;
+              const sfLoserClub = winnerId === sfMatch.slotA.playerId ? sfMatch.slotB.club : sfMatch.slotA.club;
+
+              const repRoundIdx = totalMainRounds;
+              const repMatch = { ...newRounds[repRoundIdx][0] };
+              repMatch.slotB = { playerId: sfLoserId, playerName: sfLoserName, club: sfLoserClub, isBye: false };
+              newRounds[repRoundIdx][0] = repMatch;
+            }
+
+            // Trace QF Loser
+            const qfRoundIdx = totalMainRounds - 3;
+            if (qfRoundIdx >= 0) {
+              const qfMatch = newRounds[qfRoundIdx].find(m => m.slotA.playerId === winnerId || m.slotB.playerId === winnerId);
+              if (qfMatch) {
+                const qfLoserId = winnerId === qfMatch.slotA.playerId ? qfMatch.slotB.playerId : qfMatch.slotA.playerId;
+                const qfLoserName = winnerId === qfMatch.slotA.playerId ? qfMatch.slotB.playerName : qfMatch.slotA.playerName;
+                const qfLoserClub = winnerId === qfMatch.slotA.playerId ? qfMatch.slotB.club : qfMatch.slotA.club;
+
+                const repRoundIdx = totalMainRounds;
+                const repMatch = { ...newRounds[repRoundIdx][0] };
+                repMatch.slotA = { playerId: qfLoserId, playerName: qfLoserName, club: qfLoserClub, isBye: false };
+                newRounds[repRoundIdx][0] = repMatch;
+              }
+            }
+          }
+
+          // Repechage Round 1 Winner -> Bronze Match slotA
+          if (foundRi === totalMainRounds) {
+            const bronzeRoundIdx = totalMainRounds + 1;
+            const targetMatch = { ...newRounds[bronzeRoundIdx][0] };
+            targetMatch.slotA = { playerId: winnerId, playerName: winnerName, club: winnerClub, isBye: false };
+            newRounds[bronzeRoundIdx][0] = targetMatch;
+          }
+        }
       }
 
-      if (foundRi === newRounds.length - 1) {
-        setTimeout(() => setChampion({ name: winnerName, club: winnerClub, categoryKey: catKey }), 0);
+      if (isRR) {
+        if (allRoundsCompleted) {
+          const catPlayers = players.filter(p =>
+            p.status === "APPROVED" &&
+            p.ageGroup === cat.ageGroup &&
+            (cat.exactAge === 0 || p.exactAge === cat.exactAge) &&
+            p.gender === cat.gender &&
+            String(p.weight) === cat.weightCategory
+          );
+
+          // Calculate standings to find the actual Round Robin winner
+          const standingsMap: Record<string, {
+            playerId: string;
+            name: string;
+            club: string;
+            wins: number;
+            points: number;
+            totalWinningTime: number;
+          }> = {};
+
+          catPlayers.forEach(p => {
+            standingsMap[p.id] = { playerId: p.id, name: p.name, club: p.club || "", wins: 0, points: 0, totalWinningTime: 0 };
+          });
+
+          const allMatches: BracketMatch[] = [];
+          newRounds.forEach(r => {
+            r.forEach(m => {
+              allMatches.push(m);
+              if (m.status === "COMPLETED") {
+                const elapsed = m.elapsedSeconds || 0;
+                const ptsA = m.scoreA ? ( (m.scoreA.ippon || 0) * 100 + (m.scoreA.wazaAri || 0) * 10 + (m.scoreA.yuko || 0) * 1 ) : 0;
+                const ptsB = m.scoreB ? ( (m.scoreB.ippon || 0) * 100 + (m.scoreB.wazaAri || 0) * 10 + (m.scoreB.yuko || 0) * 1 ) : 0;
+
+                if (m.slotA.playerId && standingsMap[m.slotA.playerId]) standingsMap[m.slotA.playerId].points += Math.min(ptsA, 100);
+                if (m.slotB.playerId && standingsMap[m.slotB.playerId]) standingsMap[m.slotB.playerId].points += Math.min(ptsB, 100);
+
+                if (m.winnerId && standingsMap[m.winnerId]) {
+                  standingsMap[m.winnerId].wins += 1;
+                  standingsMap[m.winnerId].totalWinningTime += elapsed;
+                }
+              }
+            });
+          });
+
+          const sortedPlayers = Object.values(standingsMap).sort((a, b) => {
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            if (b.points !== a.points) return b.points - a.points;
+
+            const tiedGroup = Object.values(standingsMap).filter(p => p.wins === a.wins && p.points === a.points);
+            if (tiedGroup.length === 2) {
+              const headToHead = allMatches.find(m => 
+                m.status === "COMPLETED" && 
+                ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+                 (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+              );
+              if (headToHead && headToHead.winnerId) {
+                return headToHead.winnerId === a.playerId ? -1 : 1;
+              }
+            }
+
+            if (a.totalWinningTime !== b.totalWinningTime) {
+              return a.totalWinningTime - b.totalWinningTime;
+            }
+
+            const headToHead = allMatches.find(m => 
+              m.status === "COMPLETED" && 
+              ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+               (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+            );
+            if (headToHead && headToHead.winnerId) {
+              return headToHead.winnerId === a.playerId ? -1 : 1;
+            }
+
+            return 0;
+          });
+
+          const rrChampion = sortedPlayers[0];
+          const rrSecond = sortedPlayers[1];
+          const rrThird = sortedPlayers[2];
+          if (rrChampion) {
+            setTimeout(() => setChampion({ 
+              name: rrChampion.name, 
+              club: rrChampion.club, 
+              categoryKey: catKey,
+              secondPlaceName: rrSecond?.name,
+              secondPlaceClub: rrSecond?.club,
+              thirdPlaceName: rrThird?.name,
+              thirdPlaceClub: rrThird?.club
+            }), 0);
+          }
+        }
+      } else {
+        // Single Elimination final round winner is champion
+        if (foundRi === newRounds.length - 1) {
+          setTimeout(() => setChampion({ name: winnerName, club: winnerClub, categoryKey: catKey }), 0);
+        }
       }
 
       newDraws[catKey] = { ...cat, rounds: newRounds, saved: true };
@@ -1398,8 +2225,10 @@ export default function TournamentDetailPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           ageGroup: draw.ageGroup,
+          exactAge: draw.exactAge !== undefined ? draw.exactAge : 0,
           gender: draw.gender,
           weightCategory: draw.weightCategory,
+          matNumber: draw.matNumber !== undefined ? draw.matNumber : 1,
           rounds: draw.rounds,
         }),
       }).catch(() => {
@@ -1416,8 +2245,8 @@ export default function TournamentDetailPage() {
   useEffect(() => {
     const channel = new BroadcastChannel("tnja_match_results");
     channel.onmessage = (e) => {
-      const { matchId, winnerId, winnerName, winnerClub } = e.data;
-      if (matchId && winnerName) handleMatchResult(matchId, winnerId, winnerName, winnerClub);
+      const { matchId, winnerId, winnerName, winnerClub, scoreA, scoreB, winMethod, elapsedSeconds } = e.data;
+      if (matchId && winnerName) handleMatchResult(matchId, winnerId, winnerName, winnerClub, scoreA, scoreB, winMethod, elapsedSeconds);
     };
     return () => channel.close();
   }, [handleMatchResult]);
@@ -2765,14 +3594,35 @@ export default function TournamentDetailPage() {
             className="bg-gradient-to-r from-yellow-400 via-[#FF7400] to-yellow-500 rounded-3xl p-6 shadow-2xl shadow-orange-500/30 flex items-center gap-5"
           >
             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-              <Trophy size={32} className="text-white" />
+              <Trophy size={32} className="text-white animate-bounce" />
             </div>
-            <div>
-              <p className="text-white/70 text-xs font-black uppercase tracking-widest mb-0.5">🏆 Tournament Champion</p>
-              <h2 className="text-2xl font-black text-white leading-tight">{champion.name}</h2>
-              <p className="text-white/80 text-sm font-bold">{champion.club}</p>
+            <div className="flex flex-col md:flex-row md:items-center gap-6 w-full">
+              <div>
+                <p className="text-white/70 text-xs font-black uppercase tracking-widest mb-0.5">🥇 1st Place (Champion)</p>
+                <h2 className="text-2xl font-black text-white leading-tight">{champion.name}</h2>
+                <p className="text-white/80 text-sm font-bold">{champion.club}</p>
+              </div>
+
+              {(champion.secondPlaceName || champion.thirdPlaceName) && (
+                <div className="flex flex-wrap gap-6 border-t md:border-t-0 md:border-l border-white/20 pt-4 md:pt-0 md:pl-6">
+                  {champion.secondPlaceName && (
+                    <div>
+                      <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-0.5">🥈 2nd Place</p>
+                      <p className="text-base font-black text-white leading-tight">{champion.secondPlaceName}</p>
+                      <p className="text-white/80 text-xs font-bold">{champion.secondPlaceClub}</p>
+                    </div>
+                  )}
+                  {champion.thirdPlaceName && (
+                    <div>
+                      <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mb-0.5">🥉 3rd Place</p>
+                      <p className="text-base font-black text-white leading-tight">{champion.thirdPlaceName}</p>
+                      <p className="text-white/80 text-xs font-bold">{champion.thirdPlaceClub}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <button onClick={() => setChampion(null)} className="ml-auto text-white/50 hover:text-white transition-colors">
+            <button onClick={() => setChampion(null)} className="ml-auto text-white/50 hover:text-white transition-colors self-start md:self-center">
               <X size={20} />
             </button>
           </motion.div>
@@ -2812,15 +3662,27 @@ export default function TournamentDetailPage() {
                   className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all print:hidden">
                   <Printer size={16} /> Print Report
                 </button>
-                <button onClick={handleShuffle}
-                  disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {drawPhase === "shuffling"
-                    ? <><Loader2 size={15} className="animate-spin" /> Shuffling & Saving...</>
-                    : <><Shuffle size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Shuffle Players"}</>}
-                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={detailDrawMethod}
+                    onChange={(e) => setDetailDrawMethod(e.target.value as any)}
+                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
+                  >
+                    <option value="round-robin">1.Round Robin</option>
+                    <option value="straight-elimination">2.Straight elimination</option>
+                    <option value="single-repechage">3.Single Repechage</option>
+                    <option value="double-repechage">4.Double Repechage</option>
+                  </select>
+                  <button onClick={() => handleGenerateAndSaveDraw(true, false, undefined, detailDrawMethod)}
+                    disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    {drawPhase === "shuffling"
+                      ? <><Loader2 size={15} className="animate-spin" /> Shuffling & Saving...</>
+                      : <><Shuffle size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Shuffle Players"}</>}
+                  </button>
+                </div>
                 {!currentDraw?.generated && (
-                  <button onClick={handleGenerateDraw}
+                  <button onClick={() => handleGenerateAndSaveDraw(false, false, undefined, detailDrawMethod)}
                     disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                     className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     {drawPhase === "dealing"
@@ -2942,29 +3804,44 @@ export default function TournamentDetailPage() {
                             {ageGroup} · {gender === "FEMALE" ? "Girls" : "Boys"} · {weightLabel} {weightLabel !== "Under 50" && !weightLabel.includes("kg") ? "kg" : ""}
                           </h3>
                           <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => {
-                                handleGenerateAndSaveDraw(
-                                  draw?.generated ? true : false,
-                                  false,
-                                  {
-                                    ageGroup: ageGroup,
-                                    exactAge: exactAge,
-                                    gender: gender,
-                                    weightCategory: weight,
-                                    players: catDrawPlayers,
-                                    key: key,
-                                    draw: draw
-                                  }
-                                );
-                              }}
-                              disabled={catDrawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg font-bold text-xs shadow-md shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {drawPhase === "shuffling" || drawPhase === "dealing"
-                                ? <><Loader2 size={13} className="animate-spin" /> Processing...</>
-                                : <><Shuffle size={13} /> {draw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={categoryDrawMethod[key] || (catDrawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
+                                onChange={(e) => setCategoryDrawMethod(prev => ({ ...prev, [key]: e.target.value as any }))}
+                                className="px-2.5 py-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
+                              >
+                                <option value="round-robin">1.Round Robin</option>
+                                <option value="straight-elimination">2.Straight elimination</option>
+                                <option value="single-repechage">3.Single Repechage</option>
+                                <option value="double-repechage">4.Double Repechage</option>
+                              </select>
+                              <button
+                                onClick={() => {
+                                  const defaultMethod = catDrawPlayers.length <= 5 ? "round-robin" : "straight-elimination";
+                                  const selectedMethod = categoryDrawMethod[key] || defaultMethod;
+                                  handleGenerateAndSaveDraw(
+                                    draw?.generated ? true : false,
+                                    false,
+                                    {
+                                      ageGroup: ageGroup,
+                                      exactAge: exactAge,
+                                      gender: gender,
+                                      weightCategory: weight,
+                                      players: catDrawPlayers,
+                                      key: key,
+                                      draw: draw
+                                    },
+                                    selectedMethod
+                                  );
+                                }}
+                                disabled={catDrawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg font-bold text-xs shadow-md shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {drawPhase === "shuffling" || drawPhase === "dealing"
+                                  ? <><Loader2 size={13} className="animate-spin" /> Processing...</>
+                                  : <><Shuffle size={13} /> {draw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
+                              </button>
+                            </div>
                             {draw && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
@@ -3035,6 +3912,9 @@ export default function TournamentDetailPage() {
                                 rounds={draw.rounds}
                                 onOpenScoreboard={openScoreboard}
                                 players={catDrawPlayers}
+                                tournament={tournament}
+                                currentKey={key}
+                                currentDraw={draw}
                               />
                             </div>
                             
@@ -3045,7 +3925,7 @@ export default function TournamentDetailPage() {
                                 {draw.rounds.map((round, ri) => (
                                   <div key={ri} className="py-3">
                                     <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">
-                                      {roundName(ri, draw.rounds.length)}
+                                      {roundName(ri, draw.rounds.length, catDrawPlayers.length <= 5)}
                                     </h5>
                                     <div className="space-y-2">
                                       {round.map((match, mi) => {
@@ -3280,6 +4160,18 @@ export default function TournamentDetailPage() {
                                   </span>
                                 </div>
                               </div>
+                              {match.status === "COMPLETED" && (
+                                <div className="text-right flex items-center gap-2">
+                                  <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
+                                    {match.winMethod || "Win"} ({match.scoreA ? `${(match.scoreA.ippon || 0) * 100 + (match.scoreA.wazaAri || 0) * 10 + (match.scoreA.yuko || 0)} - ${(match.scoreB.ippon || 0) * 100 + (match.scoreB.wazaAri || 0) * 10 + (match.scoreB.yuko || 0)}` : "0 - 0"})
+                                  </span>
+                                  {match.elapsedSeconds !== undefined && (
+                                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">
+                                      ⏱️ {Math.floor(match.elapsedSeconds / 60)}m {match.elapsedSeconds % 60}s
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && !match.slotA.isBye && !match.slotB.isBye && match.status !== "COMPLETED" && (
                                 <button onClick={() => openScoreboard(match)}
                                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF7400] text-white rounded-xl text-[10px] font-black hover:scale-105 transition-all">
@@ -3300,6 +4192,9 @@ export default function TournamentDetailPage() {
                       rounds={currentDraw.rounds}
                       onOpenScoreboard={openScoreboard}
                       players={filteredPlayers}
+                      tournament={tournament}
+                      currentKey={currentKey}
+                      currentDraw={currentDraw}
                     />
                   </div>
                 )}
@@ -3395,6 +4290,18 @@ export default function TournamentDetailPage() {
                           }`}>
                             {match.status}
                           </span>
+                          {match.status === "COMPLETED" && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-slate-600 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                                {match.winMethod || "Win"} ({match.scoreA ? `${(match.scoreA.ippon || 0) * 100 + (match.scoreA.wazaAri || 0) * 10 + (match.scoreA.yuko || 0)} - ${(match.scoreB.ippon || 0) * 100 + (match.scoreB.wazaAri || 0) * 10 + (match.scoreB.yuko || 0)}` : "0 - 0"})
+                              </span>
+                              {match.elapsedSeconds !== undefined && (
+                                <span className="text-[11px] font-bold text-slate-600 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                                  ⏱️ {Math.floor(match.elapsedSeconds / 60)}m {match.elapsedSeconds % 60}s
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {match.slotA.playerName !== "TBD" && match.slotB.playerName !== "TBD" && match.status !== "COMPLETED" && (
                             <button onClick={() => openScoreboard(match)}
                               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-xl text-xs font-black shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all">
@@ -4130,10 +5037,16 @@ function BracketView({
   rounds,
   onOpenScoreboard,
   players,
+  tournament,
+  currentKey,
+  currentDraw,
 }: {
   rounds: BracketMatch[][];
   onOpenScoreboard: (match: BracketMatch) => void;
   players: RegisteredPlayer[];
+  tournament?: Tournament | null;
+  currentKey?: string;
+  currentDraw?: DrawCategory;
 }) {
   if (!rounds || rounds.length === 0) return null;
 
@@ -4194,7 +5107,7 @@ function BracketView({
               <div key={ri} className="flex shrink-0" style={{ width: MATCH_W + CONN_W }}>
                 <div style={{ width: MATCH_W }}
                   className="text-center text-[10px] font-black text-slate-500 uppercase tracking-wider py-1 bg-slate-100 rounded-lg mr-0">
-                  {roundName(ri, rounds.length)}
+                  {roundName(ri, rounds.length, isRoundRobin)}
                 </div>
               </div>
             ))}
@@ -4405,45 +5318,155 @@ function BracketView({
 
             {/* Round Robin Leaderboard */}
             {isRoundRobin && (() => {
-              // Calculate wins
-              const wins: Record<string, { wins: number; name: string; club: string; matches: number }> = {};
+              // Calculate standings
+              interface PlayerStanding {
+                playerId: string;
+                name: string;
+                club: string;
+                wins: number;
+                points: number;
+                totalWinningTime: number; // in seconds
+                matchesPlayed: number;
+              }
+
+              const standingsMap: Record<string, PlayerStanding> = {};
               players.forEach(p => {
-                wins[p.id] = { wins: 0, name: p.name, club: p.club, matches: 0 };
+                standingsMap[p.id] = { playerId: p.id, name: p.name, club: p.club, wins: 0, points: 0, totalWinningTime: 0, matchesPlayed: 0 };
               });
 
+              const allMatches: BracketMatch[] = [];
               rounds.forEach(r => {
                 r.forEach(m => {
-                  if (m.status === "COMPLETED" && m.winnerId && wins[m.winnerId]) {
-                    wins[m.winnerId].wins += 1;
-                  }
+                  allMatches.push(m);
                   if (m.status === "COMPLETED") {
-                    if (m.slotA.playerId && wins[m.slotA.playerId]) wins[m.slotA.playerId].matches += 1;
-                    if (m.slotB.playerId && wins[m.slotB.playerId]) wins[m.slotB.playerId].matches += 1;
+                    const elapsed = m.elapsedSeconds || 0;
+                    
+                    // Increment matches played
+                    if (m.slotA.playerId && standingsMap[m.slotA.playerId]) standingsMap[m.slotA.playerId].matchesPlayed += 1;
+                    if (m.slotB.playerId && standingsMap[m.slotB.playerId]) standingsMap[m.slotB.playerId].matchesPlayed += 1;
+                    
+                    // Calculate and add points achieved in this match
+                    const ptsA = m.scoreA ? ( (m.scoreA.ippon || 0) * 100 + (m.scoreA.wazaAri || 0) * 10 + (m.scoreA.yuko || 0) * 1 ) : 0;
+                    const ptsB = m.scoreB ? ( (m.scoreB.ippon || 0) * 100 + (m.scoreB.wazaAri || 0) * 10 + (m.scoreB.yuko || 0) * 1 ) : 0;
+                    
+                    if (m.slotA.playerId && standingsMap[m.slotA.playerId]) {
+                      // Points are capped at 100 per match
+                      standingsMap[m.slotA.playerId].points += Math.min(ptsA, 100);
+                    }
+                    if (m.slotB.playerId && standingsMap[m.slotB.playerId]) {
+                      standingsMap[m.slotB.playerId].points += Math.min(ptsB, 100);
+                    }
+
+                    // Increment wins and winning time
+                    if (m.winnerId && standingsMap[m.winnerId]) {
+                      standingsMap[m.winnerId].wins += 1;
+                      standingsMap[m.winnerId].totalWinningTime += elapsed;
+                    }
                   }
                 });
               });
 
-              const sortedPlayers = Object.values(wins).sort((a, b) => b.wins - a.wins);
+              const sortedPlayers = Object.values(standingsMap).sort((a, b) => {
+                // Rule 1: Contests Won
+                if (b.wins !== a.wins) return b.wins - a.wins;
+
+                // Rule 2: Sum of all points
+                if (b.points !== a.points) return b.points - a.points;
+
+                // Rule 3: Direct comparison (head-to-head) - only if exactly 2 players are tied on wins and points
+                const tiedGroup = Object.values(standingsMap).filter(p => p.wins === a.wins && p.points === a.points);
+                if (tiedGroup.length === 2) {
+                  const headToHead = allMatches.find(m => 
+                    m.status === "COMPLETED" && 
+                    ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+                     (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+                  );
+                  if (headToHead && headToHead.winnerId) {
+                    return headToHead.winnerId === a.playerId ? -1 : 1;
+                  }
+                }
+
+                // Rule 4: Shortest accumulated winning time (smaller is better)
+                if (a.totalWinningTime !== b.totalWinningTime) {
+                  return a.totalWinningTime - b.totalWinningTime;
+                }
+
+                // Fallback Head-to-Head: If still tied, check the direct match between these two players
+                const headToHead = allMatches.find(m => 
+                  m.status === "COMPLETED" && 
+                  ((m.slotA.playerId === a.playerId && m.slotB.playerId === b.playerId) ||
+                   (m.slotA.playerId === b.playerId && m.slotB.playerId === a.playerId))
+                );
+                if (headToHead && headToHead.winnerId) {
+                  return headToHead.winnerId === a.playerId ? -1 : 1;
+                }
+
+                // Rule 5: Decision contests (exact tie)
+                return 0;
+              });
+
               const xOffset = rounds.length * (MATCH_W + CONN_W);
 
               return (
-                <div style={{ position: "absolute", top: 0, left: xOffset, width: 200, zIndex: 2 }} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                  <div className="bg-emerald-50 border-b border-emerald-100 px-3 py-2">
-                    <h4 className="text-xs font-black text-emerald-800 uppercase text-center tracking-wider">Results</h4>
+                <div style={{ position: "absolute", top: 0, left: xOffset, width: 280, zIndex: 2 }} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-md">
+                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 border-b border-emerald-700 px-3 py-2 flex items-center justify-between text-white">
+                    <h4 className="text-xs font-black uppercase tracking-wider">Round Robin Standings</h4>
+                    <div className="flex items-center gap-1.5">
+                      <button 
+                        onClick={() => exportRoundRobinPoolSheet(tournament || null, currentKey || "", currentDraw as DrawCategory, players)}
+                        className="text-[10px] bg-white/20 hover:bg-white/35 px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 text-white border border-white/10"
+                        title="Print Official IJF Round Robin Pool Sheet"
+                      >
+                        <Printer size={10} /> Print Sheet
+                      </button>
+                      <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-bold cursor-help" title="Rules: 1. Wins | 2. Points (Ippon=100, Waza-ari=10, Yuko=1) | 3. Head-to-Head | 4. Shortest winning time">Rules ℹ️</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col divide-y divide-slate-100">
-                    {sortedPlayers.map((p, idx) => (
-                      <div key={idx} className="px-3 py-2 flex items-center justify-between">
-                        <div className="min-w-0 flex-1 pr-2">
-                          <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
-                          <p className="text-[9px] text-slate-400 truncate">{p.club || "---"}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-black text-emerald-600">{p.wins} W</p>
-                          <p className="text-[8px] font-bold text-slate-400">{p.matches} played</p>
-                        </div>
-                      </div>
-                    ))}
+                  
+                  <div className="p-1">
+                    <table className="w-full text-left border-collapse text-[11px]">
+                      <thead>
+                        <tr className="text-slate-500 border-b border-slate-100 font-bold">
+                          <th className="py-1.5 px-2 text-center w-8">Rk</th>
+                          <th className="py-1.5 px-1">Athlete</th>
+                          <th className="py-1.5 px-1 text-center w-8" title="Wins">W</th>
+                          <th className="py-1.5 px-1 text-center w-8" title="Points (Ippon=100, Waza-ari=10, Yuko=1)">Pts</th>
+                          <th className="py-1.5 px-1 text-center w-12" title="Total Winning Time">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {sortedPlayers.map((p, idx) => {
+                          const rankColor = idx === 0 ? "bg-amber-100 text-amber-800 font-black border border-amber-300" :
+                                            idx === 1 ? "bg-slate-100 text-slate-800 font-black border border-slate-300" :
+                                            idx === 2 ? "bg-orange-100 text-orange-800 font-black border border-orange-300" :
+                                            "bg-slate-50 text-slate-600 border border-slate-200";
+                          
+                          const formatTime = (sec: number) => {
+                            if (!sec) return "0s";
+                            const m = Math.floor(sec / 60);
+                            const s = sec % 60;
+                            return m > 0 ? `${m}m ${s}s` : `${s}s`;
+                          };
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-2 px-1 text-center">
+                                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] ${rankColor}`}>
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="py-2 px-1 min-w-0">
+                                <p className="font-bold text-slate-800 truncate max-w-[120px]" title={p.name}>{p.name}</p>
+                                <p className="text-[9px] text-slate-400 truncate max-w-[120px]" title={p.club}>{p.club || "---"}</p>
+                              </td>
+                              <td className="py-2 px-1 text-center font-black text-emerald-600">{p.wins}</td>
+                              <td className="py-2 px-1 text-center font-black text-blue-600">{p.points}</td>
+                              <td className="py-2 px-1 text-center font-semibold text-slate-500">{formatTime(p.totalWinningTime)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               );

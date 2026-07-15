@@ -160,7 +160,8 @@ function ScoreboardInner() {
           if (m.matchId === matchId) {
             matchFound = true;
             const winnerIdVal = currentWinner ? (currentWinner === "A" ? sp.get("fighterAId") : sp.get("fighterBId")) : null;
-            return { ...m, winnerId: winnerIdVal, status: statusVal, scoreA: currentScoreA, scoreB: currentScoreB, winMethod: currentWinMethod, logs: currentLogs, timeLeft };
+            const elapsedSeconds = goldenScore ? (durationInput * 60) + timeLeft : (durationInput * 60) - timeLeft;
+            return { ...m, winnerId: winnerIdVal, status: statusVal, scoreA: currentScoreA, scoreB: currentScoreB, winMethod: currentWinMethod, logs: currentLogs, timeLeft, elapsedSeconds };
           }
           return m;
         }));
@@ -225,7 +226,7 @@ function ScoreboardInner() {
       console.error("Error saving match to DB:", err);
       showToast("Error saving match.");
     }
-  }, [tournamentId, matchId, scoreA, scoreB, winner, winMethod, logs, timeLeft, running, sp, fighterAName, fighterBName, fighterAClub, fighterBClub, showToast]);
+  }, [tournamentId, matchId, scoreA, scoreB, winner, winMethod, logs, timeLeft, running, sp, fighterAName, fighterBName, fighterAClub, fighterBClub, goldenScore, durationInput, showToast]);
 
   useEffect(() => {
     if (!tournamentId || !matchId) return;
@@ -293,14 +294,24 @@ function ScoreboardInner() {
     setLogs(nextLogs);
 
     const sp2 = new URLSearchParams(window.location.search);
+    const elapsedSeconds = goldenScore ? (durationInput * 60) + timeLeft : (durationInput * 60) - timeLeft;
     try {
       const ch = new BroadcastChannel("tnja_match_results");
-      ch.postMessage({ matchId: sp2.get("matchId")||"", winnerId: f === "A" ? sp2.get("fighterAId")||"" : sp2.get("fighterBId")||"", winnerName, winnerClub: f === "A" ? fighterAClub : fighterBClub });
+      ch.postMessage({ 
+        matchId: sp2.get("matchId")||"", 
+        winnerId: f === "A" ? sp2.get("fighterAId")||"" : sp2.get("fighterBId")||"", 
+        winnerName, 
+        winnerClub: f === "A" ? fighterAClub : fighterBClub,
+        scoreA,
+        scoreB,
+        winMethod: method,
+        elapsedSeconds
+      });
       ch.close();
     } catch {}
 
     saveMatchToDB(scoreA, scoreB, f, method, nextLogs);
-  }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, saveMatchToDB, dbMatchStatus]);
+  }, [fighterAName, fighterBName, fighterAClub, fighterBClub, scoreA, scoreB, logs, goldenScore, durationInput, timeLeft, saveMatchToDB, dbMatchStatus]);
 
   const handleOpenEditTimer = useCallback(() => {
     if (dbMatchStatus === "COMPLETED") {
