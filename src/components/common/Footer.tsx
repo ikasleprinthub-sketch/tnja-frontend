@@ -18,9 +18,9 @@ const Footer = () => {
   }, []);
 
   const isDashboard = pathname?.startsWith("/dashboard");
-  const isLoggedIn = isMounted && typeof window !== 'undefined' && !!localStorage.getItem("token");
+  const isAuthPage = pathname === "/login" || pathname === "/register";
 
-  if (isDashboard || isLoggedIn) return null;
+  if (isDashboard || isAuthPage) return null;
 
   return (
     <footer className="w-full bg-[#030712] relative pt-20 border-t border-neutral-900 overflow-hidden text-neutral-300">

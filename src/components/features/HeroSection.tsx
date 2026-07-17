@@ -46,20 +46,20 @@ const HeroSection = () => {
 
           {/* Left Column */}
           <div className="flex flex-col items-start pr-0 lg:pr-8">
-            <h2 className="text-5xl lg:text-[70px] font-bold text-black mb-4 tracking-tight leading-[1.1]">
+            <h2 className="text-5xl lg:text-[50px] font-bold text-black mb-4 tracking-tight leading-[1.1]">
               What is Judo?
             </h2>
             <div className="relative w-48 h-[2px] bg-gray-200 mt-2 mb-8">
               <div className="absolute top-0 left-0 w-24 h-[3px] bg-black"></div>
             </div>
 
-            <p className="text-gray-600 text-[15px] leading-relaxed mb-6">
+            <p className="text-gray-600 text-[15px] leading-relaxed mb-6 text-justify">
               Judo is a modern martial art, Olympic sport, and a system of
               physical and mental education that focuses on skill, balance, and
               technique rather than brute strength.
             </p>
 
-            <p className="text-gray-600 text-[15px] leading-relaxed mb-10">
+            <p className="text-gray-600 text-[15px] leading-relaxed mb-10 text-justify">
               It was founded in <strong className="text-black font-semibold">1882 by Dr. Jigoro Kano in Tokyo, Japan.</strong> Drawing
               from traditional Japanese jujutsu, Dr. Kano created Judo to promote
               not only self-defense but also personal development and discipline.
@@ -104,7 +104,7 @@ const HeroSection = () => {
             {/* Point 1 */}
             <div className="relative pl-6 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
-              <p className="text-gray-600 text-[14px] leading-[1.8]">
+              <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 The term "Judo" means <span className="text-[#FF7400] font-semibold">"the gentle way"</span>.
                 This reflects the core principle of using an
                 opponent's energy and movement against
@@ -118,7 +118,7 @@ const HeroSection = () => {
             {/* Point 2 */}
             <div className="relative pl-6 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
-              <p className="text-gray-600 text-[14px] leading-[1.8]">
+              <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 Judo is built on two important principles:
                 <span className="text-[#FF7400] font-semibold"> "Maximum Efficiency with Minimum Effort"</span>
                 and <span className="text-[#FF7400] font-semibold">"Mutual Welfare and Benefit"</span>. These
@@ -133,7 +133,7 @@ const HeroSection = () => {
             {/* Point 3 */}
             <div className="relative pl-6 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
-              <p className="text-gray-600 text-[14px] leading-[1.8]">
+              <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 Judo gained international recognition and
                 became an official Olympic sport in the 1964
                 Summer Olympics. Today, it is practiced in
@@ -146,7 +146,7 @@ const HeroSection = () => {
         </div>
 
         {/* Scroll Down */}
-        <button 
+        <button
           onClick={handleScrollDown}
           className="mt-8 mb-4 flex flex-col items-center gap-3 group focus:outline-none"
         >

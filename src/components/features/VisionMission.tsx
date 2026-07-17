@@ -95,7 +95,7 @@ export default function VisionMission() {
             <h2 className="text-[#FF7400] text-lg md:text-xl font-bold mb-4">
               President's Message
             </h2>
-            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium">
+            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium text-justify">
               {presidentMessage}
             </div>
           </motion.div>
@@ -125,16 +125,16 @@ export default function VisionMission() {
       ══════════════════════════════════ */}
       <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10 mt-[-2rem] md:mt-[-6rem]">
         {/* Content area */}
-        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-end">
+        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-start md:items-end order-last md:order-none">
           {/* Photo & Name */}
           <motion.div 
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col-reverse md:flex-row items-center md:items-end gap-6 relative z-10 mb-[-3rem] md:mr-4"
+            className="flex flex-col-reverse md:flex-row items-start md:items-end gap-6 relative z-10 mb-[-3rem] md:mr-4"
           >
-            <div className="mb-12 text-center md:text-right">
+            <div className="mb-12 text-left md:text-right">
               <p className="text-[#FF7400] font-extrabold text-2xl md:text-3xl leading-tight">
                 R. Vijaya Mohana Murali
               </p>
@@ -163,7 +163,7 @@ export default function VisionMission() {
             <h2 className="text-[#FF7400] text-lg md:text-xl font-bold mb-4">
               CEO's Message
             </h2>
-            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium">
+            <div className="text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-line font-medium text-justify">
               {ceoMessage}
             </div>
           </motion.div>
@@ -171,11 +171,11 @@ export default function VisionMission() {
 
         {/* MISSION vertical label */}
         <motion.div 
-          initial={{ opacity: 0, x: 50 }}
+          initial={{ opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8 }}
-          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center"
+          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center order-first md:order-last"
         >
           <span
             className="text-black font-black uppercase select-none tracking-[0.45em]"
