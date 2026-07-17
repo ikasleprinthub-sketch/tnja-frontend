@@ -6,21 +6,58 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const PhilosophySection = () => {
-  // Using 5 distinct images to prevent any repetition in the carousel
+  // Using distinct images to prevent any repetition in the carousel
   const images = [
-    
-    "/1.png",
-    "/2.png",
-    "/3.png",
-    "/4.png",
-    "/5.png",
-    "/6.png",
-    "/7.png",
-    "/8.png",
-    "/9.png",
-    "/10.png",
-    "/11.png",
-    "/12.png"
+    {
+      name: "DR.\nJIGORO KANO",
+      image: "/1.png"
+    },
+    {
+      name: "SENSEI.\nELAMPARUTHI",
+      image: "/2.png"
+    },
+    {
+      name: "SENSEI.\nMANOHAR BANGERA",
+      image: "/3.png"
+    },
+    {
+      name: "SENSEI.\nJEEVAN SHARMA",
+      image: "/4.png"
+    },
+    {
+      name: "SENSEI.\nSATHISH PAHADE",
+      image: "/5.png"
+    },
+    {
+      name: "SENSEI.\nMANIKUMAR",
+      image: "/6.png"
+    },
+    {
+      name: "SENSEI.\nMATHIVANAN",
+      image: "/7.png"
+    },
+    {
+      name: "SENSEI.\nBALACHANDAR (NATIONAL MEDALIST)",
+      image: "/8.png"
+    },
+    {
+      name: "SENSEI.\n VENKATACHALAPATHI",
+     
+       image: "/9.png"
+    },
+    {
+      name: "MR.YAZIR\n NATIONAL MEDALIST",
+      image: "/10.png"
+    },
+    {
+      name: "SENSEI.\nMUNNAVER",
+     
+       image: "/11.png"
+    },
+    {
+      name: "SENSEI.\nDESAPPAN",
+      image: "/12.png"
+    }
   ];
 
   const [activeIndex, setActiveIndex] = useState(0);
@@ -53,20 +90,20 @@ const PhilosophySection = () => {
 
   const getImageAt = (offset: number) => {
     const index = (activeIndex + offset + images.length) % images.length;
-    return images[index];
+    return images[index].image;
   };
 
   return (
     <section className="w-full bg-[#fafafa] py-16 overflow-hidden">
-      <motion.div 
+      <motion.div
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.2 }}
         className="max-w-[1400px] mx-auto px-4 relative"
       >
-        
+
         {/* Top Titles (Fades In First) */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
@@ -88,29 +125,29 @@ const PhilosophySection = () => {
 
         {/* Carousel Container */}
         <div className="relative flex items-center justify-center w-full min-h-[450px]">
-          
+
           {/* Background Dotted Concentric Circles */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, rotate: 0 }}
             whileInView={{ opacity: 1, rotate: 360 }}
             transition={{ opacity: { duration: 1, delay: 1.5 }, rotate: { duration: 80, repeat: Infinity, ease: "linear" } }}
             className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full border border-[#FF7400]/20 border-dashed pointer-events-none"
           />
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, rotate: 0 }}
             whileInView={{ opacity: 1, rotate: -360 }}
             transition={{ opacity: { duration: 1, delay: 1.5 }, rotate: { duration: 100, repeat: Infinity, ease: "linear" } }}
             className="absolute top-[8%] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full border border-[#FF7400]/20 border-dashed pointer-events-none"
           />
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, rotate: 0 }}
             whileInView={{ opacity: 1, rotate: 360 }}
             transition={{ opacity: { duration: 1, delay: 1.5 }, rotate: { duration: 120, repeat: Infinity, ease: "linear" } }}
             className="absolute top-[16%] left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full border border-[#FF7400]/20 border-dashed pointer-events-none"
           />
-          
+
           {/* Left Navigation Arrow */}
-          <motion.button 
+          <motion.button
             initial={{ opacity: 0, scale: 0.5 }}
             whileInView={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: 1.6 }}
@@ -119,9 +156,9 @@ const PhilosophySection = () => {
           >
             <ChevronLeft className="w-6 h-6" />
           </motion.button>
-          
+
           {/* Right Navigation Arrow */}
-          <motion.button 
+          <motion.button
             initial={{ opacity: 0, scale: 0.5 }}
             whileInView={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: 1.6 }}
@@ -133,9 +170,9 @@ const PhilosophySection = () => {
 
           {/* Cards Wrapper */}
           <div className="relative flex items-center justify-center w-full h-[450px]">
-            
+
             {/* Orange Glow Behind Center Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0 }}
               whileInView={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.5 }}
@@ -143,7 +180,7 @@ const PhilosophySection = () => {
             />
 
             {/* Extreme Left (-2) */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -100 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 1.3, type: "spring", bounce: 0.2 }}
@@ -158,7 +195,7 @@ const PhilosophySection = () => {
             </motion.div>
 
             {/* Left (-1) */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -80 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 1.1, type: "spring", bounce: 0.3 }}
@@ -173,7 +210,7 @@ const PhilosophySection = () => {
             </motion.div>
 
             {/* Active Center (0) */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.5, y: 20 }}
               whileInView={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.8, type: "spring", bounce: 0.4 }}
@@ -182,10 +219,10 @@ const PhilosophySection = () => {
               <div className="w-[280px] md:w-[320px] h-[360px] md:h-[400px] flex flex-col relative overflow-hidden rounded-2xl group">
                 {/* Image Section */}
                 <div className="relative flex-1 bg-white">
-                  <Image 
-                    src={getImageAt(0)} 
-                    alt="Active Profile" 
-                    fill 
+                  <Image
+                    src={getImageAt(0)}
+                    alt="Active Profile"
+                    fill
                     className="object-cover"
                     priority
                   />
@@ -196,7 +233,7 @@ const PhilosophySection = () => {
             </motion.div>
 
             {/* Right (+1) */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 80 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 1.1, type: "spring", bounce: 0.3 }}
@@ -211,7 +248,7 @@ const PhilosophySection = () => {
             </motion.div>
 
             {/* Extreme Right (+2) */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 100 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 1.3, type: "spring", bounce: 0.2 }}
@@ -229,21 +266,21 @@ const PhilosophySection = () => {
         </div>
 
         {/* Title Below Carousel */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 1.6 }}
           className="flex flex-col items-center justify-center mt-6 text-center"
         >
-          <h2 className="text-xl md:text-2xl font-[900] text-black tracking-[0.2em] uppercase leading-snug">
-            DR.<br/>JIGORO KANO
+          <h2 className="text-xl md:text-2xl font-[900] text-black tracking-[0.2em] uppercase leading-snug whitespace-pre-line">
+            {images[activeIndex].name}
           </h2>
         </motion.div>
 
         {/* Numbered Info Cards */}
         <div className="flex flex-col gap-10 mt-16 max-w-[1100px] mx-auto px-4 md:px-0 relative z-20">
           {cards.map((card, index) => (
-            <motion.div 
+            <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -259,7 +296,7 @@ const PhilosophySection = () => {
                   {card.id}
                 </span>
               </div>
-              
+
               {/* Content Body */}
               <div className="relative z-10 flex-1 px-8 py-8 md:py-10 md:px-12 flex items-center justify-center bg-white text-center">
                 <p className="text-gray-600 text-[13px] md:text-[15px] font-medium leading-[1.8] max-w-3xl">
