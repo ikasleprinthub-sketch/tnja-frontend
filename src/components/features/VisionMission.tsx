@@ -64,7 +64,7 @@ export default function VisionMission() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col md:flex-row items-end gap-6 relative z-10 mb-[-3rem] md:ml-4"
+            className="flex flex-col md:flex-row items-center md:items-end gap-6 relative z-10 mb-[-3rem] md:ml-4"
           >
             <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
               <Image
@@ -74,7 +74,7 @@ export default function VisionMission() {
                 className="object-cover object-top"
               />
             </div>
-            <div className="mb-12">
+            <div className="mb-12 text-center md:text-left">
               <p className="text-[#FF7400] font-extrabold text-2xl md:text-3xl leading-tight">
                 Parth Jindal
               </p>
@@ -132,9 +132,9 @@ export default function VisionMission() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col-reverse md:flex-row items-end gap-6 relative z-10 mb-[-3rem] md:mr-4"
+            className="flex flex-col-reverse md:flex-row items-center md:items-end gap-6 relative z-10 mb-[-3rem] md:mr-4"
           >
-            <div className="mb-12 text-right">
+            <div className="mb-12 text-center md:text-right">
               <p className="text-[#FF7400] font-extrabold text-2xl md:text-3xl leading-tight">
                 R. Vijaya Mohana Murali
               </p>

@@ -186,7 +186,7 @@ const TalentedCoaches = () => {
                 {/* Right Card: Quote Box */}
                 <div className="flex-1 bg-gradient-to-br from-white via-white to-orange-50 rounded-[24px] p-8 md:p-12 relative border border-[#FF7400]/20 shadow-sm flex flex-col justify-center">
                   {/* Quote Icon in Top Right */}
-                  <div className="absolute top-8 right-8 w-12 h-10 opacity-80">
+                  <div className="md:absolute md:top-8 md:right-8 relative mb-4 md:mb-0 w-12 h-10 opacity-80 shrink-0">
                     <Image src="/homepage/vector/quote.svg" alt="Quote" fill className="object-contain" />
                   </div>
 
