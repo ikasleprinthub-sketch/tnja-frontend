@@ -5,27 +5,80 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const coachImages = [
-  "/talent1.png",
-  "/talent2.png",
-  "/talent3.png",
-  "/talent4.png",
-  "/talent5.png",
-  "/talent6.png",
-  "/talent7.png",
-  "/talent8.png",
-  "/talent10.png",
-  "/talent11.png",
-  "/talent12.png",
-  "/talent13.png"
+const coaches = [
+  {
+    name: "DR. JIGORO KANO",
+    role: "FOUNDER & CEO",
+    quote: "Our talented coaches, like Dr. Jigoro Kano, the visionary founder of Judo, laid the foundation for a discipline that transcends sport and becomes a way of life. His philosophy of 'maximum efficiency with minimum effort' and 'mutual welfare and benefit' continues to guide millions around the world. A true pioneer, he transformed traditional martial arts into a modern system of education, character building and self-improvement. His legacy lives on in every judoka who steps onto the mat with respect, discipline, and determination.",
+    image: "/homepage/kano.png"
+  },
+  {
+    name: "SENSEI ILAMPARUTHI",
+    role: "SAN-DAN, NSNIS JUDO COACH",
+    quote: "Sensei Elamparuthi is a dedicated and highly respected Judo coach, and a valued pillar of the Tamil Nadu Judo community. Notably, he is the first NSNIS-certified Judo coach in Tamil Nadu, marking a significant milestone in the development of the sport in the state. Beyond teaching techniques, he shapes his students with discipline, loyalty, and integrity, nurturing them into confident and responsible individuals. His commitment to developing future generations ensures that his values and teachings continue through his students. Sensei Elamparuthi sir will live in our hearts—then, now, and forever.",
+    image: "/talent2.png"
+  },
+  {
+    name: "VIJAY",
+    role: "CARDIO TRAINER",
+    quote: `The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.`,
+    image: "/talent3.png"
+  },
+  {
+    name: "SURESH KUMAR",
+    role: "CARDIO TRAINER",
+    quote: `The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.`,
+    image: "/talent4.png"
+  },
+  {
+    name: "SHANMUGAM",
+    role: "CARDIO TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent5.png"
+  },
+  {
+    name: "SAGTHA BABU",
+    role: "CARDIO TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent6.png"
+  },
+  {
+    name: "PRASANNA",
+    role: "CARDIO TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent7.png"
+  },
+  {
+    name: "JAYALAL",
+    role: "CROSS TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent8.png"
+  },
+  {
+    name: "MURUGAN",
+    role: "SENIOR TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent10.png"
+  },
+  {
+    name: "MOORTHY KRISHNAN",
+    role: "CROSS TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent11.png"
+  },
+  {
+    name: "MANIKANDAN",
+    role: "CARDIO TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent12.png"
+  },
+  {
+    name: "MURALI",
+    role: "CROSS TRAINER",
+    quote: "The questions are compiled from genuine questions that people ask. When the same or similar question is asked by many people, we add it to this page.",
+    image: "/talent13.png"
+  }
 ];
-
-const coaches = coachImages.map((img, index) => ({
-  name: index === 0 ? "DR. JIGORO KANO" : `COACH ${index + 1}`,
-  role: index === 0 ? "FOUNDER & CEO" : "EXPERT TRAINER",
-  quote: "Lorem ipsum dolor sit amet consectetur. Posuere lobortis integer vulputate enim sapien at mi. Leo ut maecenas ac facilisi feugiat. Nullam ante maecenas eu pellentesque varius magna vitae. Sagittis egestas non eget ut risus in tempor aliquam volutpat. Nibh mi bibendum ante id. Fermentum at gravida in nam pulvinar cras felis ultricies scelerisque. Facilisis sociis amet quis congue ultrices sed condimentum. Enim placerat quisque porttitor porttitor a. Tincidunt aenean et mauris quisque amet arcu gravida nulla.",
-  image: index === 0 ? "/homepage/kano.png" : img
-}));
 
 const TalentedCoaches = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -63,7 +116,7 @@ const TalentedCoaches = () => {
     <section className="w-full py-24 bg-white overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 text-center">
         {/* Section Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
@@ -79,20 +132,20 @@ const TalentedCoaches = () => {
         </motion.div>
 
         {/* Carousel Container */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8, delay: 0.2 }}
           className="relative flex items-center justify-between gap-4 min-h-[500px]"
         >
-          
+
           {/* Left Peeking Image */}
           <div className="hidden xl:block w-[150px] h-[450px] relative rounded-[20px] overflow-hidden shadow-[0_0_30px_rgba(255,116,0,0.2)]">
-            <Image 
-              src={coaches[getPrevIndex()].image} 
-              alt="" 
-              fill 
+            <Image
+              src={coaches[getPrevIndex()].image}
+              alt=""
+              fill
               className="object-cover sepia-[0.3]"
             />
           </div>
@@ -113,10 +166,10 @@ const TalentedCoaches = () => {
                 {/* Left Card: Profile Image & Name */}
                 <div className="w-full md:w-[320px] flex flex-col">
                   <div className="relative aspect-square rounded-[24px] overflow-hidden shadow-lg border-2 border-orange-50 mb-4">
-                    <Image 
-                      src={coaches[currentIndex].image} 
-                      alt={coaches[currentIndex].name} 
-                      fill 
+                    <Image
+                      src={coaches[currentIndex].image}
+                      alt={coaches[currentIndex].name}
+                      fill
                       className="object-cover"
                     />
                   </div>
@@ -136,7 +189,7 @@ const TalentedCoaches = () => {
                   <div className="absolute top-8 right-8 w-12 h-10 opacity-80">
                     <Image src="/homepage/vector/quote.svg" alt="Quote" fill className="object-contain" />
                   </div>
-                  
+
                   <p className="text-gray-800 text-sm md:text-base leading-relaxed font-semibold italic text-left">
                     {coaches[currentIndex].quote}
                   </p>
@@ -147,10 +200,10 @@ const TalentedCoaches = () => {
 
           {/* Right Peeking Image */}
           <div className="hidden xl:block w-[150px] h-[450px] relative rounded-[20px] overflow-hidden shadow-[0_0_30px_rgba(255,116,0,0.2)]">
-            <Image 
-              src={coaches[getNextIndex()].image} 
-              alt="" 
-              fill 
+            <Image
+              src={coaches[getNextIndex()].image}
+              alt=""
+              fill
               className="object-cover sepia-[0.3]"
             />
           </div>
@@ -159,7 +212,7 @@ const TalentedCoaches = () => {
 
         {/* Custom Navigation & Progress Bar */}
         <div className="mt-20 max-w-[800px] mx-auto flex items-center gap-4">
-          <button 
+          <button
             onClick={prevSlide}
             className="w-10 h-10 rounded-full bg-[#FF7400] text-white flex items-center justify-center hover:bg-black transition-all shadow-md"
           >
@@ -168,18 +221,18 @@ const TalentedCoaches = () => {
 
           {/* Progress Bar Line */}
           <div className="flex-1 h-[6px] bg-gray-200 rounded-full relative overflow-hidden">
-            <motion.div 
+            <motion.div
               className="absolute h-full bg-[#FF7400] rounded-full"
               initial={false}
-              animate={{ 
+              animate={{
                 width: `${(100 / coaches.length)}%`,
-                left: `${(currentIndex * (100 / coaches.length))}%` 
+                left: `${(currentIndex * (100 / coaches.length))}%`
               }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
           </div>
 
-          <button 
+          <button
             onClick={nextSlide}
             className="w-10 h-10 rounded-full bg-[#FF7400] text-white flex items-center justify-center hover:bg-black transition-all shadow-md"
           >
