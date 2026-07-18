@@ -66,7 +66,7 @@ export default function VisionMission() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="flex flex-col md:flex-row items-center md:items-end gap-6 relative z-10 mb-[-3rem] md:ml-4"
           >
-            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
+            <div className="relative overflow-hidden rounded-2xl w-[280px] h-[340px] md:w-[320px] md:h-[380px] shrink-0">
               <Image
                 src="/president.png"
                 alt="Parth Jindal"
@@ -142,7 +142,7 @@ export default function VisionMission() {
                 CEO
               </p>
             </div>
-            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
+            <div className="relative overflow-hidden rounded-2xl w-[280px] h-[340px] md:w-[320px] md:h-[380px] shrink-0">
               <Image
                 src="/ceo.png"
                 alt="R. Vijaya Mohana Murali"

@@ -46,7 +46,7 @@ const HeroSection = () => {
 
           {/* Left Column */}
           <div className="flex flex-col items-start pr-0 lg:pr-8">
-            <h2 className="text-5xl lg:text-[50px] font-bold text-black mb-4 tracking-tight leading-[1.1]">
+            <h2 className="text-4xl lg:text-[50px] font-bold text-black mb-4 tracking-tight leading-[1.1]">
               What is Judo?
             </h2>
             <div className="relative w-48 h-[2px] bg-gray-200 mt-2 mb-8">

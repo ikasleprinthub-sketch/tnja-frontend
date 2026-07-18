@@ -98,7 +98,7 @@ const PhilosophyCarousel = () => {
           className="text-center mb-12 md:hidden"
         >
           <h2 className="text-3xl md:text-5xl font-extrabold text-black tracking-tight">
-            New name <span className="text-[#FF7400]">Nan Tharan</span>
+            TNJA<span className="text-[#FF7400]"> Gallery</span>
           </h2>
         </motion.div>
 
@@ -207,7 +207,7 @@ const PhilosophyCarousel = () => {
               </div>
             </motion.div>
 
-             {/* Active Center (0) */}
+            {/* Active Center (0) */}
             <motion.div
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
