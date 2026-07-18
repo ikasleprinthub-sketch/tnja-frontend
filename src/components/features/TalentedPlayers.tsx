@@ -270,15 +270,14 @@ const TalentedPlayers = () => {
                   </div>
 
                   {/* Right Side: Image */}
-                  <div className="w-full md:w-[48%] aspect-[3/4] md:aspect-auto relative md:min-h-full">
-                    <div className="absolute inset-2 rounded-[24px] overflow-hidden shadow-xl border-4 border-white">
+                  <div className="w-full md:w-[48%] flex-1 relative md:min-h-full min-h-[250px] p-2">
+                    <div className="relative w-full h-full rounded-[24px] overflow-hidden bg-white">
                       <Image
                         src={players[currentIndex].image}
                         alt={players[currentIndex].name}
                         fill
-                        className="object-cover"
+                        className="object-contain"
                       />
-                      <div className="absolute inset-0 shadow-[inset_0_0_40px_rgba(0,0,0,0.1)]"></div>
                     </div>
                   </div>
                 </div>
