@@ -120,7 +120,7 @@ const Header = () => {
                 sizes="(max-width: 768px) 100vw, 100px"
                 className="w-auto h-12 md:h-16 object-contain transition-transform group-hover:scale-105"
               />
-              <span className="block xl:hidden text-[10px] xs:text-[11px] sm:text-sm font-black text-[#FF7400] tracking-wider leading-tight uppercase max-w-[180px] sm:max-w-[280px]">
+              <span className="block xl:hidden text-[9px] xs:text-[10px] sm:text-sm font-[900] text-[#FF7400] tracking-wider leading-tight uppercase whitespace-nowrap">
                 TAMIL NADU JUDO ASSOCIATION 329/2017
               </span>
             </Link>

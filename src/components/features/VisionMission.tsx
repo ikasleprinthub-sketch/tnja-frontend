@@ -38,18 +38,18 @@ export default function VisionMission() {
       <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10">
         {/* VISION vertical label */}
         <motion.div
-          initial={{ opacity: 0, x: -50 }}
+          initial={{ opacity: 0, x: -15 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8 }}
-          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center"
+          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center relative z-20"
         >
           <span
             className="text-black font-black uppercase select-none tracking-[0.45em]"
             style={{
               writingMode: "vertical-rl",
               transform: "rotate(180deg)",
-              fontSize: "clamp(1.5rem, 3vw, 2.5rem)",
+              fontSize: "clamp(1.6rem, 3vw, 2.5rem)",
             }}
           >
             VISION
@@ -71,7 +71,7 @@ export default function VisionMission() {
                 src="/president.png"
                 alt="Parth Jindal"
                 fill
-                className="object-cover object-top"
+                className="object-cover object-top scale-[1.06]"
               />
             </div>
             <div className="mb-12 text-center md:text-left">
@@ -125,7 +125,7 @@ export default function VisionMission() {
       ══════════════════════════════════ */}
       <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10 mt-[-2rem] md:mt-[-6rem]">
         {/* Content area */}
-        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-start md:items-end order-last md:order-none">
+        <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-start md:items-end">
           {/* Photo & Name */}
           <motion.div
             initial={{ opacity: 0, y: 50 }}
@@ -142,12 +142,12 @@ export default function VisionMission() {
                 CEO
               </p>
             </div>
-            <div className="relative overflow-hidden rounded-xl md:rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-none md:shadow-lg shrink-0">
+            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
               <Image
                 src="/ceo.png"
                 alt="R. Vijaya Mohana Murali"
                 fill
-                className="object-cover object-top"
+                className="object-cover object-top scale-[1.06]"
               />
             </div>
           </motion.div>
@@ -171,17 +171,17 @@ export default function VisionMission() {
 
         {/* MISSION vertical label */}
         <motion.div
-          initial={{ opacity: 0, x: -30 }}
+          initial={{ opacity: 0, x: 15 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, amount: 0.2 }}
           transition={{ duration: 0.8 }}
-          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center order-first md:order-last"
+          className="w-12 md:w-24 shrink-0 flex items-start pt-20 justify-center relative z-20"
         >
           <span
             className="text-black font-black uppercase select-none tracking-[0.45em]"
             style={{
               writingMode: "vertical-rl",
-              fontSize: "clamp(1.5rem, 3vw, 2.5rem)",
+              fontSize: "clamp(1.6rem, 3vw, 2.5rem)",
             }}
           >
             MISSION

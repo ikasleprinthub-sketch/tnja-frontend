@@ -102,7 +102,7 @@ const HeroSection = () => {
             <div className="hidden lg:block absolute left-4 top-2 bottom-2 w-[2px] bg-gray-200" />
 
             {/* Point 1 */}
-            <div className="relative pl-6 lg:pl-10">
+            <div className="relative pl-0 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
               <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 The term "Judo" means <span className="text-[#FF7400] font-semibold">"the gentle way"</span>.
@@ -116,7 +116,7 @@ const HeroSection = () => {
             </div>
 
             {/* Point 2 */}
-            <div className="relative pl-6 lg:pl-10">
+            <div className="relative pl-0 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
               <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 Judo is built on two important principles:
@@ -131,7 +131,7 @@ const HeroSection = () => {
             </div>
 
             {/* Point 3 */}
-            <div className="relative pl-6 lg:pl-10">
+            <div className="relative pl-0 lg:pl-10">
               <div className="hidden lg:block absolute left-[-23px] top-1.5 w-3 h-3 rounded-full bg-[#FF7400] shadow-[0_0_8px_rgba(255,116,0,0.5)]" />
               <p className="text-gray-600 text-[14px] leading-[1.8] text-justify">
                 Judo gained international recognition and

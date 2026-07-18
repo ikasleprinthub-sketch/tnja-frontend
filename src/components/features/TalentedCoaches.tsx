@@ -126,7 +126,7 @@ const TalentedCoaches = () => {
           <h2 className="text-4xl md:text-5xl lg:text-5xl font-extrabold text-black mb-4 tracking-tight">
             Our <span className="text-[#FF7400]">Talented</span> Coaches
           </h2>
-          <p className="text-gray-600 font-medium italic tracking-[0.35em] text-lg uppercase">
+          <p className="text-gray-600 font-medium italic tracking-[0.18em] md:tracking-[0.35em] text-xs sm:text-sm md:text-lg uppercase">
             Our Coaches, Our Pride
           </p>
         </motion.div>

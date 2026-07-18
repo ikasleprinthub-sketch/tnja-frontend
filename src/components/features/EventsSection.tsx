@@ -3,7 +3,7 @@ import { Calendar, ChevronRight } from 'lucide-react';
 
 const EventsSection = () => {
   return (
-    <section className="w-full bg-[#fafafa] pt-16 pb-12 px-4 md:px-8">
+    <section className="w-full bg-[#fafafa] pt-6 md:pt-16 pb-12 px-4 md:px-8">
       <div className="max-w-[1200px] mx-auto flex flex-col items-center">
         
         {/* Title row */}

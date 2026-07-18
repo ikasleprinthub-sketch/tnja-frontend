@@ -60,13 +60,24 @@ const JudoJourneySection = () => {
       variants={sectionVariants}
       initial="hidden"
       animate={isInView ? "visible" : "hidden"}
-      className="relative w-full min-h-[100svh] bg-[#fafafa] py-16 md:py-24 px-4 md:px-12 overflow-hidden mt-4 flex flex-col justify-center"
+      className="relative w-full md:min-h-[100svh] min-h-0 bg-[#fafafa] pt-16 pb-6 md:py-24 px-4 md:px-12 overflow-hidden mt-4 flex flex-col justify-center"
     >
 
       {/* Grid Pattern Background (Light Gray Grid) */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000000 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
 
       <div className="w-full max-w-[1300px] mx-auto flex flex-col items-center gap-16 relative z-10">
+        {/* Mobile Heading */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
+          transition={{ duration: 0.6 }}
+          className="block md:hidden text-center mt-4"
+        >
+          <h2 className="text-3xl font-extrabold text-black tracking-tight">
+            Hari Will <span className="text-[#FF7400]">Give</span>
+          </h2>
+        </motion.div>
         
         {/* Wrapper to prevent clipping of overflowing badge */}
         <div className="relative w-full">
@@ -75,7 +86,7 @@ const JudoJourneySection = () => {
             initial={{ opacity: 0, scale: 0 }}
             animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
             transition={{ delay: 0.3, type: "spring", bounce: 0.5 }}
-            className="absolute top-0 left-1/2 lg:left-[45%] -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] bg-black rounded-full border-[2px] border-[#FF7400] shadow-[0_0_30px_rgba(255,116,0,0.25)] z-30 flex items-center justify-center"
+            className="hidden md:flex absolute top-0 left-1/2 lg:left-[45%] -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] bg-black rounded-full border-[2px] border-[#FF7400] shadow-[0_0_30px_rgba(255,116,0,0.25)] z-30 items-center justify-center"
           >
             {/* The circular text SVG */}
             <div className="absolute inset-0 m-auto w-full h-full p-1 animate-spin-slow" style={{ animationDuration: '20s' }}>

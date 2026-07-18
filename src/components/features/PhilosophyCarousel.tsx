@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -58,6 +58,15 @@ const PhilosophyCarousel = () => {
   ];
 
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setActiveIndex((prev) => (prev + 1) % images.length);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [activeIndex, images.length]);
 
   const nextSlide = () => {
     setActiveIndex((prev) => (prev + 1) % images.length);
@@ -142,7 +151,7 @@ const PhilosophyCarousel = () => {
             whileInView={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: 1.6 }}
             onClick={prevSlide}
-            className="absolute left-4 md:left-12 z-30 w-12 h-12 rounded-full border border-[#FF7400]/30 flex items-center justify-center bg-white hover:border-[#FF7400] shadow-sm transition-colors text-[#FF7400]"
+            className="hidden md:flex absolute left-4 md:left-12 z-30 w-12 h-12 rounded-full border border-[#FF7400]/30 items-center justify-center bg-white hover:border-[#FF7400] shadow-sm transition-colors text-[#FF7400]"
           >
             <ChevronLeft className="w-6 h-6" />
           </motion.button>
@@ -153,7 +162,7 @@ const PhilosophyCarousel = () => {
             whileInView={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: 1.6 }}
             onClick={nextSlide}
-            className="absolute right-4 md:right-12 z-30 w-12 h-12 rounded-full border border-[#FF7400]/30 flex items-center justify-center bg-white hover:border-[#FF7400] shadow-sm transition-colors text-[#FF7400]"
+            className="hidden md:flex absolute right-4 md:right-12 z-30 w-12 h-12 rounded-full border border-[#FF7400]/30 items-center justify-center bg-white hover:border-[#FF7400] shadow-sm transition-colors text-[#FF7400]"
           >
             <ChevronRight className="w-6 h-6" />
           </motion.button>
@@ -198,12 +207,23 @@ const PhilosophyCarousel = () => {
               </div>
             </motion.div>
 
-            {/* Active Center (0) */}
+             {/* Active Center (0) */}
             <motion.div
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(event, info) => {
+                const swipeThreshold = 50;
+                if (info.offset.x < -swipeThreshold) {
+                  nextSlide();
+                } else if (info.offset.x > swipeThreshold) {
+                  prevSlide();
+                }
+              }}
               initial={{ opacity: 0, scale: 0.5, y: 20 }}
               whileInView={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.8, type: "spring", bounce: 0.4 }}
-              className="absolute z-20 transition-all duration-700 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-2xl bg-white border border-gray-100"
+              className="absolute z-20 transition-all duration-700 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-2xl bg-white border border-gray-100 touch-pan-y cursor-grab active:cursor-grabbing"
             >
               <div className="w-[280px] md:w-[320px] h-[360px] md:h-[400px] flex flex-col relative overflow-hidden rounded-2xl group">
                 {/* Image Section */}

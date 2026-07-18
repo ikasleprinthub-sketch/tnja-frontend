@@ -35,37 +35,34 @@ const PhilosophySection = () => {
           initial={{ opacity: 0, y: -20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex md:hidden justify-between items-center mb-16 text-[12px] md:text-[14px] font-bold italic text-gray-500 px-4 md:px-32 relative z-20"
+          className="flex md:hidden justify-between items-start mb-16 text-[10px] sm:text-[12px] font-bold italic text-gray-500 px-2 sm:px-4 relative z-20 w-full gap-2 text-center"
         >
-          <div className="flex flex-col items-center gap-3">
-            <span>The Legacy of Tamil Valor!</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400]" />
+          <div className="flex-1 flex flex-col items-center gap-3">
+            <span className="text-center w-full leading-normal">The Legacy of<br />Tamil Valor!</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400] shrink-0" />
           </div>
-          <div className="flex flex-col items-center gap-3">
-            <span>The Way of Discipline!</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400]" />
+          <div className="flex-1 flex flex-col items-center gap-3">
+            <span className="text-center w-full leading-normal">The Way of<br />Discipline!</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400] shrink-0" />
           </div>
-          <div className="flex flex-col items-center gap-3">
-            <span>The Philosophy of Judo!</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400]" />
+          <div className="flex-1 flex flex-col items-center gap-3">
+            <span className="text-center w-full leading-normal">The Philosophy<br />of Judo!</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#FF7400] shrink-0" />
           </div>
         </motion.div>
 
         {/* Numbered Info Cards */}
         <div className="flex flex-col gap-10 max-w-[1100px] mx-auto px-4 md:px-0 relative z-20">
           {cards.map((card, index) => (
-            <motion.div
+             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 + index * 0.2 }}
-              className={`relative flex flex-col md:flex-row items-stretch bg-white rounded-[16px] border border-[#ffb800]/30 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] ${card.reverse ? 'md:flex-row-reverse' : ''}`}
+              className={`relative flex flex-col md:flex-row items-stretch bg-white rounded-[16px] border border-gray-200/60 overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] ${card.reverse ? 'md:flex-row-reverse' : ''}`}
             >
-              {/* Glow Behind Dark Block */}
-              <div className={`absolute top-1/2 -translate-y-1/2 w-64 h-64 bg-[#FF7400]/40 blur-[50px] rounded-full pointer-events-none ${card.reverse ? '-right-10' : '-left-10'}`} />
-
               {/* Number Block */}
-              <div className="relative z-10 flex items-center justify-center min-w-[100px] md:min-w-[220px] m-1 md:m-2 rounded-[12px] bg-[#171717] md:bg-[#1a0e05] py-4 md:py-0">
+              <div className="relative z-10 flex items-center justify-center min-w-[100px] md:min-w-[220px] m-0 md:m-2 rounded-t-[15px] rounded-b-none md:rounded-[12px] bg-[#171717] md:bg-[#1a0e05] py-4 md:py-0">
                 <span className="text-4xl md:text-[75px] font-bold text-[#ffb000] leading-none tracking-tighter">
                   {card.id}
                 </span>
