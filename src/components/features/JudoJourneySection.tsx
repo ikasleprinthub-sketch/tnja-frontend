@@ -13,27 +13,27 @@ const JudoJourneySection = () => {
   // Animation variants
   const sectionVariants: Variants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.8 } }
+    visible: { opacity: 1, transition: { duration: 0.4 } }
   };
 
   const glowVariants: Variants = {
     hidden: { opacity: 0, scale: 0.8 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 1, delay: 0.3 } }
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.5, delay: 0.1 } }
   };
 
   const leftSlide: Variants = {
     hidden: { opacity: 0, x: -100 },
-    visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 50, damping: 20, delay: 0.6 } }
+    visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 80, damping: 18, delay: 0.2 } }
   };
 
   const rightSlide: Variants = {
     hidden: { opacity: 0, x: 100 },
-    visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 50, damping: 20, delay: 0.6 } }
+    visible: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 80, damping: 18, delay: 0.2 } }
   };
 
   const borderDraw: Variants = {
     hidden: { borderColor: "rgba(255,116,0,0)" },
-    visible: { borderColor: "rgba(255,116,0,0.3)", transition: { duration: 1, delay: 1.2 } }
+    visible: { borderColor: "rgba(255,116,0,0.3)", transition: { duration: 0.5, delay: 0.4 } }
   };
 
   const lineVariants: Variants = {
@@ -41,7 +41,7 @@ const JudoJourneySection = () => {
     visible: (custom: number) => ({
       opacity: 1,
       y: 0,
-      transition: { delay: 1.5 + custom * 0.15, duration: 0.5 }
+      transition: { delay: 0.4 + custom * 0.08, duration: 0.4 }
     })
   };
 
@@ -50,7 +50,7 @@ const JudoJourneySection = () => {
     visible: (custom: number) => ({
       opacity: 1,
       scale: 1,
-      transition: { type: "spring", delay: 2.2 + custom * 0.2, duration: 0.5 }
+      transition: { type: "spring", stiffness: 100, damping: 15, delay: 0.8 + custom * 0.1, duration: 0.4 }
     })
   };
 
@@ -68,22 +68,13 @@ const JudoJourneySection = () => {
 
       <div className="w-full max-w-[1300px] mx-auto flex flex-col items-center gap-16 relative z-10">
         
-        {/* Main Combined Card */}
-        <motion.div 
-          variants={borderDraw}
-          className="relative w-full rounded-[40px] border bg-white shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col lg:flex-row"
-        >
-          {/* Subtle Orange Glow */}
-          <motion.div 
-            variants={glowVariants}
-            className="absolute inset-0 bg-[#FF7400]/5 blur-[80px] pointer-events-none"
-          />
-          
+        {/* Wrapper to prevent clipping of overflowing badge */}
+        <div className="relative w-full">
           {/* Top Center Badge */}
           <motion.div 
             initial={{ opacity: 0, scale: 0 }}
             animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0 }}
-            transition={{ delay: 1, type: "spring", bounce: 0.5 }}
+            transition={{ delay: 0.3, type: "spring", bounce: 0.5 }}
             className="absolute top-0 left-1/2 lg:left-[45%] -translate-x-1/2 -translate-y-1/2 w-[100px] h-[100px] bg-black rounded-full border-[2px] border-[#FF7400] shadow-[0_0_30px_rgba(255,116,0,0.25)] z-30 flex items-center justify-center"
           >
             {/* The circular text SVG */}
@@ -100,6 +91,17 @@ const JudoJourneySection = () => {
               <Image src="/navbar/Logo.png" alt="Icon" fill className="object-contain" />
             </div>
           </motion.div>
+
+          {/* Main Combined Card */}
+          <motion.div 
+            variants={borderDraw}
+            className="relative w-full rounded-[40px] border bg-white shadow-[0_20px_50px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col lg:flex-row"
+          >
+            {/* Subtle Orange Glow */}
+            <motion.div 
+              variants={glowVariants}
+              className="absolute inset-0 bg-[#FF7400]/5 blur-[80px] pointer-events-none"
+            />
 
           {/* Left Side: Quote Content */}
           <motion.div 
@@ -122,7 +124,7 @@ const JudoJourneySection = () => {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={isInView ? { opacity: 1 } : { opacity: 0 }}
-                transition={{ delay: 2.3 }}
+                transition={{ delay: 0.7 }}
                 className="flex items-center gap-5"
               >
                 <div className="w-12 h-[2px] bg-[#FF7400]" />
@@ -212,12 +214,12 @@ const JudoJourneySection = () => {
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ delay: 2.8, duration: 0.8 }}
+          transition={{ delay: 1.1, duration: 0.5 }}
           className="w-full max-w-4xl mx-auto flex flex-col items-center group relative z-20 mt-4"
         >
           <div className="flex flex-col md:flex-row items-center justify-between w-full gap-8 md:gap-0">
             
-            <div className="relative flex items-center justify-center w-32 hover:scale-105 transition-transform cursor-pointer">
+            <div className="hidden md:flex relative items-center justify-center w-32 hover:scale-105 transition-transform cursor-pointer">
               <ShoppingBag className="absolute w-20 h-20 text-neutral-900/[0.03] -z-10" />
               <span className="text-4xl md:text-[45px] font-bold text-neutral-800 uppercase tracking-[0.25em]">Shop</span>
             </div>
@@ -226,7 +228,7 @@ const JudoJourneySection = () => {
               <div className="w-2 h-2 rounded-full bg-[#FF7400] shadow-[0_0_8px_#FF7400]"></div>
               <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-[#FF7400] to-transparent relative">
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <button className="bg-[#FF7400] hover:bg-[#FF851A] px-5 py-2.5 md:px-8 md:py-3 rounded-lg text-white text-xs md:text-[15px] font-extrabold shadow-[0_4px_20px_rgba(255,116,0,0.3)] transition-all hover:scale-105 flex items-center gap-2 whitespace-nowrap">
+                  <button className="bg-[#FF7400] hover:bg-[#FF851A] px-5 py-2.5 md:px-8 md:py-3 rounded-lg text-white text-xs md:text-[15px] font-extrabold shadow-[0_4px_20px_rgba(255,116,0,0.3)] transition-all hover:scale-105 flex items-center gap-2 whitespace-nowrap animate-mobile-wiggle">
                     <ShoppingCart className="w-4 h-4 text-white" />
                     Shop Now & Save
                   </button>
@@ -235,17 +237,18 @@ const JudoJourneySection = () => {
               <div className="w-2 h-2 rounded-full bg-[#FF7400] shadow-[0_0_8px_#FF7400]"></div>
             </div>
 
-            <div className="relative flex items-center justify-center w-32 hover:scale-105 transition-transform cursor-pointer">
+            <div className="hidden md:flex relative items-center justify-center w-32 hover:scale-105 transition-transform cursor-pointer">
               <Heart className="absolute w-20 h-20 text-neutral-900/[0.03] -z-10" />
               <span className="text-4xl md:text-[45px] font-bold text-neutral-800 uppercase tracking-[0.25em]">Serve</span>
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center w-32 mt-8 md:mt-12 hover:scale-105 transition-transform cursor-pointer">
+          <div className="hidden md:flex relative items-center justify-center w-32 mt-8 md:mt-12 hover:scale-105 transition-transform cursor-pointer">
             <Tag className="absolute w-20 h-20 text-neutral-900/[0.03] -z-10 rotate-45" />
             <span className="text-4xl md:text-[45px] font-bold text-neutral-800 uppercase tracking-[0.25em]">Save</span>
           </div>
         </motion.div>
+      </div>
 
       </div>
     </motion.section>

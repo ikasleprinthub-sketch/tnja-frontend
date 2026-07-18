@@ -16,6 +16,9 @@
   --color-brand-orange-light: #FF9100;
   --color-brand-orange-dark: #E56900;
   --color-brand-blue: #00a3ff;
+
+  /* Custom Animations */
+  --animate-spin-slow: spin 20s linear infinite;
 }
 
 /* Dark mode is disabled so the app stays in light mode regardless of system settings */
@@ -35,4 +38,32 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* Mobile-only wiggle-shake animation for CTA button */
+@keyframes wiggle-shake {
+  0%, 85%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  87% {
+    transform: rotate(-3deg) scale(1.02);
+  }
+  89% {
+    transform: rotate(3deg) scale(1.02);
+  }
+  91% {
+    transform: rotate(-3deg) scale(1.02);
+  }
+  93% {
+    transform: rotate(3deg) scale(1.02);
+  }
+  95% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@media (max-width: 767px) {
+  .animate-mobile-wiggle {
+    animation: wiggle-shake 3s ease-in-out infinite !important;
+  }
 }

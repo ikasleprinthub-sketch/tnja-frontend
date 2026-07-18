@@ -27,7 +27,7 @@ const HeroSection = () => {
 
       <div className="max-w-[1400px] mx-auto relative z-10 flex flex-col items-center">
         {/* Header (Logo & Title) */}
-        <div className="flex flex-col items-center mb-16">
+        <div className="hidden xl:flex flex-col items-center mb-16">
           <Image
             src="/navbar/Logo.png"
             alt="TNJA Logo"

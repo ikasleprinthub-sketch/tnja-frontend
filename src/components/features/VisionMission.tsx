@@ -37,7 +37,7 @@ export default function VisionMission() {
       ══════════════════════════════════ */}
       <div className="flex max-w-[1400px] mx-auto min-h-0 relative z-10">
         {/* VISION vertical label */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -50 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, amount: 0.2 }}
@@ -59,7 +59,7 @@ export default function VisionMission() {
         {/* Content area */}
         <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl">
           {/* Photo & Name */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -85,7 +85,7 @@ export default function VisionMission() {
           </motion.div>
 
           {/* Message card */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -105,7 +105,7 @@ export default function VisionMission() {
       {/* ══════════════════════════════════
           & SYMBOL
       ══════════════════════════════════ */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
         whileInView={{ opacity: 0.9, scale: 1, rotate: 0 }}
         viewport={{ once: true, amount: 0.2 }}
@@ -127,7 +127,7 @@ export default function VisionMission() {
         {/* Content area */}
         <div className="flex-1 py-10 px-4 md:px-8 max-w-4xl ml-auto flex flex-col items-start md:items-end order-last md:order-none">
           {/* Photo & Name */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -142,7 +142,7 @@ export default function VisionMission() {
                 CEO
               </p>
             </div>
-            <div className="relative overflow-hidden rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-lg shrink-0">
+            <div className="relative overflow-hidden rounded-xl md:rounded-[2rem] w-[280px] h-[340px] md:w-[320px] md:h-[380px] shadow-none md:shadow-lg shrink-0">
               <Image
                 src="/ceo.png"
                 alt="R. Vijaya Mohana Murali"
@@ -153,7 +153,7 @@ export default function VisionMission() {
           </motion.div>
 
           {/* Message card */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -170,7 +170,7 @@ export default function VisionMission() {
         </div>
 
         {/* MISSION vertical label */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, amount: 0.2 }}

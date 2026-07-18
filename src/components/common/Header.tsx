@@ -109,7 +109,7 @@ const Header = () => {
         <div className="max-w-[1440px] mx-auto flex items-center relative z-10">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link href="/" className="group block">
+            <Link href="/" className="group flex items-center gap-2 md:gap-3">
               <Image 
                 src="/navbar/Logo.png" 
                 alt="TNJA Logo" 
@@ -120,6 +120,9 @@ const Header = () => {
                 sizes="(max-width: 768px) 100vw, 100px"
                 className="w-auto h-12 md:h-16 object-contain transition-transform group-hover:scale-105"
               />
+              <span className="block xl:hidden text-[10px] xs:text-[11px] sm:text-sm font-black text-[#FF7400] tracking-wider leading-tight uppercase max-w-[180px] sm:max-w-[280px]">
+                TAMIL NADU JUDO ASSOCIATION 329/2017
+              </span>
             </Link>
           </div>
 

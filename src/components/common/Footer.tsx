@@ -42,8 +42,15 @@ const Footer = () => {
           
           {/* Column 1: Logo and Socials (Col Span 3) */}
           <div className="flex flex-col items-center text-center lg:col-span-3 lg:pr-8 lg:border-r border-neutral-800/60">
-            <div className="relative w-28 h-28 mb-4">
-              <Image src="/navbar/Logo.png" alt="TNJA Logo" fill sizes="112px" className="object-contain drop-shadow-[0_0_15px_rgba(255,116,0,0.3)]" />
+            <div className="relative w-20 h-20 md:w-28 md:h-28 mb-4">
+              {/* Mobile view logo (using the transparent high-res Logo_2) */}
+              <div className="block md:hidden relative w-full h-full">
+                <Image src="/navbar/Logo_2.png" alt="TNJA Logo Mobile" fill sizes="80px" className="object-contain" />
+              </div>
+              {/* Desktop view logo (using original Logo) */}
+              <div className="hidden md:block relative w-full h-full">
+                <Image src="/navbar/Logo.png" alt="TNJA Logo Desktop" fill sizes="112px" className="object-contain drop-shadow-[0_0_15px_rgba(255,116,0,0.3)]" />
+              </div>
             </div>
             
             <h2 className="font-bold text-xl tracking-wide text-white mt-2">TAMIL NADU JUDO</h2>

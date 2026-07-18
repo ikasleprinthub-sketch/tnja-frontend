@@ -270,7 +270,7 @@ const TalentedPlayers = () => {
                   </div>
 
                   {/* Right Side: Image */}
-                  <div className="w-full md:w-[48%] relative min-h-[300px] md:min-h-full">
+                  <div className="w-full md:w-[48%] aspect-[3/4] md:aspect-auto relative md:min-h-full">
                     <div className="absolute inset-2 rounded-[24px] overflow-hidden shadow-xl border-4 border-white">
                       <Image
                         src={players[currentIndex].image}
