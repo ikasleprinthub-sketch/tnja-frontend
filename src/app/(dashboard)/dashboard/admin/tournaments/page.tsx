@@ -23,6 +23,7 @@ import {
   Send,
   MessageSquare,
   Edit2,
+  Download,
 } from "lucide-react";
 import FileUpload from "@/components/common/FileUpload";
 
@@ -337,6 +338,39 @@ export default function AdminTournamentsPage() {
   const displayedApproved = approvedByMeList.filter(
     t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
+
+  const handleDownloadReport = async (tId: string, title: string) => {
+    setDownloadingReportId(tId);
+    try {
+      const token = localStorage.getItem("tnja_token") || localStorage.getItem("token") || "";
+      const res = await fetch(`${API_BASE}/tournaments/${tId}/report`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "Failed to download report", "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeTitle = title?.replace(/[^a-zA-Z0-9_-]/g, "_") || tId;
+      a.download = `Tournament_Report_${safeTitle}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast("Tournament report downloaded!", "success");
+    } catch (err) {
+      console.error("Error downloading report:", err);
+      showToast("Error downloading report", "error");
+    } finally {
+      setDownloadingReportId(null);
+    }
+  };
 
   // ── Approve / Reject action ──────────────────────────────────────────────────
   const handleAction = async (id: string, status: "APPROVED" | "REJECTED", remark?: string) => {
@@ -886,23 +920,33 @@ export default function AdminTournamentsPage() {
                           </div>
                         </div>
 
-                        {!t.hasPendingPlayers && (
-                          <Link
-                            href={`/dashboard/admin/tournaments/${t.id}/setup`}
-                            className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
-                          >
-                            <Trophy size={12} /> Start Tournament
-                            <ChevronRight size={12} />
-                          </Link>
-                        )}
-                        {t.hasPendingPlayers && (
+                        <div className="mt-4 flex gap-2">
                           <button
-                            disabled
-                            className="mt-4 flex items-center justify-center gap-2 w-full py-2 bg-slate-100 text-slate-400 font-bold rounded-xl text-xs cursor-not-allowed"
+                            onClick={() => handleDownloadReport(t.id, t.title)}
+                            disabled={downloadingReportId === t.id}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded-xl text-xs transition-all border border-orange-200 shrink-0 disabled:opacity-50"
+                            title="Download tournament report"
                           >
-                            <AlertCircle size={12} /> Resolve Pending Players
+                            {downloadingReportId === t.id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                            <span>Report</span>
                           </button>
-                        )}
+                          {!t.hasPendingPlayers ? (
+                            <Link
+                              href={`/dashboard/admin/tournaments/${t.id}/setup`}
+                              className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all"
+                            >
+                              <Trophy size={12} /> Start Tournament
+                              <ChevronRight size={12} />
+                            </Link>
+                          ) : (
+                            <button
+                              disabled
+                              className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 text-slate-400 font-bold rounded-xl text-xs cursor-not-allowed"
+                            >
+                              <AlertCircle size={12} /> Resolve Pending Players
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -1021,6 +1065,15 @@ export default function AdminTournamentsPage() {
 
                         {/* Action buttons */}
                         <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => handleDownloadReport(t.id, t.title)}
+                            disabled={downloadingReportId === t.id}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded-xl text-sm transition-all border border-orange-200 shrink-0 disabled:opacity-50"
+                            title="Download tournament report"
+                          >
+                            {downloadingReportId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                            <span className="hidden sm:inline">Report</span>
+                          </button>
                           {/* Edit button — only creator can edit */}
                           <button
                             onClick={() => openEditModal(t)}
