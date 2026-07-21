@@ -1508,9 +1508,18 @@ export default function UserManagementPage() {
                     </select>
                   </div>
 
-                  <p className="text-slate-500 text-sm">
-                    Select or drag an Excel file (.xlsx or .xls) to seed {importType === "STUDENT" ? "players" : "coaches"} into the database.
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-slate-500 text-sm">
+                      Select or drag an Excel file (.xlsx or .xls) to seed {importType === "STUDENT" ? "players" : "coaches"} into the database.
+                    </p>
+                    <a
+                      href={importType === "STUDENT" ? "/templates/students_import_template.xlsx" : "/templates/coaches_import_template.xlsx"}
+                      download
+                      className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      <Download size={14} /> Download Template
+                    </a>
+                  </div>
 
                   <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50 hover:bg-slate-100/50 transition-all cursor-pointer relative">
                     <input

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,7 +11,7 @@ import {
   AlertCircle, Clock, Download, BarChart3, MessageSquare, Send,
   PlayCircle, Lock, Search, CheckCircle2, XCircle, RefreshCw, Printer,
   ChevronLeft, ChevronRight, Eye, FilterX,
-  LayoutList, Flag, Scale, Lightbulb, Info
+  LayoutList, Flag, Scale, Lightbulb, Info, Upload
 } from "lucide-react";
 import { FaMale, FaFemale } from "react-icons/fa";
 
@@ -38,6 +39,8 @@ interface RegisteredPlayer {
   seedNumber?: number; coachName?: string; placement?: string; status?: string;
   regId?: string;
   permanentId?: string; tempId?: string; tnjaId?: string;
+  clubId?: string | null; coachId?: string | null; isPaid?: boolean; registeredAt?: string;
+  rawWeight?: string | null; rawHeight?: string | null;
 }
 
 interface BracketSlot {
@@ -332,6 +335,72 @@ function generateIJFBracket(players: RegisteredPlayer[], seeds: Seeds, shuffleMe
     rNum++;
   }
   return rounds;
+}
+
+function printRegistrationSlip(player: RegisteredPlayer, tournament: Tournament | null) {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Registration Slip - ${player.name}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 24px; border-bottom: 3px solid #FF7400; padding-bottom: 16px; }
+        .header h1 { font-size: 22px; color: #333; margin-bottom: 4px; }
+        .header p { color: #666; font-size: 13px; }
+        .tnja-id { text-align: center; font-size: 13px; color: #FF7400; font-weight: bold; letter-spacing: 1px; margin-bottom: 24px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; margin-bottom: 24px; }
+        .grid div { font-size: 13px; }
+        .grid label { color: #FF7400; font-weight: bold; display: block; margin-bottom: 3px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+        .grid span { color: #333; font-weight: 600; font-size: 15px; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 16px; border-top: 1px solid #eee; color: #999; font-size: 11px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>${tournament?.title || "Tournament"} — Registration Slip</h1>
+          <p>${tournament?.location || ""} ${tournament?.date ? "· " + new Date(tournament.date).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" }) : ""}</p>
+        </div>
+        <div class="tnja-id">TNJA ID: ${player.tnjaId || "N/A"}</div>
+        <div class="grid">
+          <div><label>Player Name</label><span>${player.name}</span></div>
+          <div><label>Gender</label><span>${player.gender === "FEMALE" ? "Female" : "Male"}</span></div>
+          <div><label>District</label><span>${player.district || "—"}</span></div>
+          <div><label>Club</label><span>${player.club || "—"}</span></div>
+          <div><label>Category</label><span>${player.ageGroup || "—"}</span></div>
+          <div><label>Belt</label><span>${player.belt || "—"}</span></div>
+          <div><label>Weight</label><span>${player.rawWeight ? `${player.rawWeight} kg` : "—"}</span></div>
+          <div><label>Height</label><span>${player.rawHeight ? `${player.rawHeight}` : "—"}</span></div>
+          <div><label>Coach</label><span>${player.coachName || "—"}</span></div>
+          <div><label>Payment Status</label><span class="status-badge" style="background:${player.isPaid ? "#f0fdf4;color:#22c55e" : "#fffbeb;color:#d97706"}">${player.isPaid ? "Paid" : "Unpaid"}</span></div>
+        </div>
+        <div class="footer">
+          <p>Registered on ${player.registeredAt ? new Date(player.registeredAt).toLocaleString("en-IN", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</p>
+          <p>TNJA Tournament Management System — Generated on ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 250);
+  } else {
+    alert("Please allow popups for this site to print the registration slip.");
+  }
 }
 
 function roundName(ri: number, total: number, isRoundRobin = false): string {
@@ -1413,6 +1482,8 @@ export default function TournamentDetailPage() {
     thirdPlaceClub?: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
   const [shuffleKey, setShuffleKey] = useState(0);
@@ -1429,8 +1500,10 @@ export default function TournamentDetailPage() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // ── Modals State ────────────────────────────────────────────────────────────
-  const [editingMetrics, setEditingMetrics] = useState<{ regId: string, weight: string, height: string } | null>(null);
+  const [editingMetrics, setEditingMetrics] = useState<{ regId: string, weight: string, height: string, belt: string, clubId: string, coachId: string, ageGroup: string } | null>(null);
   const [savingMetrics, setSavingMetrics] = useState(false);
+  const [clubOptions, setClubOptions] = useState<{ id: string; name: string }[]>([]);
+  const [coachOptions, setCoachOptions] = useState<{ id: string; fullName: string }[]>([]);
   const [isConcludeModalOpen, setIsConcludeModalOpen] = useState(false);
   const [concludingCategoryKey, setConcludingCategoryKey] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; action?: () => void }>({ isOpen: false, title: "", message: "" });
@@ -1777,6 +1850,30 @@ export default function TournamentDetailPage() {
     } catch (e) { console.error(e); }
   }, [tournamentId, token]);
 
+  const openEditMetricsModal = (p: RegisteredPlayer) => {
+    setEditingMetrics({
+      regId: p.regId || "",
+      weight: p.rawWeight || "",
+      height: p.rawHeight || "",
+      belt: p.belt || "",
+      clubId: p.clubId || "",
+      coachId: p.coachId || "",
+      ageGroup: p.ageGroup || "",
+    });
+    if (clubOptions.length === 0) {
+      fetch(`${API_BASE}/clubs`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => setClubOptions(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
+    if (coachOptions.length === 0) {
+      fetch(`${API_BASE}/coaches`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => setCoachOptions(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
+  };
+
   const handleUpdateMetrics = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMetrics?.regId) return;
@@ -1785,7 +1882,14 @@ export default function TournamentDetailPage() {
       const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${editingMetrics.regId}/metrics`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ weight: editingMetrics.weight, height: editingMetrics.height }),
+        body: JSON.stringify({
+          weight: editingMetrics.weight,
+          height: editingMetrics.height,
+          belt: editingMetrics.belt,
+          clubId: editingMetrics.clubId,
+          coachId: editingMetrics.coachId,
+          ageGroup: editingMetrics.ageGroup,
+        }),
       });
       if (res.ok) {
         setToast({ msg: "Metrics updated successfully", ok: true });
@@ -1846,6 +1950,13 @@ export default function TournamentDetailPage() {
               permanentId: r.player?.permanentId,
               tempId: r.player?.tempId,
               tnjaId: r.player?.permanentId || r.player?.tempId || "N/A",
+              clubId: r.player?.club?.id || null,
+              coachId: r.coachId || null,
+              coachName: r.coach?.fullName || "",
+              isPaid: !!r.isPaid,
+              registeredAt: r.createdAt,
+              rawWeight: r.weight || r.player?.weight || null,
+              rawHeight: r.height || r.player?.height || null,
             };
           }
         );
@@ -3696,7 +3807,19 @@ export default function TournamentDetailPage() {
                     className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold text-sm"
                   />
                 </div>
-                <div className="flex items-center gap-2 text-slate-500 font-bold text-sm shrink-0">
+                
+                <div className="flex items-center gap-2 shrink-0">
+                  <button 
+                    type="button"
+                    onClick={() => setIsImportWizardOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#FF7400] text-white font-bold rounded-xl text-sm transition-all shadow-sm shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Upload size={16} />
+                    Import Players
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-sm shrink-0 ml-2">
                   <FilterX size={18} /> Filters
                   <button 
                     onClick={() => {
@@ -3803,13 +3926,17 @@ export default function TournamentDetailPage() {
                             ) : "—"}
                           </td>
                           <td className="px-5 py-4">
-                            <span className="bg-emerald-50 text-emerald-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Paid</span>
+                            {p.isPaid ? (
+                              <span className="bg-emerald-50 text-emerald-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Paid</span>
+                            ) : (
+                              <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Unpaid</span>
+                            )}
                           </td>
                           <td className="px-5 py-4 text-sm font-semibold text-slate-500">
-                            15/07/2026 10:30 AM
+                            {p.registeredAt ? new Date(p.registeredAt).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                           </td>
                           <td className="px-5 py-4 flex gap-2">
-                            <button 
+                            <button
                               onClick={() => {
                                 const newExpanded = expandedPlayerId === p.id ? null : p.id;
                                 setExpandedPlayerId(newExpanded);
@@ -3819,8 +3946,8 @@ export default function TournamentDetailPage() {
                             >
                               <Eye size={16} />
                             </button>
-                            <button className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Edit"><Edit2 size={16} /></button>
-                            <button className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Print"><Printer size={16} /></button>
+                            <button onClick={() => openEditMetricsModal(p)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Edit"><Edit2 size={16} /></button>
+                            <button onClick={() => printRegistrationSlip(p, tournament)} className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition-colors" title="Print"><Printer size={16} /></button>
                           </td>
                         </tr>
                         {expandedPlayerId === p.id && p.regId && (
@@ -4421,7 +4548,7 @@ export default function TournamentDetailPage() {
                                 {p.weight} kg
                               </span>
                               <button
-                                onClick={() => setEditingMetrics({ regId: p.regId || "", weight: p.weight?.toString() || "", height: (p as any).height?.toString() || "" })}
+                                onClick={() => openEditMetricsModal(p)}
                                 className="text-slate-300 hover:text-orange-500 transition-colors"
                               >
                                 <Edit2 size={12} />
@@ -5215,35 +5342,89 @@ export default function TournamentDetailPage() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col border border-slate-100"
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100 max-h-[85vh]"
             >
               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 className="font-black text-slate-800">Edit Player Metrics</h3>
+                <h3 className="font-black text-slate-800">Edit Registration</h3>
                 <button onClick={() => setEditingMetrics(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
               </div>
-              <form onSubmit={handleUpdateMetrics} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Weight (kg) *</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    value={editingMetrics.weight}
-                    onChange={(e) => setEditingMetrics({ ...editingMetrics, weight: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
-                  />
+              <form onSubmit={handleUpdateMetrics} className="p-6 space-y-4 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Weight (kg) *</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={editingMetrics.weight}
+                      onChange={(e) => setEditingMetrics({ ...editingMetrics, weight: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Height</label>
+                    <input
+                      type="text"
+                      value={editingMetrics.height}
+                      onChange={(e) => setEditingMetrics({ ...editingMetrics, height: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                      placeholder="e.g. 165 cm"
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Height (optional)</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Category</label>
+                  <select
+                    value={editingMetrics.ageGroup}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, ageGroup: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                  >
+                    {["Mini Sub-Junior Age Group 1", "Mini Sub-Junior Age Group 2", "Mini Sub-Junior Age Group 3", "Sub-Junior", "Cadet", "Junior", "Senior", "Veteran"].map((ag) => (
+                      <option key={ag} value={ag}>{ag}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Belt</label>
                   <input
                     type="text"
-                    value={editingMetrics.height}
-                    onChange={(e) => setEditingMetrics({ ...editingMetrics, height: e.target.value })}
+                    value={editingMetrics.belt}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, belt: e.target.value })}
                     className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
-                    placeholder="e.g. 165 cm"
+                    placeholder="e.g. Green Belt"
                   />
                 </div>
-                
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Club</label>
+                  <select
+                    value={editingMetrics.clubId}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, clubId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                  >
+                    <option value="">— No Club —</option>
+                    {clubOptions.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Coach</label>
+                  <select
+                    value={editingMetrics.coachId}
+                    onChange={(e) => setEditingMetrics({ ...editingMetrics, coachId: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-orange-500 transition-colors font-bold text-slate-800"
+                  >
+                    <option value="">— No Coach —</option>
+                    {coachOptions.map((c) => (
+                      <option key={c.id} value={c.id}>{c.fullName}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="pt-4 flex justify-end gap-3">
                   <button
                     type="button"
@@ -5372,6 +5553,15 @@ export default function TournamentDetailPage() {
       )}
       {activeTab === "disqualify" && expired && (
         <ExpiredBlock label="Disqualify Players" />
+      )}
+
+      {/* ══ IMPORT WIZARD MODAL ════════════════════════════════════════════════ */}
+      {isImportWizardOpen && (
+        <ImportPlayersWizard
+          tournamentId={tournamentId}
+          onClose={() => setIsImportWizardOpen(false)}
+          onSuccess={() => { fetchPlayers(); }}
+        />
       )}
 
     </div>
@@ -5852,6 +6042,258 @@ function BracketView({
   );
 }
 
+
+
+// ─── Import Players Wizard (Inline Component) ─────────────────────────────
+function ImportPlayersWizard({
+  tournamentId,
+  onClose,
+  onSuccess,
+}: {
+  tournamentId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [step, setStep] = React.useState<"upload" | "validating" | "summary" | "importing" | "complete">("upload");
+  const [file, setFile] = React.useState<File | null>(null);
+  const [progress, setProgress] = React.useState(0);
+  const [errorMsg, setErrorMsg] = React.useState("");
+  const [validateBefore, setValidateBefore] = React.useState(true);
+  const [updateExisting, setUpdateExisting] = React.useState(true);
+  const [result, setResult] = React.useState<{ successCount: number; failedCount: number; errors: { row: number; error: string }[]; totalRows: number } | null>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const reset = () => { setStep("upload"); setFile(null); setProgress(0); setResult(null); setErrorMsg(""); };
+  const handleClose = () => { if (step === "validating" || step === "importing") return; reset(); onClose(); };
+
+  const simulateProgress = (next: "summary") => {
+    let v = 0;
+    const iv = setInterval(() => {
+      v += Math.floor(Math.random() * 15) + 8;
+      if (v >= 100) { v = 100; clearInterval(iv); setTimeout(() => setStep(next), 300); }
+      setProgress(v);
+    }, 120);
+  };
+
+  const doImport = async () => {
+    if (!file) return;
+    setStep("importing"); setProgress(0);
+    const progIv = setInterval(() => setProgress(p => Math.min(p + 4, 85)), 200);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/bulk`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      clearInterval(progIv);
+      setProgress(100);
+      setTimeout(() => {
+        if (res.ok) {
+          setResult({ successCount: data.successCount || 0, failedCount: data.failedCount || 0, errors: data.errors || [], totalRows: (data.successCount || 0) + (data.failedCount || 0) });
+          setStep("complete");
+          onSuccess();
+        } else {
+          setErrorMsg(data.error || "Server error during import.");
+          setStep("upload");
+        }
+      }, 400);
+    } catch {
+      clearInterval(progIv);
+      setErrorMsg("Network error. Please try again.");
+      setStep("upload");
+    }
+  };
+
+  const onFileChange = (f: File | null) => { if (!f) return; setFile(f); setErrorMsg(""); };
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(15,23,42,0.7)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ background: "#fff", borderRadius: "24px", boxShadow: "0 25px 50px rgba(0,0,0,0.25)", width: "100%", maxWidth: "700px", display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
+        
+        {/* Header */}
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "36px", height: "36px", background: "#eff6ff", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Upload size={18} style={{ color: "#2563eb" }} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>Player Bulk Import</h2>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Upload Excel to add players to this tournament</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700 }}>
+            <span style={{ color: step === "upload" ? "#2563eb" : "#10b981", padding: "4px 10px", background: step === "upload" ? "#eff6ff" : "#f0fdf4", borderRadius: "20px" }}>1. Upload</span>
+            <ChevronRight size={14} style={{ color: "#94a3b8" }} />
+            <span style={{ color: (step === "validating" || step === "summary") ? "#2563eb" : (step === "importing" || step === "complete") ? "#10b981" : "#94a3b8", padding: "4px 10px", background: (step === "validating" || step === "summary") ? "#eff6ff" : (step === "importing" || step === "complete") ? "#f0fdf4" : "transparent", borderRadius: "20px" }}>2. Validate</span>
+            <ChevronRight size={14} style={{ color: "#94a3b8" }} />
+            <span style={{ color: step === "importing" ? "#2563eb" : step === "complete" ? "#10b981" : "#94a3b8", padding: "4px 10px", background: step === "importing" ? "#eff6ff" : step === "complete" ? "#f0fdf4" : "transparent", borderRadius: "20px" }}>3. Import</span>
+          </div>
+          {step !== "validating" && step !== "importing" && (
+            <button type="button" onClick={handleClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", borderRadius: "8px", display: "flex", alignItems: "center", color: "#64748b" }}>
+              <X size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          
+          {/* STEP 1: Upload */}
+          {step === "upload" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <a
+                href="/templates/players_import_template.xlsx"
+                download
+                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#2563eb", background: "#eff6ff", padding: "8px 14px", borderRadius: "10px", textDecoration: "none" }}
+              >
+                <Download size={14} /> Download Excel Template
+              </a>
+              {errorMsg && (
+                <div style={{ padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#dc2626", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={16} /> {errorMsg}
+                </div>
+              )}
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onFileChange(f); }}
+                style={{ border: `2px dashed ${file ? "#10b981" : "#cbd5e1"}`, borderRadius: "20px", padding: "48px 24px", textAlign: "center", background: file ? "#f0fdf4" : "#f8fafc", cursor: "pointer", transition: "all 0.2s" }}
+                onClick={() => fileRef.current?.click()}
+              >
+                {file ? (
+                  <>
+                    <CheckCircle2 size={48} style={{ color: "#10b981", margin: "0 auto 12px" }} />
+                    <p style={{ fontSize: "16px", fontWeight: 900, color: "#065f46", margin: "0 0 4px" }}>{file.name}</p>
+                    <p style={{ fontSize: "12px", color: "#059669", fontWeight: 600, margin: "0 0 12px" }}>{(file.size / 1024 / 1024).toFixed(2)} MB — Ready to import</p>
+                    <button type="button" onClick={e => { e.stopPropagation(); setFile(null); }} style={{ fontSize: "12px", color: "#ef4444", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Remove File</button>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={48} style={{ color: "#94a3b8", margin: "0 auto 12px" }} />
+                    <p style={{ fontSize: "16px", fontWeight: 900, color: "#334155", margin: "0 0 8px" }}>Click or Drag & Drop your Excel file here</p>
+                    <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>Supported: .xlsx, .xls, .csv — Max 5 MB</p>
+                  </>
+                )}
+              </div>
+              <input type="file" accept=".xlsx,.xls,.csv" ref={fileRef} style={{ display: "none" }} onChange={e => onFileChange(e.target.files?.[0] || null)} />
+
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <p style={{ margin: 0, fontSize: "11px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px" }}>Import Options</p>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={validateBefore} onChange={e => setValidateBefore(e.target.checked)} style={{ width: "16px", height: "16px" }} />
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>Validate file before importing (Recommended)</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={updateExisting} onChange={e => setUpdateExisting(e.target.checked)} style={{ width: "16px", height: "16px" }} />
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>Create new player profile if Aadhaar not found</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2/4: Progress */}
+          {(step === "validating" || step === "importing") && (
+            <div style={{ textAlign: "center", padding: "48px 0" }}>
+              <Loader2 size={56} style={{ color: "#2563eb", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
+              <h3 style={{ fontSize: "20px", fontWeight: 900, color: "#0f172a", margin: "0 0 8px" }}>
+                {step === "validating" ? "Validating Your File..." : "Importing Players..."}
+              </h3>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 24px" }}>{file?.name}</p>
+              <div style={{ background: "#e2e8f0", borderRadius: "999px", height: "10px", maxWidth: "400px", margin: "0 auto 12px", overflow: "hidden" }}>
+                <div style={{ background: "#2563eb", height: "100%", borderRadius: "999px", width: `${progress}%`, transition: "width 0.3s ease" }} />
+              </div>
+              <p style={{ fontSize: "14px", fontWeight: 700, color: "#2563eb", margin: "0 0 8px" }}>{progress}%</p>
+              {step === "importing" && <p style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700 }}>Please do not close this window...</p>}
+            </div>
+          )}
+
+          {/* STEP 3: Summary */}
+          {step === "summary" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "16px", padding: "16px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                <CheckCircle2 size={24} style={{ color: "#2563eb", flexShrink: 0 }} />
+                <div>
+                  <h4 style={{ margin: "0 0 4px", fontWeight: 900, color: "#1e3a8a" }}>File Scanned Successfully</h4>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#1d4ed8" }}>File looks valid. Click "Confirm & Import" to begin importing players into the tournament database.</p>
+                </div>
+              </div>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div><p style={{ margin: "0 0 4px", fontSize: "11px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase" }}>File</p><p style={{ margin: 0, fontWeight: 700, color: "#334155" }}>{file?.name}</p></div>
+                <div><p style={{ margin: "0 0 4px", fontSize: "11px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase" }}>Size</p><p style={{ margin: 0, fontWeight: 700, color: "#334155" }}>{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</p></div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: Complete */}
+          {step === "complete" && result && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: result.failedCount === 0 ? "#f0fdf4" : "#fffbeb", border: `1px solid ${result.failedCount === 0 ? "#bbf7d0" : "#fde68a"}`, borderRadius: "20px", padding: "24px", display: "flex", gap: "16px", alignItems: "center" }}>
+                <CheckCircle2 size={48} style={{ color: result.failedCount === 0 ? "#10b981" : "#f59e0b", flexShrink: 0 }} />
+                <div>
+                  <h3 style={{ margin: "0 0 4px", fontSize: "22px", fontWeight: 900, color: result.failedCount === 0 ? "#065f46" : "#92400e" }}>Import Complete!</h3>
+                  <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: result.failedCount === 0 ? "#059669" : "#b45309" }}>Processed {result.totalRows} rows from {file?.name}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "16px", padding: "20px", textAlign: "center" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 700, color: "#059669" }}>Successfully Imported</p>
+                  <p style={{ margin: 0, fontSize: "36px", fontWeight: 900, color: "#047857" }}>{result.successCount}</p>
+                </div>
+                <div style={{ background: result.failedCount > 0 ? "#fef2f2" : "#f8fafc", border: `1px solid ${result.failedCount > 0 ? "#fecaca" : "#e2e8f0"}`, borderRadius: "16px", padding: "20px", textAlign: "center" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 700, color: result.failedCount > 0 ? "#dc2626" : "#64748b" }}>Failed Rows</p>
+                  <p style={{ margin: 0, fontSize: "36px", fontWeight: 900, color: result.failedCount > 0 ? "#b91c1c" : "#334155" }}>{result.failedCount}</p>
+                </div>
+              </div>
+              {result.errors.length > 0 && (
+                <div>
+                  <h4 style={{ margin: "0 0 10px", fontWeight: 900, color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}><AlertCircle size={16} style={{ color: "#ef4444" }} /> Row Errors</h4>
+                  <div style={{ border: "1px solid #fecaca", borderRadius: "12px", overflow: "hidden", maxHeight: "200px", overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead><tr style={{ background: "#fee2e2" }}><th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 900, color: "#b91c1c", width: "60px" }}>Row</th><th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 900, color: "#b91c1c" }}>Error</th></tr></thead>
+                      <tbody>{result.errors.map((e, i) => <tr key={i} style={{ borderTop: "1px solid #fecaca" }}><td style={{ padding: "8px 12px", fontWeight: 900, color: "#dc2626" }}>{e.row}</td><td style={{ padding: "8px 12px", color: "#dc2626" }}>{e.error}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            {step === "complete" && <button type="button" onClick={reset} style={{ fontSize: "13px", fontWeight: 700, color: "#2563eb", background: "none", border: "none", cursor: "pointer" }}>+ Import Another File</button>}
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            {(step === "upload" || step === "summary") && (
+              <button type="button" onClick={handleClose} style={{ padding: "10px 20px", borderRadius: "12px", fontWeight: 700, fontSize: "13px", background: "none", border: "1px solid #e2e8f0", cursor: "pointer", color: "#64748b" }}>Cancel</button>
+            )}
+            {step === "upload" && (
+              <button type="button" onClick={() => { if (!file) return; if (validateBefore) { setStep("validating"); simulateProgress("summary"); } else doImport(); }} disabled={!file}
+                style={{ padding: "10px 24px", borderRadius: "12px", fontWeight: 900, fontSize: "13px", background: file ? "#2563eb" : "#94a3b8", color: "#fff", border: "none", cursor: file ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: "6px" }}>
+                Continue <ChevronRight size={16} />
+              </button>
+            )}
+            {step === "summary" && (
+              <button type="button" onClick={doImport} style={{ padding: "10px 24px", borderRadius: "12px", fontWeight: 900, fontSize: "13px", background: "#059669", color: "#fff", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
+                <CheckCircle2 size={16} /> Confirm & Import
+              </button>
+            )}
+            {step === "complete" && (
+              <button type="button" onClick={handleClose} style={{ padding: "10px 24px", borderRadius: "12px", fontWeight: 900, fontSize: "13px", background: "#0f172a", color: "#fff", border: "none", cursor: "pointer" }}>
+                Close &amp; View Players
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function DisqualifyTab({
   players,
