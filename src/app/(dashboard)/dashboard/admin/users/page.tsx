@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Trash2,
   Download,
+  Upload,
 } from "lucide-react";
 
 type UserRole = "STUDENT" | "COACH" | "MEMBER" | "CLUB" | "DISTRICT_PRESIDENT" | "DISTRICT_SECRETARY" | "ZONE_PRESIDENT" | "ZONE_SECRETARY" | "STATE_PRESIDENT" | "STATE_SECRETARY" | "CEO";
@@ -119,6 +120,42 @@ export default function UserManagementPage() {
 
   // Create User State
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importType, setImportType] = useState<"STUDENT" | "COACH">("STUDENT");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResults, setImportResults] = useState<any | null>(null);
+
+  const handleExcelImport = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const endpoint = importType === "STUDENT" ? "/admin/import-students" : "/admin/import-coaches";
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      
+      setImportResults(data);
+      showToast(`${importType === "STUDENT" ? "Player" : "Coach"} import complete!`, "success");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const [createType, setCreateType] = useState<"STUDENT" | "CLUB" | "MEMBER">("STUDENT");
   const [createForm, setCreateForm] = useState({
     fullName: "", name: "", email: "", mobileNumber: "", districtId: "", talukId: "",
@@ -581,6 +618,13 @@ export default function UserManagementPage() {
           >
             <Plus size={16} />
             Create New
+          </button>
+          <button
+            onClick={() => setImportModalOpen(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all text-sm shadow-sm"
+          >
+            <Upload size={16} />
+            Import Excel
           </button>
           <button
             onClick={handleExportCSV}
@@ -1415,7 +1459,177 @@ export default function UserManagementPage() {
             </motion.div>
           </div>
         )}
-    </AnimatePresence>
+     </AnimatePresence>
+
+      {/* Excel Import Modal */}
+      <AnimatePresence>
+        {importModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-lg bg-white rounded-3xl p-8 shadow-2xl flex flex-col max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                  <Upload size={24} className="text-[#FF7400]" />
+                  Import {importType === "STUDENT" ? "Players" : "Coaches"} (Excel)
+                </h3>
+                <button
+                  onClick={() => {
+                    setImportModalOpen(false);
+                    setImportFile(null);
+                    setImportResults(null);
+                  }}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-500 cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {!importResults ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">
+                      Import Type
+                    </label>
+                    <select
+                      value={importType}
+                      onChange={(e) => {
+                        setImportType(e.target.value as "STUDENT" | "COACH");
+                        setImportFile(null);
+                        setImportResults(null);
+                      }}
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-semibold text-slate-700"
+                    >
+                      <option value="STUDENT">Players (Students)</option>
+                      <option value="COACH">Coaches & Referees</option>
+                    </select>
+                  </div>
+
+                  <p className="text-slate-500 text-sm">
+                    Select or drag an Excel file (.xlsx or .xls) to seed {importType === "STUDENT" ? "players" : "coaches"} into the database.
+                  </p>
+
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50 hover:bg-slate-100/50 transition-all cursor-pointer relative">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setImportFile(e.target.files[0]);
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <Upload size={32} className="text-slate-400" />
+                    {importFile ? (
+                      <span className="font-bold text-slate-700 text-center break-all">{importFile.name}</span>
+                    ) : (
+                      <span className="text-sm font-semibold text-slate-500 text-center">Click or Drag Excel File Here</span>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100">
+                    <span className="text-xs font-bold text-slate-700 block uppercase tracking-wider mb-1">Required Column Headers:</span>
+                    {importType === "STUDENT" ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 font-medium">
+                          <div>• Full Name</div>
+                          <div>• Email</div>
+                          <div>• Mobile Number</div>
+                          <div>• Aadhaar Number</div>
+                          <div>• Date of Birth (YYYY-MM-DD)</div>
+                          <div>• Gender (MALE/FEMALE)</div>
+                          <div>• District Name</div>
+                          <div>• Taluk Name</div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block pt-2">Note: Optional headers include: School Name, Grade, Annual Income, Weight, Height, Coach Name, Temporary ID, Permanent ID, Status.</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 font-medium">
+                          <div>• Full Name</div>
+                          <div>• Father Name</div>
+                          <div>• Email</div>
+                          <div>• Mobile Number</div>
+                          <div>• Aadhaar Number</div>
+                          <div>• Date of Birth (YYYY-MM-DD)</div>
+                          <div>• Gender (MALE/FEMALE)</div>
+                          <div>• District Name</div>
+                          <div>• Taluk Name</div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 block pt-2">Note: Optional headers include: Pincode, History in Judo, History in Other Martial, Present Grade in Judo, Temporary ID, Permanent ID, Status.</span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      onClick={() => {
+                        setImportModalOpen(false);
+                        setImportFile(null);
+                      }}
+                      className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleExcelImport}
+                      disabled={!importFile || importLoading}
+                      className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm cursor-pointer"
+                    >
+                      {importLoading ? <Loader2 size={18} className="animate-spin" /> : "Start Import"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100">
+                    <CheckCircle2 className="shrink-0 text-emerald-600" size={24} />
+                    <div>
+                      <div className="font-bold text-sm">Import Process Finished</div>
+                      <div className="text-xs mt-0.5">
+                        Successfully imported <span className="font-extrabold">{importResults.successCount}</span> {importType === "STUDENT" ? "players" : "coaches"}.
+                        {importResults.failedCount > 0 && (
+                          <span> Skip/Failed: <span className="font-extrabold text-red-600">{importResults.failedCount}</span></span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {importResults.errors && importResults.errors.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-600">Error Details:</span>
+                      <div className="max-h-48 overflow-y-auto border border-red-100 rounded-2xl p-4 bg-red-50/30 space-y-2">
+                        {importResults.errors.map((err: any, i: number) => (
+                          <div key={i} className="text-xs text-red-600 flex gap-2">
+                            <span className="font-bold shrink-0">Row {err.row}:</span>
+                            <span>{err.error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setImportModalOpen(false);
+                      setImportFile(null);
+                      setImportResults(null);
+                      fetchUsers();
+                    }}
+                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl transition-all text-sm mt-4 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

@@ -282,7 +282,7 @@ export default function DashboardLayout({
   const currentNavItems = userStatus === "REPLAY" ? replayNavItems : navItems;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex overflow-hidden print:overflow-visible print:bg-white print:min-h-0 print:block">
       {/* Global Toast */}
       <AnimatePresence>
         {toast && (
@@ -497,7 +497,7 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <div className="flex-grow flex flex-col h-screen overflow-hidden min-w-0">
+      <div className="flex-grow flex flex-col h-screen overflow-hidden min-w-0 print:h-auto print:overflow-visible print:block">
         {/* Header */}
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-30 shrink-0 print:hidden">
           <div className="flex items-center gap-3 min-w-0">
@@ -639,7 +639,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Scrollable Area */}
-        <main className="flex-grow overflow-y-auto p-8 bg-slate-50">
+        <main className="flex-grow overflow-y-auto p-8 bg-slate-50 print:overflow-visible print:p-0 print:bg-white print:block">
           {children}
         </main>
       </div>

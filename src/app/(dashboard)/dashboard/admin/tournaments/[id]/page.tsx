@@ -726,6 +726,336 @@ function exportAllMatchesToPDF(tournament: Tournament | null, allDraws: Record<s
   }
 }
 
+
+export function exportOverallTournamentReport(
+  tournament: Tournament | null,
+  players: RegisteredPlayer[],
+  allDraws: Record<string, DrawCategory>,
+  placements: Record<string, "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION">
+) {
+  const activePlayers = players.filter(p => p.status === "APPROVED");
+  const maleCount = activePlayers.filter(p => p.gender === "MALE").length;
+  const femaleCount = activePlayers.filter(p => p.gender === "FEMALE").length;
+  const otherCount = activePlayers.length - maleCount - femaleCount;
+  const totalCategories = Object.keys(allDraws).length;
+
+  let totalMatches = 0;
+  let completedMatches = 0;
+  let totalByes = 0;
+  let totalIppons = 0;
+  let totalWazaAris = 0;
+  let totalYukos = 0;
+  let totalMatchSeconds = 0;
+
+  for (const draw of Object.values(allDraws)) {
+    if (!draw.rounds) continue;
+    draw.rounds.forEach(roundMatches => {
+      roundMatches.forEach(m => {
+        if (!m.slotA.isBye && !m.slotB.isBye && m.slotA.playerName !== "TBD" && m.slotB.playerName !== "TBD") {
+          totalMatches++;
+          if (m.status === "COMPLETED") {
+            completedMatches++;
+            totalMatchSeconds += (m.elapsedSeconds || 0);
+            if (m.scoreA) {
+              totalIppons += (m.scoreA.ippon || 0);
+              totalWazaAris += (m.scoreA.wazaAri || 0);
+              totalYukos += (m.scoreA.yuko || 0);
+            }
+            if (m.scoreB) {
+              totalIppons += (m.scoreB.ippon || 0);
+              totalWazaAris += (m.scoreB.wazaAri || 0);
+              totalYukos += (m.scoreB.yuko || 0);
+            }
+          }
+        } else if (m.slotA.isBye || m.slotB.isBye) {
+          totalByes++;
+        }
+      });
+    });
+  }
+
+  const avgMatchTimeSeconds = completedMatches > 0 ? Math.floor(totalMatchSeconds / completedMatches) : 0;
+  const avgMins = Math.floor(avgMatchTimeSeconds / 60);
+  const avgSecs = avgMatchTimeSeconds % 60;
+  const totalMins = Math.floor(totalMatchSeconds / 60);
+  const totalSecs = totalMatchSeconds % 60;
+
+  const categoryRows = Object.entries(allDraws).map(([catKey, draw]) => {
+    const ageGroup = draw.ageGroup;
+    const gender = draw.gender;
+    const weightDiv = draw.weightCategory === "ALL" ? "Open" : draw.weightCategory;
+
+    const catPlayers = activePlayers.filter(p => 
+      p.ageGroup === ageGroup && 
+      (draw.exactAge === 0 || p.exactAge === draw.exactAge) &&
+      p.gender === gender &&
+      String(p.weight) === draw.weightCategory
+    );
+    const catMale = catPlayers.filter(p => p.gender === "MALE").length;
+    const catFemale = catPlayers.filter(p => p.gender === "FEMALE").length;
+    const catTotal = catPlayers.length;
+
+    const goldPlayers = catPlayers.filter(p => placements[p.id] === "FIRST");
+    const silverPlayers = catPlayers.filter(p => placements[p.id] === "SECOND");
+    const bronzePlayers = catPlayers.filter(p => placements[p.id] === "THIRD");
+
+    const formatWinners = (winners: typeof activePlayers) => {
+      if (winners.length === 0) return "-";
+      return winners.map(w => `<span class="winner-name">${w.name}</span><br/><span class="winner-club">(${w.club || w.district})</span>`).join('<br/><br/>');
+    };
+
+    return `
+      <tr>
+        <td style="font-weight: bold;">${ageGroup}</td>
+        <td>${gender}</td>
+        <td>${weightDiv}</td>
+        <td>${catMale}</td>
+        <td>${catFemale}</td>
+        <td style="font-weight: bold;">${catTotal}</td>
+        <td style="color: #b45309; font-weight: bold;">${formatWinners(goldPlayers)}</td>
+        <td style="color: #334155; font-weight: bold;">${formatWinners(silverPlayers)}</td>
+        <td style="color: #9a3412; font-weight: bold;">${formatWinners(bronzePlayers)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const drawShuffleRows = Object.entries(allDraws).map(([catKey, draw]) => {
+    if (!draw.rounds || draw.rounds.length === 0) return '';
+    const round1 = draw.rounds[0];
+    const matchups = round1.map(m => {
+      const p1 = m.slotA.playerName !== "TBD" ? m.slotA.playerName : (m.slotA.isBye ? "BYE" : "TBD");
+      const p2 = m.slotB.playerName !== "TBD" ? m.slotB.playerName : (m.slotB.isBye ? "BYE" : "TBD");
+      return `<div style="background:#f8fafc; padding: 5px 8px; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 5px;">
+        <span style="color:#64748b; font-size:10px;">Match #${m.matchNumber}</span><br/>
+        <strong>${p1}</strong> <span style="color:#94a3b8; font-size: 10px; margin: 0 5px;">vs</span> <strong>${p2}</strong>
+      </div>`;
+    }).join('');
+
+    return `
+      <div style="margin-bottom: 20px; page-break-inside: avoid;">
+        <h4 style="margin: 0 0 10px 0; color: #1e293b; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; font-size:14px;">
+          ${draw.ageGroup} ${draw.gender} ${draw.weightCategory === "ALL" ? "Open" : draw.weightCategory} - ${isDrawRoundRobin(draw) ? 'ROUND ROBIN' : 'ELIMINATION'}
+        </h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 11px;">
+          ${matchups}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  let allMatches: any[] = [];
+  for (const [catKey, draw] of Object.entries(allDraws)) {
+    if (!draw.rounds) continue;
+    draw.rounds.forEach((roundMatches, ri) => {
+      roundMatches.forEach(m => {
+        if (!m.slotA.isBye && !m.slotB.isBye && m.slotA.playerName !== "TBD" && m.slotB.playerName !== "TBD") {
+          allMatches.push({
+            category: catKey.replace(/_/g, " "),
+            mat: m.matNumber,
+            round: ri + 1,
+            matchNum: m.matchNumber,
+            p1: m.slotA.playerName,
+            p2: m.slotB.playerName,
+            status: m.status,
+            winner: m.winnerId === m.slotA.playerId ? m.slotA.playerName : m.winnerId === m.slotB.playerId ? m.slotB.playerName : "-"
+          });
+        }
+      });
+    });
+  }
+
+  allMatches.sort((a, b) => {
+    if (a.mat !== b.mat) return a.mat - b.mat;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    if (a.round !== b.round) return a.round - b.round;
+    return a.matchNum - b.matchNum;
+  });
+
+  const matchesRows = allMatches.map(m => `
+    <tr>
+      <td style="text-align:center; font-weight:bold;">${m.mat}</td>
+      <td>${m.category}</td>
+      <td>R${m.round} - #${m.matchNum}</td>
+      <td>${m.p1}</td>
+      <td>${m.p2}</td>
+      <td>${m.status}</td>
+      <td style="font-weight: bold;">${m.winner}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Official Tournament Completion Report</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; line-height: 1.4; padding: 30px; margin: 0; }
+        .header { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 5px; }
+        .header-icon { font-size: 32px; }
+        .header-title { font-size: 26px; font-weight: 900; color: #0f172a; margin: 0; letter-spacing: -0.5px; }
+        .subtitle { text-align: center; font-size: 16px; font-weight: 700; color: #334155; margin: 0 0 20px 0; }
+        .orange-line { height: 4px; background-color: #f97316; margin-bottom: 30px; }
+        
+        .info-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; display: flex; justify-content: space-between; margin-bottom: 40px; }
+        .info-col { display: flex; flex-direction: column; gap: 5px; }
+        .info-label { font-size: 11px; font-weight: 800; color: #f97316; text-transform: uppercase; }
+        .info-value { font-size: 14px; font-weight: 500; color: #1e293b; }
+        
+        .section-title { font-size: 18px; font-weight: 900; color: #0f172a; margin: 30px 0 15px 0; display: flex; align-items: center; gap: 10px; }
+        .section-title span { color: #f97316; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #f8fafc; font-weight: 800; color: #475569; text-transform: uppercase; font-size: 11px; }
+        
+        .winner-name { font-weight: bold; color: #b45309; }
+        .winner-club { font-size: 10px; color: #64748b; }
+        .td-center { text-align: center; }
+        
+        .footer { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 50px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <span class="header-icon">🏆</span>
+        <h1 class="header-title">OFFICIAL TOURNAMENT COMPLETION REPORT</h1>
+      </div>
+      <p class="subtitle">${tournament?.title || "Tournament"}</p>
+      <div class="orange-line"></div>
+      
+      <div class="info-box">
+        <div class="info-col">
+          <span class="info-label">Date</span>
+          <span class="info-value">${tournament?.date ? new Date(tournament.date).toLocaleDateString('en-GB') : "N/A"}${tournament?.dateTo ? ' - ' + new Date(tournament.dateTo).toLocaleDateString('en-GB') : ""}</span>
+        </div>
+        <div class="info-col">
+          <span class="info-label">Location</span>
+          <span class="info-value">${tournament?.location || "N/A"}</span>
+        </div>
+        <div class="info-col">
+          <span class="info-label">Level</span>
+          <span class="info-value">${tournament?.level || "N/A"}</span>
+        </div>
+        <div class="info-col">
+          <span class="info-label">Category</span>
+          <span class="info-value">${tournament?.category || "N/A"}</span>
+        </div>
+      </div>
+      
+      <div class="section-title"><span>📊</span> PARTICIPATION METRICS SUMMARY</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Total Players</th>
+            <th>Male Players</th>
+            <th>Female Players</th>
+            <th>Other / Unspecified</th>
+            <th>Total Categories</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight: bold;">${activePlayers.length}</td>
+            <td>${maleCount}</td>
+            <td>${femaleCount}</td>
+            <td>${otherCount}</td>
+            <td>${totalCategories}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="section-title"><span>📈</span> MATCH STATISTICS</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Total Scheduled</th>
+            <th>Completed Matches</th>
+            <th>Auto-Advancements (Byes)</th>
+            <th>Total Ippons (100)</th>
+            <th>Total Waza-aris (10)</th>
+            <th>Total Yukos (1)</th>
+            <th>Total Time</th>
+            <th>Avg. Match Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight: bold;">${totalMatches}</td>
+            <td style="color: #059669; font-weight: bold;">${completedMatches}</td>
+            <td>${totalByes}</td>
+            <td style="color: #b45309; font-weight: bold;">${totalIppons}</td>
+            <td>${totalWazaAris}</td>
+            <td>${totalYukos}</td>
+            <td>${totalMins}m ${totalSecs}s</td>
+            <td>${avgMins}m ${avgSecs}s</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div class="section-title" style="page-break-before: always;"><span>🥇</span> CATEGORY WINNERS & PARTICIPATION TABLE</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Age Group</th>
+            <th>Gender</th>
+            <th>Weight Div</th>
+            <th>Male</th>
+            <th>Female</th>
+            <th>Total</th>
+            <th>🥇 Gold (1st)</th>
+            <th>🥈 Silver (2nd)</th>
+            <th>🥉 Bronze (3rd)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${categoryRows}
+        </tbody>
+      </table>
+
+      <div class="section-title" style="page-break-before: always;"><span>🔀</span> CATEGORY INITIAL DRAWS (SHUFFLE)</div>
+      <p style="font-size:12px; color: #64748b; margin-bottom: 20px;">The initial random seeding and first-round matchups generated for each category.</p>
+      ${drawShuffleRows}
+      
+      <div class="section-title" style="page-break-before: always;"><span>⚔️</span> MASTER MATCHES & RESULTS LIST</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="td-center">Mat</th>
+            <th>Category</th>
+            <th>Match</th>
+            <th>Player 1 (White)</th>
+            <th>Player 2 (Blue)</th>
+            <th>Status</th>
+            <th>Winner</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${matchesRows}
+        </tbody>
+      </table>
+      
+      <div class="footer">
+        Generated on ${new Date().toLocaleString()} &middot; Official Tournament Completion Record
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 250);
+  } else {
+    alert("Please allow popups to print the report.");
+  }
+}
+
 function exportRoundRobinPoolSheet(
   tournament: Tournament | null,
   categoryKey: string,
@@ -2493,6 +2823,46 @@ export default function TournamentDetailPage() {
     );
   };
 
+  const handlePrintBracket = () => {
+    const bracketEl = document.getElementById('bracket-print-area');
+    if (!bracketEl) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(style => style.outerHTML)
+      .join('\n');
+      
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Tournament Bracket</title>
+          ${styles}
+          <style>
+            body { background: white !important; padding: 20px !important; overflow: visible !important; min-height: auto !important; height: auto !important; }
+            .print-hidden, .print\\:hidden { display: none !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            #bracket-print-area { overflow: visible !important; display: block !important; }
+          </style>
+        </head>
+        <body>
+          <h2 style="font-family: sans-serif; margin-bottom: 20px; text-align: center;">Bracket Report</h2>
+          <div style="transform-origin: top left; transform: scale(0.85); margin: 0 auto; width: max-content;">
+            ${bracketEl.outerHTML}
+          </div>
+          <script>
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 1000);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // ── Expired check ────────────────────────────────────────────────────────────
   const expired = (() => {
     if (!tournament) return false;
@@ -3658,7 +4028,7 @@ export default function TournamentDetailPage() {
                   className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
                   <Star size={16} /> Manage Seeds (IJF)
                 </button>
-                <button onClick={() => window.print()}
+                <button onClick={handlePrintBracket}
                   className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all print:hidden">
                   <Printer size={16} /> Print Report
                 </button>
@@ -4345,6 +4715,10 @@ export default function TournamentDetailPage() {
               </h2>
               <p className="text-slate-500 text-sm mt-1">View completed matches, winners, and generate PDF reports</p>
             </div>
+            <button onClick={() => exportOverallTournamentReport(tournament, players, draws, placements)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all">
+              <Printer size={16} /> Official Completion Report
+            </button>
           </div>
           
           {renderCategoryFilters()}
@@ -5098,7 +5472,7 @@ function BracketView({
       </div>
 
       {/* ── Right: Bracket ───────────────────────────────────────────────── */}
-      <div className="flex-grow overflow-x-auto">
+      <div id="bracket-print-area" className="flex-grow overflow-x-auto">
         <div style={{ minWidth: totalW + 24, userSelect: "none" }}>
 
           {/* Round headers */}
