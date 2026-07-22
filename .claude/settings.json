@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node _backfill_paid.cjs)",
+      "Bash(rm \"c:/Users/Administrator/Documents/tnja-backend/_backfill_paid.cjs\")",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)",
+      "Bash(node -e ' *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Administrator\\Documents\\tnja-backend"
+    ]
+  }
+}

@@ -2127,7 +2127,8 @@ export default function TournamentDetailPage() {
     fetchTournament();
     fetchPlayers();
     fetchDraws();
-  }, [fetchTournament, fetchPlayers, fetchDraws]);
+    fetchMats();
+  }, [fetchTournament, fetchPlayers, fetchDraws, fetchMats]);
 
   // Auto-detect placements whenever the Results tab becomes active or draws/players update
   useEffect(() => {
@@ -4304,112 +4305,7 @@ export default function TournamentDetailPage() {
             <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 text-amber-600 rounded-2xl text-sm font-bold border border-amber-200">
               <AlertCircle size={18} /> You must approve or reject all pending player registrations before managing draws.
             </div>
-          ) : (() => {
-            const FORMAT_OPTIONS = [
-              { value: "round-robin" as const, label: "Round Robin", desc: "Everyone plays everyone in the group. Best for 5 or fewer players." },
-              { value: "straight-elimination" as const, label: "Single Elimination", desc: "Lose once and you're out — the standard knockout bracket." },
-              { value: "single-repechage" as const, label: "Single Repechage", desc: "Knockout bracket, plus one more chance at bronze for players the finalists beat." },
-              { value: "double-repechage" as const, label: "Double Repechage", desc: "Standard IJF format — two repechage brackets feed both bronze medals." },
-            ];
-            const selectedFormat = FORMAT_OPTIONS.find(o => o.value === detailDrawMethod);
-            const seededCount = ([1, 2, 3, 4] as const).filter(n => seeds[n]).length;
-            const isBusy = drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating;
-            const isDisabled = eligiblePlayers.length < 2 || isBusy;
-
-            return (
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-5">
-                {/* Bracket format */}
-                <div>
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Bracket format</p>
-                  <div className="flex flex-wrap gap-2">
-                    {FORMAT_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setDetailDrawMethod(opt.value)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
-                          detailDrawMethod === opt.value
-                            ? "bg-[#FF7400] border-[#FF7400] text-white shadow-md shadow-orange-500/20"
-                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedFormat && <p className="text-xs text-slate-500 font-semibold mt-3">{selectedFormat.desc}</p>}
-                </div>
-
-                {/* Seeding — collapsed by default */}
-                <div className="pt-1 border-t border-slate-100">
-                  <button onClick={() => setSeedingOpen(o => !o)} className="w-full flex items-center justify-between py-3 text-left">
-                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                      Seed top players <span className="text-xs font-semibold text-slate-400">(optional)</span>
-                      {seededCount > 0 && (
-                        <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{seededCount} set</span>
-                      )}
-                    </span>
-                    <ChevronRight size={16} className={`text-slate-400 transition-transform ${seedingOpen ? "rotate-90" : ""}`} />
-                  </button>
-                  {seedingOpen && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-2">
-                      {([1, 2, 3, 4] as const).map((n) => (
-                        <button
-                          key={n}
-                          onClick={() => { setShowSeedModal(true); if (!seeds[n]) setAssigningSeed(n); }}
-                          disabled={isDisabled}
-                          className={`text-center p-3 rounded-2xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                            seeds[n] ? "border-amber-300 bg-amber-50 hover:bg-amber-100" : "border-dashed border-slate-200 bg-slate-50 hover:border-slate-300"
-                          }`}
-                        >
-                          <div className={`w-6 h-6 mx-auto mb-1.5 rounded-lg flex items-center justify-center text-[10px] font-black text-white ${seeds[n] ? "bg-amber-500" : "bg-slate-300"}`}>
-                            S{n}
-                          </div>
-                          <p className={`text-xs font-bold truncate ${seeds[n] ? "text-slate-700" : "text-slate-400"}`}>
-                            {seeds[n] ? seeds[n]!.name : "+ Assign"}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Generate */}
-                <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={fetchDraws} title="Refresh Live Bracket"
-                      className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl hover:border-slate-300 transition-all">
-                      <RefreshCw size={14} />
-                    </button>
-                    <button onClick={handlePrintBracket} title="Print Report"
-                      className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl hover:border-slate-300 transition-all print:hidden">
-                      <Printer size={14} />
-                    </button>
-                    {!currentDraw?.generated && (
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer select-none ml-1">
-                        <input type="checkbox" checked={randomizeOrder} onChange={(e) => setRandomizeOrder(e.target.checked)} className="accent-[#FF7400]" />
-                        Randomize player order
-                      </label>
-                    )}
-                    {currentDraw?.saved && (
-                      <span className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-xs border border-emerald-200">
-                        <Check size={14} /> Auto-Saved ✓
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => handleGenerateAndSaveDraw(currentDraw?.generated ? true : randomizeOrder, false, undefined, detailDrawMethod)}
-                    disabled={isDisabled}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isBusy
-                      ? <><Loader2 size={15} className="animate-spin" /> {currentDraw?.generated ? "Re-shuffling..." : "Generating..."}</>
-                      : <><Zap size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Generate Bracket"}</>}
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
+          ) : null}
 
           {/* ── Dealing animation overlay ── */}
           <AnimatePresence>
@@ -4572,7 +4468,7 @@ export default function TournamentDetailPage() {
                                   }}
                                   className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
                                 >
-                                  {[1,2,3,4,5,6,7,8].map(m => (
+                                  {(tournamentMats.length > 0 ? tournamentMats.map(m => m.matNumber).sort((a, b) => a - b) : [1]).map(m => (
                                     <option key={m} value={m}>MAT {m}</option>
                                   ))}
                                 </select>
