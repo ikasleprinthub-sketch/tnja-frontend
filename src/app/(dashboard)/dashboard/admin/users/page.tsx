@@ -1608,6 +1608,14 @@ export default function UserManagementPage() {
                     </div>
                   </div>
 
+                  {importResults.defaultPassword && (
+                    <div className="p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-100 text-xs">
+                      <span className="font-bold">Default login password for imported accounts: </span>
+                      <span className="font-mono font-extrabold bg-white px-2 py-0.5 rounded border border-amber-200">{importResults.defaultPassword}</span>
+                      <span> — they log in with their Temp/Permanent ID and this password, and will be prompted to set their own on first login. Share it with them; it isn't emailed automatically.</span>
+                    </div>
+                  )}
+
                   {importResults.errors && importResults.errors.length > 0 && (
                     <div className="space-y-2">
                       <span className="text-xs font-bold text-slate-600">Error Details:</span>

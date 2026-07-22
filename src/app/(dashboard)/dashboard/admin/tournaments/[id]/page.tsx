@@ -1525,7 +1525,7 @@ export default function TournamentDetailPage() {
   const [isDisqualifying, setIsDisqualifying] = useState(false);
 
   // ── Mats & Referees State ──────────────────────────────────────────────────
-  const [tournamentMats, setTournamentMats] = useState<{matNumber: number, refereeId: string, refereeName?: string}[]>([]);
+  const [tournamentMats, setTournamentMats] = useState<{matNumber: number, refereeId: string, refereeName?: string, refereeCoachId?: string}[]>([]);
   const [savingMats, setSavingMats] = useState(false);
   const [loadingMats, setLoadingMats] = useState(false);
   const [matsCountInput, setMatsCountInput] = useState<string>("");
@@ -1562,7 +1562,8 @@ export default function TournamentDetailPage() {
         setTournamentMats(data.mats.map((m: any) => ({
           matNumber: m.matNumber,
           refereeId: m.refereeId || "",
-          refereeName: m.referee?.fullName || ""
+          refereeName: m.referee?.fullName || "",
+          refereeCoachId: m.referee?.permanentId || m.referee?.tempId || ""
         })));
         if (data.mats.length > 0) {
           setMatsCountInput(data.mats.length.toString());
@@ -1601,10 +1602,10 @@ export default function TournamentDetailPage() {
     };
   }, [refSearchQuery, selectedMatForAssignment]);
 
-  const assignRefereeToMat = (matNum: number, ref: { id: string; name: string }) => {
+  const assignRefereeToMat = (matNum: number, ref: { id: string; name: string; refId?: string }) => {
     setTournamentMats(prev => {
       const filtered = prev.filter(m => m.matNumber !== matNum);
-      return [...filtered, { matNumber: matNum, refereeId: ref.id, refereeName: ref.name }];
+      return [...filtered, { matNumber: matNum, refereeId: ref.id, refereeName: ref.name, refereeCoachId: ref.refId || "" }];
     });
     setRefSearchQuery("");
     setRefSearchResults([]);
@@ -3354,7 +3355,7 @@ export default function TournamentDetailPage() {
             {/* LEFT SIDE: MATS LIST */}
             <div className="col-span-1 md:border-r border-slate-100 md:pr-6 space-y-2">
               <h4 className="font-black text-slate-400 uppercase tracking-widest text-xs mb-4">Mats</h4>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {Array.from({ length: totalMats }).map((_, i) => {
                   const matNum = i + 1;
                   const isSelected = selectedMatForAssignment === matNum;
@@ -3366,20 +3367,19 @@ export default function TournamentDetailPage() {
                         setSelectedMatForAssignment(matNum);
                         setRefSearchQuery("");
                       }}
-                      className={`w-full text-left px-5 py-4 rounded-2xl font-black transition-all flex justify-between items-center ${
+                      className={`w-full text-left px-5 py-3.5 rounded-2xl font-black transition-all flex items-center gap-3 border ${
                         isSelected
-                          ? "bg-[#FF7400] text-white shadow-md scale-[1.02]"
-                          : assigned
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
-                            : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                          ? "bg-[#FF7400] border-[#FF7400] text-white shadow-md shadow-orange-500/20"
+                          : "bg-white border-slate-100 text-slate-700 hover:border-orange-200 hover:bg-orange-50/40"
                       }`}
                     >
-                      <span className="text-lg">Mat {matNum}</span>
-                      {assigned ? (
-                        <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-emerald-200 text-emerald-800'}`}>Assigned</span>
-                      ) : (
-                        <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-amber-100 text-amber-700'}`}>Open</span>
-                      )}
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${assigned ? (isSelected ? "bg-white" : "bg-[#FF7400]") : (isSelected ? "bg-white/40" : "bg-slate-200")}`} />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm">Mat {matNum}</span>
+                        <p className={`text-[11px] font-bold truncate ${isSelected ? "text-white/80" : assigned ? "text-slate-400" : "text-slate-300"}`}>
+                          {assigned ? assigned.refereeName : "Not assigned"}
+                        </p>
+                      </div>
                     </button>
                   );
                 })}
@@ -3389,31 +3389,38 @@ export default function TournamentDetailPage() {
             {/* RIGHT SIDE: REFEREE ASSIGNMENT */}
             <div className="col-span-1 md:col-span-2 md:pl-2">
               {selectedMatForAssignment ? (
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
-                  <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
-                    <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center text-[#FF7400] font-black text-xl">
-                      {selectedMatForAssignment}
-                    </div>
-                    <h4 className="font-black text-slate-800 text-xl">Assign Referee</h4>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-lg bg-orange-50 text-[#FF7400] font-black text-sm">Mat {selectedMatForAssignment}</span>
+                    <h4 className="font-black text-slate-800 text-lg">Assign Referee</h4>
                   </div>
 
                   {(() => {
                     const assigned = tournamentMats.find(m => m.matNumber === selectedMatForAssignment && m.refereeName);
                     return assigned ? (
-                      <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                          <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Current Referee</p>
-                          <p className="font-black text-slate-800 text-2xl">{assigned.refereeName}</p>
+                      <div className="bg-orange-50/50 p-6 rounded-2xl border border-orange-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-12 h-12 rounded-2xl bg-[#FF7400] text-white flex items-center justify-center font-black text-lg shrink-0">
+                            {assigned.refereeName!.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-800 text-lg truncate">{assigned.refereeName}</p>
+                            {assigned.refereeCoachId && (
+                              <span className="inline-block mt-1 text-[11px] font-black text-[#FF7400] bg-white px-2.5 py-0.5 rounded-md border border-orange-200 font-mono">
+                                {assigned.refereeCoachId}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        <div className="flex gap-2 w-full sm:w-auto shrink-0">
                           <button
                             onClick={() => {
                               setTournamentMats(prev => prev.filter(m => m.matNumber !== selectedMatForAssignment));
                               setRefSearchQuery("");
                             }}
-                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-3 bg-slate-100 text-slate-600 hover:text-[#FF7400] hover:bg-orange-50 rounded-xl transition-colors font-bold text-sm"
+                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 bg-white text-slate-600 hover:text-[#FF7400] border border-slate-200 rounded-xl transition-colors font-bold text-sm"
                           >
-                            <Edit2 size={16} /> Change
+                            <Edit2 size={14} /> Change
                           </button>
                           <button
                             onClick={() => {
@@ -3421,31 +3428,31 @@ export default function TournamentDetailPage() {
                                 setTournamentMats(prev => prev.filter(m => m.matNumber !== selectedMatForAssignment));
                               }
                             }}
-                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors font-bold text-sm"
+                            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2.5 bg-white text-red-500 hover:bg-red-50 border border-red-100 rounded-xl transition-colors font-bold text-sm"
                           >
-                            <X size={16} /> Remove
+                            <X size={14} /> Remove
                           </button>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Registered Coaches / Referees</label>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Registered Coaches / Referees</label>
                         <div className="relative">
                           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                           <input
                             type="text"
                             value={refSearchQuery}
                             onChange={(e) => setRefSearchQuery(e.target.value)}
-                            placeholder="Filter by name or ID... e.g. Priya or REF-20"
+                            placeholder="Filter by name or ID... e.g. Priya or COA-20"
                             autoComplete="off"
-                            className="w-full pl-11 pr-5 py-4 bg-white border border-slate-300 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 shadow-sm text-slate-800 text-lg"
+                            className="w-full pl-11 pr-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/30 focus:border-[#FF7400]/40 text-slate-800"
                           />
                           {refSearching && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
                         </div>
 
                         {/* Always-visible roster list — shows registered coach name + ID pairs
                             for easy mat mapping, narrowed down as the admin types above. */}
-                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
+                        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
                           {refSearchResults.length === 0 ? (
                             <div className="px-5 py-4 text-sm font-bold text-slate-400">
                               {refSearching ? "Loading…" : refSearchQuery.trim() ? `No referee matches "${refSearchQuery}"` : "No approved referees found."}
@@ -3464,7 +3471,7 @@ export default function TournamentDetailPage() {
                                   <p className="font-black text-slate-800 text-sm truncate">{r.name}</p>
                                   <p className="text-[11px] font-bold text-slate-400 truncate">{r.club}, {r.district}</p>
                                 </div>
-                                <span className="text-[11px] font-black text-[#FF7400] bg-orange-50 px-2.5 py-1 rounded-md shrink-0">{r.refId}</span>
+                                <span className="text-[11px] font-black text-[#FF7400] bg-orange-50 px-2.5 py-1 rounded-md shrink-0 font-mono">{r.refId}</span>
                               </button>
                             ))
                           )}
@@ -3475,11 +3482,11 @@ export default function TournamentDetailPage() {
                   })()}
                 </div>
               ) : (
-                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 font-bold p-8 bg-slate-50/50 rounded-3xl border-2 border-slate-200 border-dashed text-center">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                    <AlertCircle size={32} className="text-slate-300" />
+                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 font-bold p-8 bg-orange-50/30 rounded-3xl border-2 border-dashed border-orange-100 text-center">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                    <AlertCircle size={28} className="text-[#FF7400]/50" />
                   </div>
-                  <p className="text-lg text-slate-500">Select a mat from the left</p>
+                  <p className="text-base text-slate-500">Select a mat from the left</p>
                   <p className="text-sm font-normal mt-1">to search and assign a referee</p>
                 </div>
               )}
@@ -3495,7 +3502,7 @@ export default function TournamentDetailPage() {
                 <button
                   onClick={() => saveMatAssignments(() => showToast("Assignments saved!", true))}
                   disabled={savingMats}
-                  className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-3 rounded-xl font-black transition-all flex items-center gap-2"
+                  className="bg-[#FF7400] hover:bg-orange-600 text-white px-6 py-3 rounded-xl font-black transition-all flex items-center gap-2 shadow-md shadow-orange-500/20 disabled:opacity-60"
                 >
                   {savingMats && <Loader2 className="animate-spin" size={16} />}
                   Save Changes
