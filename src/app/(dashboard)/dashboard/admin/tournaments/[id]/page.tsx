@@ -1581,6 +1581,7 @@ export default function TournamentDetailPage() {
   // browsable list of registered coaches (name + ID) instead of an empty box
   // until they start typing.
   useEffect(() => {
+    if (!selectedMatForAssignment) return;
     if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
     const query = refSearchQuery.trim();
     refSearchDebounceRef.current = setTimeout(async () => {
@@ -1598,7 +1599,7 @@ export default function TournamentDetailPage() {
     return () => {
       if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
     };
-  }, [refSearchQuery]);
+  }, [refSearchQuery, selectedMatForAssignment]);
 
   const assignRefereeToMat = (matNum: number, ref: { id: string; name: string }) => {
     setTournamentMats(prev => {
