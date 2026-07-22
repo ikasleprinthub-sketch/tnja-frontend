@@ -6,7 +6,8 @@
       "Bash(git add *)",
       "Bash(git restore *)",
       "Bash(git commit -m ' *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(powershell -NoProfile -Command \"Get-Content 'c:\\\\Users\\\\Administrator\\\\Documents\\\\tnja-backend\\\\package.json' | Select-String -Pattern 'pdf|puppeteer|jspdf'\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Administrator\\Documents\\tnja-backend"

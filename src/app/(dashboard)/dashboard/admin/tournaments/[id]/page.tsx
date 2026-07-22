@@ -1493,6 +1493,7 @@ export default function TournamentDetailPage() {
   type DrawMethodType = "round-robin" | "straight-elimination" | "single-repechage" | "double-repechage";
   const [categoryDrawMethod, setCategoryDrawMethod] = useState<Record<string, DrawMethodType>>({});
   const [detailDrawMethod, setDetailDrawMethod] = useState<DrawMethodType>("round-robin");
+  const [pendingMatByKey, setPendingMatByKey] = useState<Record<string, number>>({});
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [autoGenProgress, setAutoGenProgress] = useState("");
 
@@ -1534,7 +1535,6 @@ export default function TournamentDetailPage() {
   const [refSearchQuery, setRefSearchQuery] = useState("");
   const [refSearchResults, setRefSearchResults] = useState<{ id: string; refId?: string; name: string; district: string; club: string }[]>([]);
   const [refSearching, setRefSearching] = useState(false);
-  const [refDropdownOpen, setRefDropdownOpen] = useState(false);
   const refSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Registrations Tab State ────────────────────────────────────────────────
@@ -1576,28 +1576,25 @@ export default function TournamentDetailPage() {
     }
   }, [tournamentId]);
 
-  // Debounced referee autocomplete for mat assignment
+  // Debounced referee autocomplete for mat assignment. An empty query still
+  // fetches — it returns the full approved roster — so admins always see a
+  // browsable list of registered coaches (name + ID) instead of an empty box
+  // until they start typing.
   useEffect(() => {
     if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
     const query = refSearchQuery.trim();
-    if (!query) {
-      setRefSearchResults([]);
-      setRefDropdownOpen(false);
-      return;
-    }
     refSearchDebounceRef.current = setTimeout(async () => {
       setRefSearching(true);
       try {
         const res = await fetch(`${API_BASE}/referees/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
         setRefSearchResults(res.ok ? (data.referees || []) : []);
-        setRefDropdownOpen(true);
       } catch (e) {
         setRefSearchResults([]);
       } finally {
         setRefSearching(false);
       }
-    }, 300);
+    }, query ? 300 : 0);
     return () => {
       if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
     };
@@ -1610,7 +1607,6 @@ export default function TournamentDetailPage() {
     });
     setRefSearchQuery("");
     setRefSearchResults([]);
-    setRefDropdownOpen(false);
   };
 
   // ── Auto-detect placements from draw results ─────────────────────────────────
@@ -2352,7 +2348,7 @@ export default function TournamentDetailPage() {
         exactAge: activeDraw?.exactAge !== undefined ? activeDraw.exactAge : (activeExactAge === "ALL" ? 0 : Number(activeExactAge)),
         gender: activeGender,
         weightCategory: activeWeight,
-        matNumber: activeDraw?.matNumber !== undefined ? activeDraw.matNumber : 1,
+        matNumber: activeDraw?.matNumber !== undefined ? activeDraw.matNumber : (pendingMatByKey[activeKey] ?? 1),
         rounds,
         generated: true,
         saved: false,
@@ -3165,7 +3161,6 @@ export default function TournamentDetailPage() {
         const isRegClosed = tournament.registrationClosed;
         const isMatsConfigured = tournamentMats.length > 0;
         const isOfficialsAssigned = tournamentMats.length > 0 && tournamentMats.every(m => m.refereeName);
-        const isWeighInComplete = tournament.status === "STARTED" || tournament.status === "CLOSED";
         const isDrawGenerated = tournament.status === "STARTED" || tournament.status === "CLOSED";
         const isTournamentStarted = tournament.status === "STARTED" || tournament.status === "CLOSED";
 
@@ -3173,7 +3168,6 @@ export default function TournamentDetailPage() {
           { title: "Registration", status: isRegClosed ? "Closed" : "Open", completed: isRegClosed },
           { title: "Mats", status: isMatsConfigured ? "Configured" : "Not Configured", completed: isMatsConfigured },
           { title: "Officials", status: isOfficialsAssigned ? "Assigned" : "Not Assigned", completed: isOfficialsAssigned },
-          { title: "Weigh-In", status: isWeighInComplete ? "Complete" : "Pending", completed: isWeighInComplete },
           { title: "Draw", status: isDrawGenerated ? "Generated" : "Not Generated", completed: isDrawGenerated },
           { title: "Tournament", status: tournament.status === "CLOSED" ? "Completed" : tournament.status === "STARTED" ? "Started" : "Not Started", completed: isTournamentStarted }
         ];
@@ -3370,7 +3364,6 @@ export default function TournamentDetailPage() {
                       onClick={() => {
                         setSelectedMatForAssignment(matNum);
                         setRefSearchQuery("");
-                        setRefDropdownOpen(false);
                       }}
                       className={`w-full text-left px-5 py-4 rounded-2xl font-black transition-all flex justify-between items-center ${
                         isSelected
@@ -3435,44 +3428,44 @@ export default function TournamentDetailPage() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Search Referee — name or ID</label>
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Registered Coaches / Referees</label>
                         <div className="relative">
                           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                           <input
                             type="text"
                             value={refSearchQuery}
                             onChange={(e) => setRefSearchQuery(e.target.value)}
-                            onFocus={() => { if (refSearchResults.length) setRefDropdownOpen(true); }}
-                            placeholder="Start typing... e.g. Priya or REF-20"
+                            placeholder="Filter by name or ID... e.g. Priya or REF-20"
                             autoComplete="off"
                             className="w-full pl-11 pr-5 py-4 bg-white border border-slate-300 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 shadow-sm text-slate-800 text-lg"
                           />
                           {refSearching && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
+                        </div>
 
-                          {refDropdownOpen && (
-                            <div className="absolute z-10 top-[calc(100%+6px)] left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                              {refSearchResults.length === 0 ? (
-                                <div className="px-5 py-4 text-sm font-bold text-slate-400">
-                                  {refSearching ? "Searching…" : `No referee matches "${refSearchQuery}"`}
-                                </div>
-                              ) : (
-                                refSearchResults.map(r => (
-                                  <button
-                                    key={r.id}
-                                    onClick={() => assignRefereeToMat(selectedMatForAssignment!, r)}
-                                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-orange-50 transition-colors text-left"
-                                  >
-                                    <div className="w-9 h-9 rounded-full bg-orange-100 text-[#FF7400] flex items-center justify-center font-black text-xs shrink-0">
-                                      {r.name.split(" ").map(p => p[0]).slice(-2).join("").toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="font-black text-slate-800 text-sm truncate">{r.name}</p>
-                                      <p className="text-[11px] font-bold text-slate-400 truncate">{r.refId} · {r.club}, {r.district}</p>
-                                    </div>
-                                  </button>
-                                ))
-                              )}
+                        {/* Always-visible roster list — shows registered coach name + ID pairs
+                            for easy mat mapping, narrowed down as the admin types above. */}
+                        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
+                          {refSearchResults.length === 0 ? (
+                            <div className="px-5 py-4 text-sm font-bold text-slate-400">
+                              {refSearching ? "Loading…" : refSearchQuery.trim() ? `No referee matches "${refSearchQuery}"` : "No approved referees found."}
                             </div>
+                          ) : (
+                            refSearchResults.map(r => (
+                              <button
+                                key={r.id}
+                                onClick={() => assignRefereeToMat(selectedMatForAssignment!, r)}
+                                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-orange-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                              >
+                                <div className="w-9 h-9 rounded-full bg-orange-100 text-[#FF7400] flex items-center justify-center font-black text-xs shrink-0">
+                                  {r.name.split(" ").map(p => p[0]).slice(-2).join("").toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-black text-slate-800 text-sm truncate">{r.name}</p>
+                                  <p className="text-[11px] font-bold text-slate-400 truncate">{r.club}, {r.district}</p>
+                                </div>
+                                <span className="text-[11px] font-black text-[#FF7400] bg-orange-50 px-2.5 py-1 rounded-md shrink-0">{r.refId}</span>
+                              </button>
+                            ))
                           )}
                         </div>
                         <p className="text-xs font-bold text-slate-400 pt-1">Only referees approved for tournament duty appear here.</p>
@@ -4439,41 +4432,43 @@ export default function TournamentDetailPage() {
                                   : <><Shuffle size={13} /> {draw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
                               </button>
                             </div>
-                            {draw && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
-                                <select 
-                                  value={draw.matNumber || 1}
-                                  onChange={async (e) => {
-                                    const newMat = Number(e.target.value);
-                                    const updatedDraw = { ...draw, matNumber: newMat };
-                                    setDraws(prev => ({ ...prev, [key]: updatedDraw }));
-                                    
-                                    try {
-                                      await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
-                                        method: "POST",
-                                        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          ageGroup: updatedDraw.ageGroup,
-                                          exactAge: updatedDraw.exactAge,
-                                          gender: updatedDraw.gender,
-                                          weightCategory: updatedDraw.weightCategory,
-                                          matNumber: updatedDraw.matNumber,
-                                          rounds: updatedDraw.rounds,
-                                        })
-                                      });
-                                    } catch (err) {
-                                      console.error(err);
-                                    }
-                                  }}
-                                  className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
-                                >
-                                  {(tournamentMats.length > 0 ? tournamentMats.map(m => m.matNumber).sort((a, b) => a - b) : [1]).map(m => (
-                                    <option key={m} value={m}>MAT {m}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
+                              <select
+                                value={draw?.matNumber || pendingMatByKey[key] || 1}
+                                onChange={async (e) => {
+                                  const newMat = Number(e.target.value);
+                                  if (!draw) {
+                                    setPendingMatByKey(prev => ({ ...prev, [key]: newMat }));
+                                    return;
+                                  }
+                                  const updatedDraw = { ...draw, matNumber: newMat };
+                                  setDraws(prev => ({ ...prev, [key]: updatedDraw }));
+
+                                  try {
+                                    await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+                                      method: "POST",
+                                      headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+                                      body: JSON.stringify({
+                                        ageGroup: updatedDraw.ageGroup,
+                                        exactAge: updatedDraw.exactAge,
+                                        gender: updatedDraw.gender,
+                                        weightCategory: updatedDraw.weightCategory,
+                                        matNumber: updatedDraw.matNumber,
+                                        rounds: updatedDraw.rounds,
+                                      })
+                                    });
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
+                              >
+                                {(tournamentMats.length > 0 ? tournamentMats.map(m => m.matNumber).sort((a, b) => a - b) : [1]).map(m => (
+                                  <option key={m} value={m}>MAT {m}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                         
@@ -4595,13 +4590,73 @@ export default function TournamentDetailPage() {
                   </div>
                 ) : (
                   <div className="p-5">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                       <p className="font-black text-slate-800">
                         {drawPlayers.length} Players Ready
                         <span className="ml-2 text-xs font-semibold text-slate-400">
                           {currentDraw?.generated ? "— assign seeds then click Re-Shuffle Bracket" : "— assign seeds then click Generate Draw"}
                         </span>
                       </p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={detailDrawMethod || (drawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
+                            onChange={(e) => setDetailDrawMethod(e.target.value as DrawMethodType)}
+                            className="px-2.5 py-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
+                          >
+                            <option value="round-robin">1.Round Robin</option>
+                            <option value="straight-elimination">2.Straight elimination</option>
+                            <option value="single-repechage">3.Single Repechage</option>
+                            <option value="double-repechage">4.Double Repechage</option>
+                          </select>
+                          <button
+                            onClick={() => currentDraw?.generated ? handleShuffle() : handleGenerateDraw()}
+                            disabled={drawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg font-bold text-xs shadow-md shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {drawPhase === "shuffling" || drawPhase === "dealing"
+                              ? <><Loader2 size={13} className="animate-spin" /> Processing...</>
+                              : <><Shuffle size={13} /> {currentDraw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign:</span>
+                          <select
+                            value={currentDraw?.matNumber || pendingMatByKey[currentKey] || 1}
+                            onChange={async (e) => {
+                              const newMat = Number(e.target.value);
+                              if (!currentDraw) {
+                                setPendingMatByKey(prev => ({ ...prev, [currentKey]: newMat }));
+                                return;
+                              }
+                              const updatedDraw = { ...currentDraw, matNumber: newMat };
+                              setDraws(prev => ({ ...prev, [currentKey]: updatedDraw }));
+
+                              try {
+                                await fetch(`${API_BASE}/tournaments/${tournamentId}/draws`, {
+                                  method: "POST",
+                                  headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    ageGroup: updatedDraw.ageGroup,
+                                    exactAge: updatedDraw.exactAge,
+                                    gender: updatedDraw.gender,
+                                    weightCategory: updatedDraw.weightCategory,
+                                    matNumber: updatedDraw.matNumber,
+                                    rounds: updatedDraw.rounds,
+                                  })
+                                });
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black rounded-lg px-2 py-1 outline-none hover:bg-indigo-100 transition-colors cursor-pointer"
+                          >
+                            {(tournamentMats.length > 0 ? tournamentMats.map(m => m.matNumber).sort((a, b) => a - b) : [1]).map(m => (
+                              <option key={m} value={m}>MAT {m}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                       {drawPlayers.map((p, i) => (

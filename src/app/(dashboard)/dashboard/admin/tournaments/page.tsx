@@ -358,7 +358,7 @@ export default function AdminTournamentsPage() {
       const a = document.createElement("a");
       a.href = url;
       const safeTitle = title?.replace(/[^a-zA-Z0-9_-]/g, "_") || tId;
-      a.download = `Tournament_Report_${safeTitle}.xlsx`;
+      a.download = `Tournament_Report_${safeTitle}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
