@@ -6,12 +6,12 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
-  Star, Grid, List, X, Check, Loader2, Calendar, MapPin,
+  Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal, Edit2,
   AlertCircle, Clock, Download, BarChart3, MessageSquare, Send,
   PlayCircle, Lock, Search, CheckCircle2, XCircle, RefreshCw, Printer,
   ChevronLeft, ChevronRight, Eye, FilterX,
-  LayoutList, Flag, Scale, Lightbulb, Info, Upload
+  LayoutList, Flag, Scale, Lightbulb, Info, Upload, AlertTriangle
 } from "lucide-react";
 import { FaMale, FaFemale } from "react-icons/fa";
 
@@ -1472,6 +1472,8 @@ export default function TournamentDetailPage() {
   const [seeds, setSeeds] = useState<Seeds>({ 1: null, 2: null, 3: null, 4: null });
   const [showSeedModal, setShowSeedModal] = useState(false);
   const [assigningSeed, setAssigningSeed] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [seedingOpen, setSeedingOpen] = useState(false);
+  const [randomizeOrder, setRandomizeOrder] = useState(false);
   const [champion, setChampion] = useState<{
     name: string;
     club: string;
@@ -1484,6 +1486,7 @@ export default function TournamentDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+  const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [drawPhase, setDrawPhase] = useState<"idle" | "shuffling" | "dealing" | "done">("idle");
   const [shuffleKey, setShuffleKey] = useState(0);
@@ -1527,10 +1530,12 @@ export default function TournamentDetailPage() {
   const [matsCountInput, setMatsCountInput] = useState<string>("");
   const [matsConfirmed, setMatsConfirmed] = useState(false);
   const [wizardStep, setWizardStep] = useState<0|1|2|3>(0);
-  const [setupRefereeName, setSetupRefereeName] = useState("");
   const [selectedMatForAssignment, setSelectedMatForAssignment] = useState<number | null>(null);
-  const [editingMatId, setEditingMatId] = useState<number | null>(null);
-  const [checkingReferee, setCheckingReferee] = useState(false);
+  const [refSearchQuery, setRefSearchQuery] = useState("");
+  const [refSearchResults, setRefSearchResults] = useState<{ id: string; refId?: string; name: string; district: string; club: string }[]>([]);
+  const [refSearching, setRefSearching] = useState(false);
+  const [refDropdownOpen, setRefDropdownOpen] = useState(false);
+  const refSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Registrations Tab State ────────────────────────────────────────────────
   const [regSearchQuery, setRegSearchQuery] = useState("");
@@ -1570,6 +1575,43 @@ export default function TournamentDetailPage() {
       setLoadingMats(false);
     }
   }, [tournamentId]);
+
+  // Debounced referee autocomplete for mat assignment
+  useEffect(() => {
+    if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
+    const query = refSearchQuery.trim();
+    if (!query) {
+      setRefSearchResults([]);
+      setRefDropdownOpen(false);
+      return;
+    }
+    refSearchDebounceRef.current = setTimeout(async () => {
+      setRefSearching(true);
+      try {
+        const res = await fetch(`${API_BASE}/referees/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setRefSearchResults(res.ok ? (data.referees || []) : []);
+        setRefDropdownOpen(true);
+      } catch (e) {
+        setRefSearchResults([]);
+      } finally {
+        setRefSearching(false);
+      }
+    }, 300);
+    return () => {
+      if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
+    };
+  }, [refSearchQuery]);
+
+  const assignRefereeToMat = (matNum: number, ref: { id: string; name: string }) => {
+    setTournamentMats(prev => {
+      const filtered = prev.filter(m => m.matNumber !== matNum);
+      return [...filtered, { matNumber: matNum, refereeId: ref.id, refereeName: ref.name }];
+    });
+    setRefSearchQuery("");
+    setRefSearchResults([]);
+    setRefDropdownOpen(false);
+  };
 
   // ── Auto-detect placements from draw results ─────────────────────────────────
   // Runs whenever the draws or players change (e.g. when Results tab is opened)
@@ -3285,7 +3327,31 @@ export default function TournamentDetailPage() {
         const totalMats = parseInt(matsCountInput) || 0;
         const matsConfigured = totalMats > 0 && matsConfirmed;
         const officialsAssigned = matsConfigured && tournamentMats.length === totalMats && tournamentMats.every(m => m.refereeName);
-        const isStarted = tournament.registrationClosed || tournament.status !== "PENDING";
+        const readyCount = (matsConfigured ? 1 : 0) + (officialsAssigned ? 1 : 0);
+        // Only a genuinely closed/concluded tournament should skip the setup wizard —
+        // "APPROVED" just means registration is open and mats haven't been configured yet.
+        const isStarted = tournament.registrationClosed || tournament.status === "CLOSED";
+
+        const saveMatAssignments = async (onDone?: () => void) => {
+          setSavingMats(true);
+          try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({ assignments: tournamentMats })
+            });
+            if (res.ok) {
+              onDone?.();
+            } else {
+              showToast("Failed to save assignments", false);
+            }
+          } catch (e) {
+            showToast("Error saving assignments", false);
+          } finally {
+            setSavingMats(false);
+          }
+        };
 
         const MatsManagementGrid = (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6 border-t border-slate-100">
@@ -3300,17 +3366,25 @@ export default function TournamentDetailPage() {
                   return (
                     <button
                       key={matNum}
-                      onClick={() => setSelectedMatForAssignment(matNum)}
+                      onClick={() => {
+                        setSelectedMatForAssignment(matNum);
+                        setRefSearchQuery("");
+                        setRefDropdownOpen(false);
+                      }}
                       className={`w-full text-left px-5 py-4 rounded-2xl font-black transition-all flex justify-between items-center ${
-                        isSelected 
-                          ? "bg-[#FF7400] text-white shadow-md scale-[1.02]" 
-                          : assigned 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100" 
+                        isSelected
+                          ? "bg-[#FF7400] text-white shadow-md scale-[1.02]"
+                          : assigned
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
                             : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                       }`}
                     >
                       <span className="text-lg">Mat {matNum}</span>
-                      {assigned && <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-emerald-200 text-emerald-800'}`}>Assigned</span>}
+                      {assigned ? (
+                        <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-emerald-200 text-emerald-800'}`}>Assigned</span>
+                      ) : (
+                        <span className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded-md ${isSelected ? 'bg-orange-500 text-white' : 'bg-amber-100 text-amber-700'}`}>Open</span>
+                      )}
                     </button>
                   );
                 })}
@@ -3327,26 +3401,26 @@ export default function TournamentDetailPage() {
                     </div>
                     <h4 className="font-black text-slate-800 text-xl">Assign Referee</h4>
                   </div>
-                  
+
                   {(() => {
                     const assigned = tournamentMats.find(m => m.matNumber === selectedMatForAssignment && m.refereeName);
-                    return assigned && !editingMatId ? (
+                    return assigned ? (
                       <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                           <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Current Referee</p>
                           <p className="font-black text-slate-800 text-2xl">{assigned.refereeName}</p>
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
-                          <button 
+                          <button
                             onClick={() => {
-                              setEditingMatId(selectedMatForAssignment);
-                              setSetupRefereeName(assigned.refereeId);
+                              setTournamentMats(prev => prev.filter(m => m.matNumber !== selectedMatForAssignment));
+                              setRefSearchQuery("");
                             }}
                             className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-3 bg-slate-100 text-slate-600 hover:text-[#FF7400] hover:bg-orange-50 rounded-xl transition-colors font-bold text-sm"
                           >
-                            <Edit2 size={16} /> Edit
+                            <Edit2 size={16} /> Change
                           </button>
-                          <button 
+                          <button
                             onClick={() => {
                               if (window.confirm("Remove this referee assignment?")) {
                                 setTournamentMats(prev => prev.filter(m => m.matNumber !== selectedMatForAssignment));
@@ -3359,61 +3433,48 @@ export default function TournamentDetailPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-6">
-                        <div>
-                          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Search Referee / ID</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={setupRefereeName}
-                              onChange={(e) => setSetupRefereeName(e.target.value)}
-                              placeholder="Type referee name or ID..."
-                              className="w-full px-5 py-4 bg-white border border-slate-300 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 shadow-sm text-slate-800 text-lg"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-3 pt-2">
-                          {editingMatId && (
-                            <button
-                              onClick={() => {
-                                setEditingMatId(null);
-                                setSetupRefereeName("");
-                              }}
-                              className="px-6 py-3 bg-slate-200 text-slate-700 font-black rounded-xl hover:bg-slate-300 transition-colors"
-                            >
-                              Cancel
-                            </button>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Search Referee — name or ID</label>
+                        <div className="relative">
+                          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={refSearchQuery}
+                            onChange={(e) => setRefSearchQuery(e.target.value)}
+                            onFocus={() => { if (refSearchResults.length) setRefDropdownOpen(true); }}
+                            placeholder="Start typing... e.g. Priya or REF-20"
+                            autoComplete="off"
+                            className="w-full pl-11 pr-5 py-4 bg-white border border-slate-300 rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 shadow-sm text-slate-800 text-lg"
+                          />
+                          {refSearching && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
+
+                          {refDropdownOpen && (
+                            <div className="absolute z-10 top-[calc(100%+6px)] left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                              {refSearchResults.length === 0 ? (
+                                <div className="px-5 py-4 text-sm font-bold text-slate-400">
+                                  {refSearching ? "Searching…" : `No referee matches "${refSearchQuery}"`}
+                                </div>
+                              ) : (
+                                refSearchResults.map(r => (
+                                  <button
+                                    key={r.id}
+                                    onClick={() => assignRefereeToMat(selectedMatForAssignment!, r)}
+                                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-orange-50 transition-colors text-left"
+                                  >
+                                    <div className="w-9 h-9 rounded-full bg-orange-100 text-[#FF7400] flex items-center justify-center font-black text-xs shrink-0">
+                                      {r.name.split(" ").map(p => p[0]).slice(-2).join("").toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-black text-slate-800 text-sm truncate">{r.name}</p>
+                                      <p className="text-[11px] font-bold text-slate-400 truncate">{r.refId} · {r.club}, {r.district}</p>
+                                    </div>
+                                  </button>
+                                ))
+                              )}
+                            </div>
                           )}
-                          <button
-                            onClick={async () => {
-                              if (!setupRefereeName) return;
-                              setCheckingReferee(true);
-                              try {
-                                const res = await fetch(`${API_BASE}/referees/search?id=${setupRefereeName}`);
-                                const data = await res.json();
-                                if (res.ok) {
-                                  setTournamentMats(prev => {
-                                    const filtered = prev.filter(m => m.matNumber !== selectedMatForAssignment);
-                                    return [...filtered, { matNumber: selectedMatForAssignment, refereeId: data.id || setupRefereeName, refereeName: data.name }];
-                                  });
-                                  setEditingMatId(null);
-                                  setSetupRefereeName("");
-                                } else {
-                                  showToast(data.error || "Referee not found", false);
-                                }
-                              } catch (e) {
-                                showToast("Error checking referee", false);
-                              } finally {
-                                setCheckingReferee(false);
-                              }
-                            }}
-                            disabled={!setupRefereeName || checkingReferee}
-                            className="py-3 px-8 bg-[#FF7400] text-white font-black rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-md flex items-center gap-2"
-                          >
-                            {checkingReferee ? <Loader2 size={18} className="animate-spin" /> : null}
-                            {editingMatId ? "Update Assignment" : "Assign Referee"}
-                          </button>
                         </div>
+                        <p className="text-xs font-bold text-slate-400 pt-1">Only referees approved for tournament duty appear here.</p>
                       </div>
                     );
                   })()}
@@ -3437,23 +3498,7 @@ export default function TournamentDetailPage() {
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-2">
                 <h3 className="font-black text-slate-800 text-xl">Mats & Officials Management</h3>
                 <button
-                  onClick={async () => {
-                    setSavingMats(true);
-                    try {
-                      const token = localStorage.getItem("token");
-                      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ assignments: tournamentMats })
-                      });
-                      if (res.ok) showToast("Assignments saved!", true);
-                      else showToast("Failed to save assignments", false);
-                    } catch (e) {
-                      showToast("Error saving assignments", false);
-                    } finally {
-                      setSavingMats(false);
-                    }
-                  }}
+                  onClick={() => saveMatAssignments(() => showToast("Assignments saved!", true))}
                   disabled={savingMats}
                   className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-3 rounded-xl font-black transition-all flex items-center gap-2"
                 >
@@ -3468,32 +3513,87 @@ export default function TournamentDetailPage() {
 
         return (
           <div className="max-w-4xl mx-auto space-y-6">
-            {/* Step 0: Overview Checklist */}
+            {/* Stepper — visible once the wizard has started */}
+            {wizardStep > 0 && (
+              <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4">
+                {([[1, "Mats"], [2, "Officials"], [3, "Review & Start"]] as const).map(([n, label], idx) => {
+                  const isDone = wizardStep > n;
+                  const isActive = wizardStep === n;
+                  return (
+                    <React.Fragment key={n}>
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 transition-colors ${
+                          isDone ? "bg-emerald-500 text-white" : isActive ? "bg-[#FF7400] text-white" : "bg-slate-100 text-slate-400"
+                        }`}>
+                          {isDone ? <CheckCircle2 size={16} /> : n}
+                        </div>
+                        <span className={`text-xs font-black uppercase tracking-wide hidden sm:inline ${isDone || isActive ? "text-slate-700" : "text-slate-400"}`}>
+                          {label}
+                        </span>
+                      </div>
+                      {idx < 2 && <div className={`flex-1 h-0.5 mx-3 rounded-full ${wizardStep > n ? "bg-emerald-400" : "bg-slate-100"}`} />}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Step 0: Readiness overview */}
             {wizardStep === 0 && (
               <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-black text-slate-800 text-xl mb-2">Tournament Setup</h3>
-                  <p className="text-slate-500 font-bold text-sm">Before starting the tournament complete the following steps.</p>
-                </div>
-                
-                <div className="space-y-4 pt-6 border-t border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 size={24} className="text-emerald-500" /> 
-                    <span className="font-black text-slate-700 text-lg">Registration Closed</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-black text-slate-800 text-xl mb-1">Let&apos;s get {tournament?.title || "this tournament"} ready</h3>
+                    <p className="text-slate-500 font-bold text-sm">
+                      {tournament.registrationClosed
+                        ? "Registration is closed. A couple of quick steps before matches can begin."
+                        : "Registration is still open. Set up mats and officials, then close registration to start."}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {matsConfigured ? <CheckCircle2 size={24} className="text-emerald-500" /> : <X size={24} className="text-red-500" />}
-                    <span className={`font-black text-lg ${matsConfigured ? 'text-slate-700' : 'text-slate-400'}`}>{matsConfigured ? 'Mats Configured' : 'Mats Not Configured'}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {officialsAssigned ? <CheckCircle2 size={24} className="text-emerald-500" /> : <X size={24} className="text-red-500" />}
-                    <span className={`font-black text-lg ${officialsAssigned ? 'text-slate-700' : 'text-slate-400'}`}>{officialsAssigned ? 'Officials Assigned' : 'Officials Not Assigned'}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#FF7400] rounded-full transition-all" style={{ width: `${(readyCount / 2) * 100}%` }} />
+                    </div>
+                    <span className="text-xs font-black text-slate-500 whitespace-nowrap">{readyCount} of 2 ready</span>
                   </div>
                 </div>
 
-                <div className="pt-8">
+                <div className="space-y-4 pt-6 border-t border-slate-100">
+                  <div className="flex items-center gap-3">
+                    {tournament.registrationClosed ? (
+                      <CheckCircle2 size={22} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <div className="w-[22px] h-[22px] rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[11px] font-black shrink-0">•</div>
+                    )}
+                    <span className={`font-black text-base ${tournament.registrationClosed ? "text-slate-700" : "text-slate-400"}`}>
+                      {tournament.registrationClosed ? "Registration closed" : "Registration open — closes when you start below"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {matsConfigured ? (
+                      <CheckCircle2 size={22} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <div className="w-[22px] h-[22px] rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[11px] font-black shrink-0">1</div>
+                    )}
+                    <span className="font-black text-base text-slate-700">
+                      {matsConfigured ? `Mats — ${totalMats} configured` : "Mats — not set up yet"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {officialsAssigned ? (
+                      <CheckCircle2 size={22} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <div className="w-[22px] h-[22px] rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[11px] font-black shrink-0">2</div>
+                    )}
+                    <span className="font-black text-base text-slate-700">
+                      {officialsAssigned ? "Match officials — all assigned" : "Match officials — not assigned yet"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-4">
                   <button onClick={() => setWizardStep(1)} className="py-4 px-10 bg-[#FF7400] text-white font-black rounded-xl shadow-lg hover:scale-[1.02] transition-all">
-                    {matsConfigured ? "Update Mat Config" : "[ Configure Mats ]"}
+                    {matsConfigured ? "Update setup →" : "Continue setup →"}
                   </button>
                 </div>
               </div>
@@ -3503,8 +3603,8 @@ export default function TournamentDetailPage() {
             {wizardStep === 1 && (
               <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
                 <div>
-                  <h3 className="font-black text-slate-800 text-xl mb-2">Step 1 — Configure Mats</h3>
-                  <p className="text-slate-500 font-bold text-sm">The organizer enters the total number of mats.</p>
+                  <h3 className="font-black text-slate-800 text-xl mb-2">How many mats will run today?</h3>
+                  <p className="text-slate-500 font-bold text-sm">Each mat runs matches in parallel — this decides how many officials you&apos;ll need next.</p>
                 </div>
                 <div className="pt-6 border-t border-slate-100">
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Total Mats</label>
@@ -3513,13 +3613,28 @@ export default function TournamentDetailPage() {
                     min="1"
                     value={matsCountInput}
                     onChange={(e) => setMatsCountInput(e.target.value)}
-                    placeholder="[ 4 ]"
+                    placeholder="e.g. 4"
                     className="w-full max-w-[200px] px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50"
                   />
+                  <div className="flex gap-2 mt-4">
+                    {[2, 4, 6, 8].map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setMatsCountInput(n.toString())}
+                        className={`px-4 py-2 rounded-xl font-black text-sm border transition-colors ${
+                          matsCountInput === n.toString()
+                            ? "bg-orange-50 border-[#FF7400] text-[#FF7400]"
+                            : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        {n} mats
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex gap-4 pt-8">
                   <button onClick={() => setWizardStep(0)} className="px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors">Back</button>
-                  <button 
+                  <button
                     onClick={() => {
                       if (parseInt(matsCountInput) > 0) {
                         setMatsConfirmed(true);
@@ -3532,7 +3647,7 @@ export default function TournamentDetailPage() {
                     disabled={!matsCountInput}
                     className="px-10 py-4 bg-[#FF7400] text-white font-black rounded-xl shadow-lg disabled:opacity-50 transition-all hover:scale-[1.02]"
                   >
-                    [ Continue ]
+                    Continue →
                   </button>
                 </div>
               </div>
@@ -3542,80 +3657,119 @@ export default function TournamentDetailPage() {
             {wizardStep === 2 && (
               <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-2">
-                  <h3 className="font-black text-slate-800 text-xl">Step 2 — Assign Officials</h3>
-                  <button onClick={() => setWizardStep(1)} className="text-sm text-[#FF7400] font-black hover:underline w-fit">Edit Total Mats</button>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-xl">Assign a referee to each mat</h3>
+                    <p className="text-slate-500 font-bold text-sm mt-1">Search by name or referee ID — you can change any assignment later from this screen.</p>
+                  </div>
+                  <button onClick={() => setWizardStep(1)} className="text-sm text-[#FF7400] font-black hover:underline w-fit shrink-0">Edit Total Mats</button>
                 </div>
-                
+
                 {MatsManagementGrid}
-                
+
+                {!officialsAssigned && (
+                  <p className="text-xs font-bold text-slate-400 pt-2">
+                    Not all referees confirmed yet? That&apos;s fine — you can leave mats open and assign them later, before matches start on that mat.
+                  </p>
+                )}
+
                 <div className="pt-8 flex gap-4 border-t border-slate-100 mt-8">
                   <button onClick={() => setWizardStep(1)} className="px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors">Back</button>
                   <button
-                    onClick={async () => {
-                      setSavingMats(true);
-                      try {
-                        const token = localStorage.getItem("token");
-                        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/mats`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                          body: JSON.stringify({ assignments: tournamentMats })
-                        });
-                        if (res.ok) {
-                          setWizardStep(3);
-                        } else {
-                          showToast("Failed to save assignments", false);
-                        }
-                      } catch (e) {
-                        showToast("Error saving assignments", false);
-                      } finally {
-                        setSavingMats(false);
-                      }
-                    }}
+                    onClick={() => saveMatAssignments(() => setWizardStep(3))}
                     disabled={savingMats}
                     className="flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl shadow-xl flex items-center justify-center gap-2 transition-transform hover:scale-[1.01]"
                   >
                     {savingMats && <Loader2 className="animate-spin" size={20} />}
-                    Store this permanently.
+                    Continue to Review →
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Step 3: Success & Start Tournament */}
+            {/* Step 3: Review & Start */}
             {wizardStep === 3 && (
-              <div className="bg-white rounded-3xl p-10 border border-slate-100 shadow-sm space-y-6 text-center">
-                <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 size={48} className="text-emerald-500" />
-                </motion.div>
-                <h3 className="font-black text-slate-800 text-3xl">Setup Complete!</h3>
-                <p className="text-slate-500 font-bold text-lg mb-8">All mats are configured and officials are assigned.</p>
-                
-                <div className="pt-8 border-t border-slate-100 max-w-md mx-auto flex gap-4">
+              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
+                <div>
+                  <h3 className="font-black text-slate-800 text-xl mb-1">Review before you start</h3>
+                  <p className="text-slate-500 font-bold text-sm">Double-check mat count and referees — you can still edit anything below.</p>
+                </div>
+
+                <div className="pt-6 border-t border-slate-100 overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr>
+                        <th className="text-[11px] font-black text-slate-400 uppercase tracking-widest pb-3">Mat</th>
+                        <th className="text-[11px] font-black text-slate-400 uppercase tracking-widest pb-3">Referee</th>
+                        <th className="pb-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: totalMats }, (_, i) => i + 1).map(matNum => {
+                        const assigned = tournamentMats.find(m => m.matNumber === matNum && m.refereeName);
+                        return (
+                          <tr key={matNum} className="border-t border-slate-100">
+                            <td className="py-3 font-black text-slate-800">Mat {matNum}</td>
+                            <td className="py-3 font-bold text-slate-700">
+                              {assigned ? assigned.refereeName : (
+                                <span className="text-[11px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-amber-100 text-amber-700">Unassigned</span>
+                              )}
+                            </td>
+                            <td className="py-3 text-right">
+                              <button
+                                onClick={() => { setSelectedMatForAssignment(matNum); setWizardStep(2); }}
+                                className="text-xs font-black text-[#FF7400] hover:underline"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex gap-3 p-5 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-sm font-bold text-amber-800 leading-relaxed">
+                    Starting closes registration and locks today&apos;s bracket draw. Players can no longer register, and the draw can&apos;t be regenerated once matches begin.
+                  </p>
+                </div>
+
+                <div className="pt-4 flex gap-4">
+                  <button onClick={() => setWizardStep(2)} className="px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors">Back</button>
                   <button
-                    onClick={async () => {
-                      try {
-                        const token = localStorage.getItem("token");
-                        const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
-                          method: "PUT",
-                          headers: { Authorization: `Bearer ${token}` }
-                        });
-                        if (res.ok) {
-                          showToast("Tournament started! Registrations closed.", true);
-                          fetchTournament();
-                          fetchPlayers();
-                          setActiveTab("overview");
-                          setWizardStep(0); // Reset wizard state
-                        } else {
-                          const err = await res.json();
-                          showToast(err.error || "Failed to start", false);
+                    onClick={() => {
+                      setConfirmModal({
+                        isOpen: true,
+                        title: "Close Registration & Start Tournament",
+                        message: "This closes registration and locks today's bracket draw.\nPlayers will no longer be able to register, and the draw can't be regenerated once matches begin.\n\nAre you sure you want to proceed?",
+                        action: async () => {
+                          try {
+                            const token = localStorage.getItem("token");
+                            const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/start`, {
+                              method: "PUT",
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              showToast("Tournament started! Registrations closed.", true);
+                              fetchTournament();
+                              fetchPlayers();
+                              setActiveTab("overview");
+                              setWizardStep(0); // Reset wizard state
+                            } else {
+                              const err = await res.json();
+                              showToast(err.error || "Failed to start", false);
+                            }
+                          } catch (e) {
+                            showToast("Failed to start", false);
+                          }
                         }
-                      } catch (e) {
-                        showToast("Failed to start", false);
-                      }
+                      });
                     }}
-                    className="w-full py-5 bg-[#10B981] hover:bg-[#059669] text-white font-black text-xl rounded-2xl shadow-xl shadow-emerald-500/20 hover:scale-[1.03] transition-all"
+                    className="flex-1 py-4 bg-[#10B981] hover:bg-[#059669] text-white font-black text-lg rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
                   >
-                    Start Tournament Now
+                    Start Tournament
                   </button>
                 </div>
               </div>
@@ -3809,7 +3963,15 @@ export default function TournamentDetailPage() {
                 </div>
                 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button 
+                  <button
+                    type="button"
+                    onClick={() => setIsAddPlayerOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all hover:bg-slate-50 active:scale-[0.98]"
+                  >
+                    <Users size={16} />
+                    Add Player
+                  </button>
+                  <button
                     type="button"
                     onClick={() => setIsImportWizardOpen(true)}
                     className="flex items-center gap-2 px-4 py-2.5 bg-[#FF7400] text-white font-bold rounded-xl text-sm transition-all shadow-sm shadow-[#FF7400]/20 hover:scale-[1.02] active:scale-[0.98]"
@@ -4134,78 +4296,120 @@ export default function TournamentDetailPage() {
         <div className="space-y-4">
           {renderCategoryFilters()}
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-3 items-center">
-            {tournament?.status !== "APPROVED" ? (
-              <div className="flex items-center gap-2 px-5 py-3 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-200">
-                <AlertCircle size={18} /> Tournament must be approved before you can manage draws.
-              </div>
-            ) : hasPendingPlayers ? (
-              <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 text-amber-600 rounded-2xl text-sm font-bold border border-amber-200">
-                <AlertCircle size={18} /> You must approve or reject all pending player registrations before managing draws.
-              </div>
-            ) : (
-              <>
-                <button onClick={fetchDraws}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all">
-                  <RefreshCw size={16} /> Refresh Live Bracket
-                </button>
-                <button onClick={() => setShowSeedModal(true)}
-                  disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
-                  <Star size={16} /> Manage Seeds (IJF)
-                </button>
-                <button onClick={handlePrintBracket}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all print:hidden">
-                  <Printer size={16} /> Print Report
-                </button>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={detailDrawMethod}
-                    onChange={(e) => setDetailDrawMethod(e.target.value as any)}
-                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
+          {tournament?.status !== "APPROVED" ? (
+            <div className="flex items-center gap-2 px-5 py-3 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-200">
+              <AlertCircle size={18} /> Tournament must be approved before you can manage draws.
+            </div>
+          ) : hasPendingPlayers ? (
+            <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 text-amber-600 rounded-2xl text-sm font-bold border border-amber-200">
+              <AlertCircle size={18} /> You must approve or reject all pending player registrations before managing draws.
+            </div>
+          ) : (() => {
+            const FORMAT_OPTIONS = [
+              { value: "round-robin" as const, label: "Round Robin", desc: "Everyone plays everyone in the group. Best for 5 or fewer players." },
+              { value: "straight-elimination" as const, label: "Single Elimination", desc: "Lose once and you're out — the standard knockout bracket." },
+              { value: "single-repechage" as const, label: "Single Repechage", desc: "Knockout bracket, plus one more chance at bronze for players the finalists beat." },
+              { value: "double-repechage" as const, label: "Double Repechage", desc: "Standard IJF format — two repechage brackets feed both bronze medals." },
+            ];
+            const selectedFormat = FORMAT_OPTIONS.find(o => o.value === detailDrawMethod);
+            const seededCount = ([1, 2, 3, 4] as const).filter(n => seeds[n]).length;
+            const isBusy = drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating;
+            const isDisabled = eligiblePlayers.length < 2 || isBusy;
+
+            return (
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-5">
+                {/* Bracket format */}
+                <div>
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Bracket format</p>
+                  <div className="flex flex-wrap gap-2">
+                    {FORMAT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setDetailDrawMethod(opt.value)}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                          detailDrawMethod === opt.value
+                            ? "bg-[#FF7400] border-[#FF7400] text-white shadow-md shadow-orange-500/20"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedFormat && <p className="text-xs text-slate-500 font-semibold mt-3">{selectedFormat.desc}</p>}
+                </div>
+
+                {/* Seeding — collapsed by default */}
+                <div className="pt-1 border-t border-slate-100">
+                  <button onClick={() => setSeedingOpen(o => !o)} className="w-full flex items-center justify-between py-3 text-left">
+                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      Seed top players <span className="text-xs font-semibold text-slate-400">(optional)</span>
+                      {seededCount > 0 && (
+                        <span className="text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{seededCount} set</span>
+                      )}
+                    </span>
+                    <ChevronRight size={16} className={`text-slate-400 transition-transform ${seedingOpen ? "rotate-90" : ""}`} />
+                  </button>
+                  {seedingOpen && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-2">
+                      {([1, 2, 3, 4] as const).map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => { setShowSeedModal(true); if (!seeds[n]) setAssigningSeed(n); }}
+                          disabled={isDisabled}
+                          className={`text-center p-3 rounded-2xl border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                            seeds[n] ? "border-amber-300 bg-amber-50 hover:bg-amber-100" : "border-dashed border-slate-200 bg-slate-50 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className={`w-6 h-6 mx-auto mb-1.5 rounded-lg flex items-center justify-center text-[10px] font-black text-white ${seeds[n] ? "bg-amber-500" : "bg-slate-300"}`}>
+                            S{n}
+                          </div>
+                          <p className={`text-xs font-bold truncate ${seeds[n] ? "text-slate-700" : "text-slate-400"}`}>
+                            {seeds[n] ? seeds[n]!.name : "+ Assign"}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Generate */}
+                <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={fetchDraws} title="Refresh Live Bracket"
+                      className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl hover:border-slate-300 transition-all">
+                      <RefreshCw size={14} />
+                    </button>
+                    <button onClick={handlePrintBracket} title="Print Report"
+                      className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-500 rounded-xl hover:border-slate-300 transition-all print:hidden">
+                      <Printer size={14} />
+                    </button>
+                    {!currentDraw?.generated && (
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer select-none ml-1">
+                        <input type="checkbox" checked={randomizeOrder} onChange={(e) => setRandomizeOrder(e.target.checked)} className="accent-[#FF7400]" />
+                        Randomize player order
+                      </label>
+                    )}
+                    {currentDraw?.saved && (
+                      <span className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-xs border border-emerald-200">
+                        <Check size={14} /> Auto-Saved ✓
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleGenerateAndSaveDraw(currentDraw?.generated ? true : randomizeOrder, false, undefined, detailDrawMethod)}
+                    disabled={isDisabled}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="round-robin">1.Round Robin</option>
-                    <option value="straight-elimination">2.Straight elimination</option>
-                    <option value="single-repechage">3.Single Repechage</option>
-                    <option value="double-repechage">4.Double Repechage</option>
-                  </select>
-                  <button onClick={() => handleGenerateAndSaveDraw(true, false, undefined, detailDrawMethod)}
-                    disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    {drawPhase === "shuffling"
-                      ? <><Loader2 size={15} className="animate-spin" /> Shuffling & Saving...</>
-                      : <><Shuffle size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Shuffle Players"}</>}
+                    {isBusy
+                      ? <><Loader2 size={15} className="animate-spin" /> {currentDraw?.generated ? "Re-shuffling..." : "Generating..."}</>
+                      : <><Zap size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Generate Bracket"}</>}
                   </button>
                 </div>
-                {!currentDraw?.generated && (
-                  <button onClick={() => handleGenerateAndSaveDraw(false, false, undefined, detailDrawMethod)}
-                    disabled={eligiblePlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    {drawPhase === "dealing"
-                      ? <><Loader2 size={15} className="animate-spin" /> Generating...</>
-                      : <><Zap size={16} /> Generate & Save Bracket</>}
-                  </button>
-                )}
-                {currentDraw?.saved && (
-                  <span className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm border border-emerald-200">
-                    <Check size={16} /> Auto-Saved ✓
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Seed pills */}
-          <div className="flex flex-wrap gap-2">
-            {([1, 2, 3, 4] as const).map((n) => (
-              <div key={n}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border ${seeds[n] ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                <span className="w-5 h-5 bg-amber-500 text-white rounded-lg flex items-center justify-center text-[10px] font-black">S{n}</span>
-                {seeds[n] ? seeds[n]!.name : "Unassigned"}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* ── Dealing animation overlay ── */}
           <AnimatePresence>
@@ -5564,6 +5768,15 @@ export default function TournamentDetailPage() {
         />
       )}
 
+      {/* ══ ADD PLAYER MODAL ═══════════════════════════════════════════════════ */}
+      {isAddPlayerOpen && (
+        <AddPlayerModal
+          tournamentId={tournamentId}
+          onClose={() => setIsAddPlayerOpen(false)}
+          onSuccess={() => { fetchPlayers(); showToast("Player added to tournament.", true); }}
+        />
+      )}
+
     </div>
   );
 }
@@ -6061,9 +6274,10 @@ function ImportPlayersWizard({
   const [validateBefore, setValidateBefore] = React.useState(true);
   const [updateExisting, setUpdateExisting] = React.useState(true);
   const [result, setResult] = React.useState<{ successCount: number; failedCount: number; errors: { row: number; error: string }[]; totalRows: number } | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(0);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
-  const reset = () => { setStep("upload"); setFile(null); setProgress(0); setResult(null); setErrorMsg(""); };
+  const reset = () => { setStep("upload"); setFile(null); setProgress(0); setResult(null); setErrorMsg(""); setElapsedSeconds(0); };
   const handleClose = () => { if (step === "validating" || step === "importing") return; reset(); onClose(); };
 
   const simulateProgress = (next: "summary") => {
@@ -6077,8 +6291,9 @@ function ImportPlayersWizard({
 
   const doImport = async () => {
     if (!file) return;
-    setStep("importing"); setProgress(0);
+    setStep("importing"); setProgress(0); setElapsedSeconds(0);
     const progIv = setInterval(() => setProgress(p => Math.min(p + 4, 85)), 200);
+    const elapsedIv = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -6088,6 +6303,7 @@ function ImportPlayersWizard({
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
+      clearInterval(elapsedIv);
       const data = await res.json();
       clearInterval(progIv);
       setProgress(100);
@@ -6103,6 +6319,7 @@ function ImportPlayersWizard({
       }, 400);
     } catch {
       clearInterval(progIv);
+      clearInterval(elapsedIv);
       setErrorMsg("Network error. Please try again.");
       setStep("upload");
     }
@@ -6206,7 +6423,14 @@ function ImportPlayersWizard({
                 <div style={{ background: "#2563eb", height: "100%", borderRadius: "999px", width: `${progress}%`, transition: "width 0.3s ease" }} />
               </div>
               <p style={{ fontSize: "14px", fontWeight: 700, color: "#2563eb", margin: "0 0 8px" }}>{progress}%</p>
-              {step === "importing" && <p style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700 }}>Please do not close this window...</p>}
+              {step === "importing" && (
+                <>
+                  <p style={{ fontSize: "13px", color: "#334155", fontWeight: 700, margin: "0 0 4px" }}>
+                    Still working — {elapsedSeconds}s elapsed{elapsedSeconds > 20 ? " (large files can take a few minutes)" : ""}
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#f59e0b", fontWeight: 700 }}>Please do not close this window...</p>
+                </>
+              )}
             </div>
           )}
 
@@ -6288,6 +6512,226 @@ function ImportPlayersWizard({
               </button>
             )}
           </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+interface StudentSearchResult {
+  id: string;
+  refId?: string;
+  name: string;
+  gender: string;
+  age: number;
+  weight?: string | null;
+  height?: string | null;
+  belt?: string | null;
+  district: string;
+  club: string;
+}
+
+function AddPlayerModal({
+  tournamentId,
+  onClose,
+  onSuccess,
+}: {
+  tournamentId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<StudentSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selected, setSelected] = useState<StudentSearchResult | null>(null);
+  const [weight, setWeight] = useState("");
+  const [height, setHeight] = useState("");
+  const [belt, setBelt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const q = query.trim();
+    if (!q) { setResults([]); setDropdownOpen(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE}/students/search?q=${encodeURIComponent(q)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setResults(res.ok ? (data.students || []) : []);
+        setDropdownOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  const pickStudent = (s: StudentSearchResult) => {
+    setSelected(s);
+    setWeight(s.weight || "");
+    setHeight(s.height || "");
+    setBelt(s.belt || "");
+    setQuery("");
+    setResults([]);
+    setDropdownOpen(false);
+    setErrorMsg("");
+  };
+
+  const handleAdd = async () => {
+    if (!selected) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/manual`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ studentId: selected.id, weight, height, belt }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onSuccess();
+        onClose();
+      } else {
+        setErrorMsg(data.error || "Failed to add player.");
+      }
+    } catch {
+      setErrorMsg("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(15,23,42,0.7)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      <div style={{ background: "#fff", borderRadius: "24px", boxShadow: "0 25px 50px rgba(0,0,0,0.25)", width: "100%", maxWidth: "480px", display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "36px", height: "36px", background: "#fff1e4", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Users size={18} style={{ color: "#FF7400" }} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>Add Player</h2>
+              <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Register an existing approved player for this tournament</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", borderRadius: "8px", display: "flex", alignItems: "center", color: "#64748b" }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "18px" }}>
+          {errorMsg && (
+            <div style={{ padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#dc2626", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={16} /> {errorMsg}
+            </div>
+          )}
+
+          {!selected ? (
+            <div style={{ position: "relative" }}>
+              <label style={{ display: "block", fontSize: "11px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Search Player — name or ID</label>
+              <div style={{ position: "relative" }}>
+                <Search size={18} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => { if (results.length) setDropdownOpen(true); }}
+                  placeholder="Start typing... e.g. Arjun or TMP4F2A"
+                  autoComplete="off"
+                  style={{ width: "100%", padding: "14px 16px 14px 42px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "14px", fontWeight: 700, fontSize: "15px", color: "#0f172a" }}
+                />
+                {searching && <Loader2 size={18} className="animate-spin" style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />}
+              </div>
+              {dropdownOpen && (
+                <div style={{ position: "absolute", zIndex: 10, top: "calc(100% + 6px)", left: 0, right: 0, background: "#fff", border: "1px solid #e2e8f0", borderRadius: "14px", boxShadow: "0 20px 40px rgba(0,0,0,0.15)", overflow: "hidden", maxHeight: "260px", overflowY: "auto" }}>
+                  {results.length === 0 ? (
+                    <div style={{ padding: "16px", fontSize: "13px", fontWeight: 700, color: "#94a3b8" }}>
+                      {searching ? "Searching…" : `No player matches "${query}"`}
+                    </div>
+                  ) : (
+                    results.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => pickStudent(s)}
+                        style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", background: "none", border: "none", borderBottom: "1px solid #f1f5f9", cursor: "pointer", textAlign: "left" }}
+                      >
+                        <div style={{ width: "34px", height: "34px", borderRadius: "999px", background: "#fff1e4", color: "#FF7400", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", flexShrink: 0 }}>
+                          {s.name.split(" ").map(p => p[0]).slice(-2).join("").toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ margin: 0, fontWeight: 900, color: "#0f172a", fontSize: "13.5px" }}>{s.name}</p>
+                          <p style={{ margin: 0, fontSize: "11.5px", color: "#94a3b8", fontWeight: 700 }}>{s.refId} · {s.club}, {s.district}</p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              <p style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600, marginTop: "8px" }}>Only approved players appear here. New players should use Import Players instead.</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "14px 16px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "14px" }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 900, color: "#065f46", fontSize: "15px" }}>{selected.name}</p>
+                  <p style={{ margin: 0, fontSize: "11.5px", color: "#059669", fontWeight: 700 }}>{selected.refId} · {selected.club}, {selected.district}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  style={{ fontSize: "12px", fontWeight: 800, color: "#FF7400", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  Change
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "10.5px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Weight (kg)</label>
+                  <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 48" style={{ width: "100%", padding: "10px 12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: 700, fontSize: "13.5px" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "10.5px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Height (cm)</label>
+                  <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 160" style={{ width: "100%", padding: "10px 12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: 700, fontSize: "13.5px" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "10.5px", fontWeight: 900, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Belt</label>
+                  <input value={belt} onChange={(e) => setBelt(e.target.value)} placeholder="e.g. Blue" style={{ width: "100%", padding: "10px 12px", background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: 700, fontSize: "13.5px" }} />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <button type="button" onClick={onClose} style={{ padding: "10px 20px", borderRadius: "12px", fontWeight: 800, fontSize: "13px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!selected || submitting}
+            style={{ padding: "10px 24px", borderRadius: "12px", fontWeight: 900, fontSize: "13px", background: "#FF7400", color: "#fff", border: "none", cursor: selected ? "pointer" : "not-allowed", opacity: !selected || submitting ? 0.5 : 1, display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            {submitting && <Loader2 size={16} className="animate-spin" />}
+            Add to Tournament
+          </button>
         </div>
       </div>
     </div>,

@@ -615,10 +615,10 @@ export default function ClubTournamentsPage() {
                   {/* Manage button — conditionally visible */}
                   {tournament.status === "APPROVED" && !tournament.hasPendingPlayers && (
                     <Link
-                      href={`/dashboard/admin/tournaments/${tournament.id}/setup`}
+                      href={`/dashboard/admin/tournaments/${tournament.id}`}
                       className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
                     >
-                      <Trophy size={14} /> Start Tournament <ChevronRight size={13} />
+                      <Trophy size={14} /> Manage Tournament <ChevronRight size={13} />
                     </Link>
                   )}
                   {tournament.status === "APPROVED" && tournament.hasPendingPlayers && (
@@ -906,10 +906,10 @@ export default function ClubTournamentsPage() {
                         </p>
                       )}
                       <Link
-                        href={`/dashboard/admin/tournaments/${t.id}/setup`}
+                        href={`/dashboard/admin/tournaments/${t.id}`}
                         className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all"
                       >
-                        <Trophy size={12} /> Start Tournament <ChevronRight size={12} />
+                        <Trophy size={12} /> Manage Tournament <ChevronRight size={12} />
                       </Link>
                     </div>
                   </motion.div>
