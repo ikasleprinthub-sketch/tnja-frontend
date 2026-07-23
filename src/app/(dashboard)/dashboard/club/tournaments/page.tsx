@@ -55,6 +55,10 @@ export default function ClubTournamentsPage() {
   const [metricsForm, setMetricsForm] = useState({ weight: "", height: "" });
   const [savingMetrics, setSavingMetrics] = useState(false);
 
+  const [districts, setDistricts] = useState<Array<{ id: string; name: string; zoneName?: string }>>([]);
+  const [clubs, setClubs] = useState<Array<{ id: string; clubName?: string; name?: string; districtId?: string; district?: any }>>([]);
+  const [zones, setZones] = useState<string[]>(["Chennai Zone", "Salem Zone", "Coimbatore Zone", "Trichy Zone", "Madurai Zone"]);
+
   const [formData, setFormData] = useState({
     title: "",
     dateFrom: "",
@@ -72,6 +76,8 @@ export default function ClubTournamentsPage() {
     beltEligibility: "",
     level: "DISTRICT",
     zoneId: "",
+    districtId: "",
+    clubId: "",
     bannerImage: "",
   });
 
@@ -92,6 +98,8 @@ export default function ClubTournamentsPage() {
     beltEligibility: "",
     level: "DISTRICT",
     zoneId: "",
+    districtId: "",
+    clubId: "",
     bannerImage: "",
   });
 
@@ -208,6 +216,25 @@ export default function ClubTournamentsPage() {
   useEffect(() => {
     fetchTournaments();
     fetchApprovedTournaments();
+
+    fetch(`${API_BASE}/districts`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setDistricts(data);
+          const uniqueZones = Array.from(new Set(data.map((d: any) => d.zoneName).filter(Boolean))) as string[];
+          if (uniqueZones.length > 0) setZones(uniqueZones);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch districts", err));
+
+    const token = localStorage.getItem("token");
+    fetch(`${API_BASE}/clubs`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setClubs(data);
+      })
+      .catch((err) => console.error("Failed to fetch clubs", err));
   }, [fetchTournaments, fetchApprovedTournaments]);
 
   const fetchRegistrations = async (tournamentId: string, force = false) => {
@@ -305,6 +332,8 @@ export default function ClubTournamentsPage() {
       bannerImage: tournament.bannerImage || "",
       level: level,
       zoneId: tournament.zoneId || "",
+      districtId: tournament.districtId || tournament.district?.id || "",
+      clubId: tournament.clubId || tournament.club?.id || "",
     });
     setEditingTournament(tournament);
   };
@@ -313,9 +342,16 @@ export default function ClubTournamentsPage() {
     e.preventDefault();
     if (!editingTournament) return;
 
-    // Validate zone for zonal tournaments
     if (editData.level === "ZONE" && !editData.zoneId) {
       showToast("Please select a zone for zonal tournaments.", "error");
+      return;
+    }
+    if (editData.level === "DISTRICT" && !editData.districtId) {
+      showToast("Please select a district for district tournaments.", "error");
+      return;
+    }
+    if (editData.level === "CLUB" && !editData.clubId) {
+      showToast("Please select a club for club tournaments.", "error");
       return;
     }
 
@@ -385,9 +421,16 @@ export default function ClubTournamentsPage() {
   const handleCreate = async (e: { preventDefault(): void }) => {
     e.preventDefault();
 
-    // Validate zone for zonal tournaments
     if (formData.level === "ZONE" && !formData.zoneId) {
       showToast("Please select a zone for zonal tournaments.", "error");
+      return;
+    }
+    if (formData.level === "DISTRICT" && !formData.districtId) {
+      showToast("Please select a district for district tournaments.", "error");
+      return;
+    }
+    if (formData.level === "CLUB" && !formData.clubId) {
+      showToast("Please select a club for club tournaments.", "error");
       return;
     }
 
@@ -408,7 +451,8 @@ export default function ClubTournamentsPage() {
       if (!res.ok) throw new Error(json.error || "Failed to create tournament");
       showToast("Tournament created! Your club players will be notified.", "success");
       setIsCreateModalOpen(false);
-      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", category: [], gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", bannerImage: "" });
+      setFormData({ title: "", dateFrom: "", dateTo: "", location: "", description: "", entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", category: [], gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", districtId: "", clubId: "", bannerImage: "" });
+      fetchTournaments();
       fetchTournaments();
     } catch (err: any) {
       showToast(err.message || "Something went wrong", "error");
@@ -959,24 +1003,63 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
-                    <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value, zoneId: "" })}
+                    <select value={formData.level} onChange={(e) => setFormData({ ...formData, level: e.target.value, zoneId: "", districtId: "", clubId: "" })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="CLUB">Club</option><option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
+
                   {formData.level === "ZONE" && (
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Zone *</label>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Zone *</label>
                       <select required value={formData.zoneId} onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                        <option value="">Select Zone</option>
-                        <option value="Chennai Zone">Chennai Zone</option>
-                        <option value="Salem Zone">Salem Zone</option>
-                        <option value="Coimbatore Zone">Coimbatore Zone</option>
-                        <option value="Trichy Zone">Trichy Zone</option>
-                        <option value="Madurai Zone">Madurai Zone</option>
+                        <option value="">Select a Zone</option>
+                        {zones.map((z) => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
                       </select>
                     </div>
+                  )}
+
+                  {formData.level === "DISTRICT" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District *</label>
+                      <select required value={formData.districtId} onChange={(e) => setFormData({ ...formData, districtId: e.target.value })}
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                        <option value="">Select a District</option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.level === "CLUB" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                        <select value={formData.districtId} onChange={(e) => setFormData({ ...formData, districtId: e.target.value, clubId: "" })}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                          <option value="">Select a District</option>
+                          {districts.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Club *</label>
+                        <select required value={formData.clubId} onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                          <option value="">Select a Club</option>
+                          {clubs
+                            .filter(c => !formData.districtId || c.districtId === formData.districtId || (c as any).district?.id === formData.districtId)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.clubName || (c as any).name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
                   )}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
@@ -1115,24 +1198,63 @@ export default function ClubTournamentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
-                    <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value, zoneId: "" })}
+                    <select value={editData.level} onChange={(e) => setEditData({ ...editData, level: e.target.value, zoneId: "", districtId: "", clubId: "" })}
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
                       <option value="CLUB">Club</option><option value="DISTRICT">District</option><option value="ZONE">Zonal</option><option value="STATE">State</option><option value="NATIONAL">National</option>
                     </select>
                   </div>
+
                   {editData.level === "ZONE" && (
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Zone *</label>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Zone *</label>
                       <select required value={editData.zoneId} onChange={(e) => setEditData({ ...editData, zoneId: e.target.value })}
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
-                        <option value="">Select Zone</option>
-                        <option value="Chennai Zone">Chennai Zone</option>
-                        <option value="Salem Zone">Salem Zone</option>
-                        <option value="Coimbatore Zone">Coimbatore Zone</option>
-                        <option value="Trichy Zone">Trichy Zone</option>
-                        <option value="Madurai Zone">Madurai Zone</option>
+                        <option value="">Select a Zone</option>
+                        {zones.map((z) => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
                       </select>
                     </div>
+                  )}
+
+                  {editData.level === "DISTRICT" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District *</label>
+                      <select required value={editData.districtId} onChange={(e) => setEditData({ ...editData, districtId: e.target.value })}
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                        <option value="">Select a District</option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {editData.level === "CLUB" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                        <select value={editData.districtId} onChange={(e) => setEditData({ ...editData, districtId: e.target.value, clubId: "" })}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                          <option value="">Select a District</option>
+                          {districts.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Club *</label>
+                        <select required value={editData.clubId} onChange={(e) => setEditData({ ...editData, clubId: e.target.value })}
+                          className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 transition-all font-semibold">
+                          <option value="">Select a Club</option>
+                          {clubs
+                            .filter(c => !editData.districtId || c.districtId === editData.districtId || (c as any).district?.id === editData.districtId)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.clubName || (c as any).name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
                   )}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>

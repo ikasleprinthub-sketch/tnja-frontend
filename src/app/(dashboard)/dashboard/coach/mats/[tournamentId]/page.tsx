@@ -223,70 +223,84 @@ function MatQueueInner() {
                     const isReady = match.slotA.playerId && match.slotB.playerId;
 
                     return (
-                      <div key={match.matchId} className="flex flex-col md:flex-row items-center justify-between p-5 rounded-2xl border border-slate-100 bg-slate-50 hover:border-orange-200 hover:shadow-md transition-all gap-4">
-                        <div className="flex-1 w-full space-y-3">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              Round {match.round} • Match {match.matchNumber}
+                      <div key={match.matchId} className="group relative flex flex-col xl:flex-row items-center justify-between p-4 md:p-6 bg-white rounded-3xl border-2 border-slate-100 hover:border-[#FF7400]/30 shadow-sm hover:shadow-lg hover:shadow-[#FF7400]/5 transition-all gap-6">
+                        
+                        {/* Match Details & Status */}
+                        <div className="w-full xl:w-auto shrink-0 flex items-center gap-4">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 bg-slate-50 rounded-2xl border border-slate-200 group-hover:bg-white group-hover:border-[#FF7400]/20 transition-colors">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Match</span>
+                            <span className="text-xl font-black text-slate-800 leading-none mt-0.5">#{match.matchNumber}</span>
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1">Round {match.round}</p>
+                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-md inline-flex items-center justify-center w-fit ${
+                              match.status === "COMPLETED" ? "bg-emerald-100 text-emerald-700" :
+                              match.status === "IN_PROGRESS" ? "bg-orange-100 text-orange-700 animate-pulse" :
+                              !isReady ? "bg-slate-100 text-slate-400" :
+                              "bg-blue-100 text-blue-700"
+                            }`}>
+                              {match.status === "COMPLETED" ? "COMPLETED" : match.status === "IN_PROGRESS" ? "IN PROGRESS" : !isReady ? "WAITING FOR PLAYERS" : "READY"}
                             </span>
                           </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-                          <User size={16} />
                         </div>
-                        <div className="truncate">
-                          <p className="text-sm font-black text-slate-800 truncate">{match.slotA.playerName || "TBD"}</p>
-                          {match.slotA.club && <p className="text-[10px] text-slate-500 font-bold truncate">{match.slotA.club}</p>}
-                        </div>
-                      </div>
 
-                      <div className="font-black text-slate-300 text-sm">VS</div>
+                        {/* Players */}
+                        <div className="flex-1 w-full flex items-center justify-center gap-2 sm:gap-4 px-0 sm:px-2">
+                          {/* Player A (White) */}
+                          <div className="flex-1 flex flex-col items-end text-right p-3 sm:p-4 rounded-2xl bg-white border-2 border-slate-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-2 h-full bg-slate-200" />
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 pr-3">Competitor (White)</span>
+                            <p className={`text-sm sm:text-base font-black ${!match.slotA.playerId ? "text-slate-400" : "text-slate-800"} truncate w-full text-right pr-3`}>{match.slotA.playerName || "TBD"}</p>
+                            {match.slotA.club && <p className="text-[11px] text-slate-500 font-semibold truncate w-full text-right pr-3">{match.slotA.club}</p>}
+                          </div>
 
-                      <div className="flex-1 bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 border border-slate-200">
-                          <User size={16} />
-                        </div>
-                        <div className="truncate">
-                          <p className="text-sm font-black text-slate-800 truncate">{match.slotB.playerName || "TBD"}</p>
-                          {match.slotB.club && <p className="text-[10px] text-slate-500 font-bold truncate">{match.slotB.club}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                          {/* VS */}
+                          <div className="shrink-0 flex flex-col items-center justify-center px-1 z-10 -mx-3 sm:-mx-5">
+                            <span className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-slate-800 text-white rounded-full text-[10px] sm:text-xs font-black shadow-md border-4 border-white">VS</span>
+                          </div>
 
-                  <button
-                    disabled={!isReady}
-                    onClick={() => {
-                      const p = new URLSearchParams();
-                      p.set("matchId", match.matchId);
-                      p.set("fighterAName", match.slotA.playerName);
-                      p.set("fighterAClub", match.slotA.club);
-                      p.set("fighterBName", match.slotB.playerName);
-                      p.set("fighterBClub", match.slotB.club);
-                      p.set("fighterAId", match.slotA.playerId || "");
-                      p.set("fighterBId", match.slotB.playerId || "");
-                      p.set("matchNumber", match.matchNumber.toString());
-                      p.set("matNumber", matNumber.toString());
-                      p.set("tournamentTitle", `${category} - Round ${match.round}`);
-                      
-                      // Open scoreboard in new tab
-                      window.open(`/dashboard/admin/tournaments/${tournamentId}/scoreboard?${p.toString()}`, '_blank');
-                    }}
-                    className={`shrink-0 flex items-center gap-2 px-6 py-4 rounded-2xl font-black transition-all ${
-                      match.status === "COMPLETED"
-                        ? "bg-emerald-100 text-emerald-700 border-2 border-emerald-200 cursor-default"
-                        : !isReady
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        : match.status === "IN_PROGRESS"
-                        ? "bg-orange-100 border-2 border-[#FF7400] text-[#FF7400] hover:bg-orange-200 shadow-md cursor-pointer"
-                        : "bg-[#FF7400] text-white hover:bg-orange-600 shadow-md hover:scale-105 cursor-pointer" 
-                    }`}
-                  >
-                    {match.status === "COMPLETED" ? <CheckCircle2 size={20} /> : <PlayCircle size={20} />}
-                          {match.status === "COMPLETED" ? "Match Completed" : !isReady ? "Players TBD" : match.status === "IN_PROGRESS" ? "Continue Match" : "Launch Scoreboard"}
-                        </button>
+                          {/* Player B (Blue) */}
+                          <div className="flex-1 flex flex-col items-start text-left p-3 sm:p-4 rounded-2xl bg-blue-50/50 border-2 border-blue-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-2 h-full bg-blue-500" />
+                            <span className="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1 pl-3">Competitor (Blue)</span>
+                            <p className={`text-sm sm:text-base font-black ${!match.slotB.playerId ? "text-slate-400" : "text-blue-900"} truncate w-full text-left pl-3`}>{match.slotB.playerName || "TBD"}</p>
+                            {match.slotB.club && <p className="text-[11px] text-blue-600/70 font-semibold truncate w-full text-left pl-3">{match.slotB.club}</p>}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="w-full xl:w-auto shrink-0 flex items-center justify-end border-t border-slate-100 pt-4 xl:pt-0 xl:border-none mt-2 xl:mt-0">
+                          <button
+                            disabled={!isReady}
+                            onClick={() => {
+                              const p = new URLSearchParams();
+                              p.set("matchId", match.matchId);
+                              p.set("fighterAName", match.slotA.playerName);
+                              p.set("fighterAClub", match.slotA.club);
+                              p.set("fighterBName", match.slotB.playerName);
+                              p.set("fighterBClub", match.slotB.club);
+                              p.set("fighterAId", match.slotA.playerId || "");
+                              p.set("fighterBId", match.slotB.playerId || "");
+                              p.set("matchNumber", match.matchNumber.toString());
+                              p.set("matNumber", matNumber.toString());
+                              p.set("tournamentTitle", `${category} - Round ${match.round}`);
+                              
+                              window.open(`/dashboard/admin/tournaments/${tournamentId}/scoreboard?${p.toString()}`, '_blank');
+                            }}
+                            className={`w-full xl:w-auto shrink-0 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-black transition-all ${
+                              match.status === "COMPLETED"
+                                ? "bg-emerald-100 text-emerald-700 border-2 border-emerald-200 cursor-default"
+                                : !isReady
+                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                : match.status === "IN_PROGRESS"
+                                ? "bg-orange-100 border-2 border-[#FF7400] text-[#FF7400] hover:bg-orange-200 shadow-md cursor-pointer"
+                                : "bg-gradient-to-r from-[#FF7400] to-orange-500 text-white shadow-xl shadow-orange-500/30 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer" 
+                            }`}
+                          >
+                            {match.status === "COMPLETED" ? <CheckCircle2 size={20} /> : !isReady ? <Monitor size={20} /> : match.status === "IN_PROGRESS" ? <PlayCircle size={20} /> : <Monitor size={20} />}
+                            {match.status === "COMPLETED" ? "Match Completed" : !isReady ? "Players TBD" : match.status === "IN_PROGRESS" ? "Continue Match" : "Launch Scoreboard"}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

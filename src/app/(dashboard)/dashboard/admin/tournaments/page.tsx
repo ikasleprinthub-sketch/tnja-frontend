@@ -161,7 +161,7 @@ const ApprovalChain = () => null;
 const emptyForm = {
   title: "", dateFrom: "", dateTo: "", location: "", description: "",
   entryFee: "", totalSlots: "", numberOfMats: "1", ageFrom: "0", ageTo: "100", category: [] as string[],
-  gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "",
+  gender: "BOTH", allowBPL: false, beltEligibility: "", level: "DISTRICT", zoneId: "", districtId: "", clubId: "",
   bannerImage: "",
 };
 
@@ -179,6 +179,8 @@ export default function AdminTournamentsPage() {
   const [myTournaments, setMyTournaments] = useState<Tournament[]>([]);
   const [approvedByMeList, setApprovedByMeList] = useState<Tournament[]>([]);
   const [zones, setZones] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<Array<{ id: string; name: string; zoneName?: string }>>([]);
+  const [clubs, setClubs] = useState<Array<{ id: string; clubName?: string; name?: string; districtId?: string; district?: any }>>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
@@ -241,16 +243,25 @@ export default function AdminTournamentsPage() {
       setActiveTab(isCreatorOnly ? "mine" : "approval");
     }
 
-    // Fetch zones for tournament creation
+    // Fetch districts, zones, and clubs for tournament creation
     fetch(`${API_BASE}/districts`)
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
-          const uniqueZones = Array.from(new Set(data.map(d => d.zoneName).filter(Boolean))) as string[];
-          setZones(uniqueZones);
+          setDistricts(data);
+          const uniqueZones = Array.from(new Set(data.map((d: any) => d.zoneName).filter(Boolean))) as string[];
+          if (uniqueZones.length > 0) setZones(uniqueZones);
         }
       })
-      .catch(err => console.error("Failed to fetch zones", err));
+      .catch(err => console.error("Failed to fetch districts", err));
+
+    const token = localStorage.getItem("token");
+    fetch(`${API_BASE}/clubs`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) setClubs(data);
+      })
+      .catch(err => console.error("Failed to fetch clubs", err));
   }, [searchParams]);
 
   // ── Per-tab fetch — fires whenever activeTab or userRole changes ─────────────
@@ -445,7 +456,9 @@ export default function AdminTournamentsPage() {
       allowBPL: t.allowBPL ?? false,
       beltEligibility: t.beltEligibility || "",
       level: t.level || "DISTRICT",
-      zoneId: "",
+      zoneId: (t as any).zoneId || "",
+      districtId: (t as any).districtId || (t as any).district?.id || "",
+      clubId: (t as any).clubId || (t as any).club?.id || "",
       bannerImage: t.bannerImage || "",
     });
   };
@@ -454,6 +467,20 @@ export default function AdminTournamentsPage() {
   const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingTournament) return;
+
+    if (editFormData.level === "ZONE" && !editFormData.zoneId) {
+      showToast("Please select a zone for zonal tournament.", "error");
+      return;
+    }
+    if (editFormData.level === "DISTRICT" && !editFormData.districtId) {
+      showToast("Please select a district for district tournament.", "error");
+      return;
+    }
+    if (editFormData.level === "CLUB" && !editFormData.clubId) {
+      showToast("Please select a club for club tournament.", "error");
+      return;
+    }
+
     setEditLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -483,6 +510,20 @@ export default function AdminTournamentsPage() {
   // ── Create tournament ────────────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (formData.level === "ZONE" && !formData.zoneId) {
+      showToast("Please select a zone for zonal tournament.", "error");
+      return;
+    }
+    if (formData.level === "DISTRICT" && !formData.districtId) {
+      showToast("Please select a district for district tournament.", "error");
+      return;
+    }
+    if (formData.level === "CLUB" && !formData.clubId) {
+      showToast("Please select a club for club tournament.", "error");
+      return;
+    }
+
     setSubmitLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -832,25 +873,7 @@ export default function AdminTournamentsPage() {
                         </div>
                       </div>
 
-                      {/* Manage link */}
-                      <div className="px-4 pb-3">
-                        {!t.hasPendingPlayers && (
-                          <Link
-                            href={`/dashboard/admin/tournaments/${t.id}`}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold rounded-lg text-xs hover:bg-slate-800 transition-all"
-                          >
-                            <Trophy size={12} /> Manage Tournament <ChevronRight size={12} />
-                          </Link>
-                        )}
-                        {t.hasPendingPlayers && (
-                          <button
-                            disabled
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-400 font-bold rounded-lg text-xs cursor-not-allowed"
-                          >
-                            <AlertCircle size={12} /> Resolve Pending Players
-                          </button>
-                        )}
-                      </div>
+
                     </div>
                   ))}
                 </div>
@@ -1163,8 +1186,8 @@ export default function AdminTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select
                       value={formData.level}
-                      onChange={e => setFormData({ ...formData, level: e.target.value })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                      onChange={e => setFormData({ ...formData, level: e.target.value, zoneId: "", districtId: "", clubId: "" })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
                     >
                       <option value="CLUB">Club</option>
                       <option value="DISTRICT">District</option>
@@ -1181,7 +1204,7 @@ export default function AdminTournamentsPage() {
                         required
                         value={formData.zoneId || ""}
                         onChange={e => setFormData({ ...formData, zoneId: e.target.value })}
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
                       >
                         <option value="" disabled>Select a Zone</option>
                         {zones.map((zone) => (
@@ -1189,6 +1212,57 @@ export default function AdminTournamentsPage() {
                         ))}
                       </select>
                     </div>
+                  )}
+
+                  {formData.level === "DISTRICT" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                      <select
+                        required
+                        value={formData.districtId || ""}
+                        onChange={e => setFormData({ ...formData, districtId: e.target.value })}
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                      >
+                        <option value="" disabled>Select a District</option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.level === "CLUB" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                        <select
+                          value={formData.districtId || ""}
+                          onChange={e => setFormData({ ...formData, districtId: e.target.value, clubId: "" })}
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                        >
+                          <option value="">Select a District</option>
+                          {districts.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Club</label>
+                        <select
+                          required
+                          value={formData.clubId || ""}
+                          onChange={e => setFormData({ ...formData, clubId: e.target.value })}
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                        >
+                          <option value="" disabled>Select a Club</option>
+                          {clubs
+                            .filter(c => !formData.districtId || c.districtId === formData.districtId || (c as any).district?.id === formData.districtId)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.clubName || (c as any).name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
                   )}
 
                   <div className={formData.level !== "ZONE" ? "md:col-span-1" : ""}>
@@ -1380,8 +1454,8 @@ export default function AdminTournamentsPage() {
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Level</label>
                     <select
                       value={editFormData.level}
-                      onChange={e => setEditFormData({ ...editFormData, level: e.target.value })}
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold"
+                      onChange={e => setEditFormData({ ...editFormData, level: e.target.value, zoneId: "", districtId: "", clubId: "" })}
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
                     >
                       <option value="CLUB">Club</option>
                       <option value="DISTRICT">District</option>
@@ -1390,6 +1464,74 @@ export default function AdminTournamentsPage() {
                       <option value="NATIONAL">National</option>
                     </select>
                   </div>
+
+                  {editFormData.level === "ZONE" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Zone</label>
+                      <select
+                        required
+                        value={editFormData.zoneId || ""}
+                        onChange={e => setEditFormData({ ...editFormData, zoneId: e.target.value })}
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                      >
+                        <option value="" disabled>Select a Zone</option>
+                        {zones.map((zone) => (
+                          <option key={zone} value={zone}>{zone}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {editFormData.level === "DISTRICT" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                      <select
+                        required
+                        value={editFormData.districtId || ""}
+                        onChange={e => setEditFormData({ ...editFormData, districtId: e.target.value })}
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                      >
+                        <option value="" disabled>Select a District</option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {editFormData.level === "CLUB" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">District</label>
+                        <select
+                          value={editFormData.districtId || ""}
+                          onChange={e => setEditFormData({ ...editFormData, districtId: e.target.value, clubId: "" })}
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                        >
+                          <option value="">Select a District</option>
+                          {districts.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Club</label>
+                        <select
+                          required
+                          value={editFormData.clubId || ""}
+                          onChange={e => setEditFormData({ ...editFormData, clubId: e.target.value })}
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF7400]/50 font-semibold text-slate-900"
+                        >
+                          <option value="" disabled>Select a Club</option>
+                          {clubs
+                            .filter(c => !editFormData.districtId || c.districtId === editFormData.districtId || (c as any).district?.id === editFormData.districtId)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>{c.clubName || (c as any).name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Gender</label>
