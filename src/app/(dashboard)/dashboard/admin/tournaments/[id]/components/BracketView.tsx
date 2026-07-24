@@ -18,7 +18,7 @@ function clubCode(name: string): string {
 const MATCH_H = 68;
 const MATCH_W = 210;
 const CONN_W  = 44;
-const G0      = 6;
+const G0      = 16;
 
 export function BracketView({
   rounds,
@@ -39,10 +39,17 @@ export function BracketView({
 
   const isRoundRobin = rounds[0].length > 0 && rounds[0][0].matchId.startsWith("rr_");
   const numR1   = rounds[0].length;
-  
-  const totalH  = isRoundRobin 
-    ? Math.max(numR1 * (MATCH_H + G0) - G0, MATCH_H) + 20 
-    : Math.max(numR1 * (MATCH_H + G0) - G0, MATCH_H);
+  const hasBronze = rounds.length > 0 && rounds[rounds.length - 1].length > 1;
+  const rowsH   = Math.max(numR1 * (MATCH_H + G0) - G0, MATCH_H);
+  const BRONZE_CARD_H = 100;
+  const BRONZE_GAP    = 40;
+  const leaderboardH  = isRoundRobin ? 80 + players.length * 44 : 0;
+
+  const totalH  = isRoundRobin
+    // Round-robin: match cards sit at the same y per column, so the bronze
+    // card's forced offset (mTop(last,0)=0) is just MATCH_H + gap + its own height.
+    ? Math.max(rowsH + 24, hasBronze ? MATCH_H + BRONZE_GAP + BRONZE_CARD_H + 24 : 0, leaderboardH)
+    : rowsH + 160 + (hasBronze ? 140 : 0);
   
   const totalW  = rounds.length * MATCH_W + rounds.length * CONN_W + (isRoundRobin ? 200 : (MATCH_W - 20));
 
@@ -85,7 +92,7 @@ export function BracketView({
       </div>
 
       {/* ── Right: Bracket ───────────────────────────────────────────────── */}
-      <div id="bracket-print-area" className="flex-grow overflow-x-auto">
+      <div id="bracket-print-area" className="flex-grow">
         <div style={{ minWidth: totalW + 24, userSelect: "none" }}>
 
           {/* Round headers */}

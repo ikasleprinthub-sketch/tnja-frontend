@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Upload, FileText, CheckCircle, AlertCircle, X, Loader2 } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, X, Loader2, Asterisk } from "lucide-react";
 import Image from "next/image";
 
 interface FileUploadProps {
@@ -12,6 +12,7 @@ interface FileUploadProps {
   helperText?: string;
   error?: string;
   layout?: "default" | "passport";
+  required?: boolean;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -22,6 +23,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   helperText = "PNG, JPG, WEBP or PDF (Max 5MB)",
   error,
   layout = "default",
+  required = false,
 }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -81,7 +83,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   return (
     <div className={`space-y-2 flex flex-col ${layout === "passport" ? "items-center" : ""}`}>
-      <label className="block text-sm font-semibold text-gray-700">{label}</label>
+      <label className="flex items-center text-sm font-semibold text-gray-700">
+        {label}
+        {required && <Asterisk size={10} className="text-red-500 stroke-[4px] ml-0.5" />}
+      </label>
 
       <div
         onClick={!value && !uploading ? triggerInput : undefined}

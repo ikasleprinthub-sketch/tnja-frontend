@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Grid, List, X, Check, Loader2, Calendar, MapPin,
-  Target, Zap, Award, Medal, Edit2,
+  Target, Award, Medal, Edit2,
   AlertCircle, Clock, Download, BarChart3,
   PlayCircle, Lock, Search, XCircle, Printer,
   ChevronLeft, ChevronRight, ChevronDown, Eye, FilterX,
@@ -69,6 +69,7 @@ export default function TournamentDetailPage() {
   const [shuffleKey, setShuffleKey] = useState(0);
   type DrawMethodType = "round-robin" | "straight-elimination" | "single-repechage" | "double-repechage";
   const [categoryDrawMethod, setCategoryDrawMethod] = useState<Record<string, DrawMethodType>>({});
+  const [categoryViewMode, setCategoryViewMode] = useState<Record<string, ViewMode>>({});
   const [detailDrawMethod, setDetailDrawMethod] = useState<DrawMethodType>("round-robin");
   const [pendingMatByKey, setPendingMatByKey] = useState<Record<string, number>>({});
   const [autoGenerating, setAutoGenerating] = useState(false);
@@ -77,7 +78,6 @@ export default function TournamentDetailPage() {
   // ── Result Submission State ─────────────────────────────────────────────────
   const [placements, setPlacements] = useState<Record<string, "FIRST" | "SECOND" | "THIRD" | "PARTICIPATION">>({});
   const [submittingResults, setSubmittingResults] = useState(false);
-  const [placementsAutoDetected, setPlacementsAutoDetected] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // ── Modals State ────────────────────────────────────────────────────────────
@@ -362,47 +362,18 @@ export default function TournamentDetailPage() {
     }
 
     setPlacements(detected);
-    setPlacementsAutoDetected(true);
   }, [draws, players]);
 
-  const handleConcludeTournament = async () => {
-    setIsConcludeModalOpen(false);
-
-    const results = players.map((p) => ({
-      playerId: p.id,
-      placement: placements[p.id] || "PARTICIPATION",
-    }));
-
-    setSubmittingResults(true);
-    try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/results`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ results }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast("Tournament concluded! Certificates are now available for download. 🏆");
-        fetchTournament();
-      } else {
-        showToast(data.error || "Failed to submit results", false);
-      }
-    } catch {
-      showToast("Error submitting results", false);
-    } finally {
-      setSubmittingResults(false);
-    }
-  };
-
-  const handleConcludeCategory = async (key: string, catPlayers: any[]) => {
+  const handleConcludeCategory = async (key: string, catPlayers: RegisteredPlayer[]) => {
     setConcludingCategoryKey(null);
+    setIsConcludeModalOpen(false);
 
     const draw = draws[key];
     if (!draw) return;
 
     const results = catPlayers.map((p) => ({
-      regId: p.id,
-      playerId: p.playerId,
+      regId: p.regId,
+      playerId: p.id,
       placement: placements[p.id] || "PARTICIPATION",
     }));
 
@@ -439,6 +410,33 @@ export default function TournamentDetailPage() {
       showToast("Error submitting category results", false);
     } finally {
       setSubmittingResults(false);
+    }
+  };
+
+  const handleDownloadCertificate = async (player: RegisteredPlayer) => {
+    if (!player.regId) return;
+    try {
+      showToast("Generating certificate...");
+      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/certificate?regId=${player.regId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || "Failed to generate certificate", false);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${player.name.replace(/\s+/g, "_")}_certificate.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error(err);
+      showToast("Error downloading certificate", false);
     }
   };
 
@@ -2229,7 +2227,7 @@ export default function TournamentDetailPage() {
                   return categories.map(({ key, ageGroup, exactAge, gender, weight, weightLabel, catDrawPlayers }) => {
                     const draw = draws[key];
                     return (
-                      <div key={key} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6">
+                      <div key={key} className="bg-white rounded-3xl border border-slate-100 shadow-sm mb-6">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                           <h3 className="font-black text-slate-800 flex items-center gap-2">
                             <Trophy size={16} className="text-[#FF7400]" />
@@ -2343,9 +2341,23 @@ export default function TournamentDetailPage() {
 
                         {draw?.generated && (
                           <div className="border-t border-slate-50">
-                            {/* Bracket View */}
-                            <div className="p-5 bg-slate-50/30 overflow-auto border-b border-slate-50">
-                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Bracket</h4>
+                            <div className="flex items-center justify-between px-5 pt-4">
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                {(categoryViewMode[key] || "bracket") === "bracket" ? "Bracket" : "Match List"}
+                              </h4>
+                              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                                {(["bracket", "list"] as ViewMode[]).map((v) => (
+                                  <button key={v} onClick={() => setCategoryViewMode(prev => ({ ...prev, [key]: v }))}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${(categoryViewMode[key] || "bracket") === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
+                                    {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {(categoryViewMode[key] || "bracket") === "bracket" ? (
+                            /* Bracket View */
+                            <div className="p-5 pb-8 bg-slate-50/30">
                               <BracketView
                                 rounds={draw.rounds}
                                 onOpenScoreboard={openScoreboard}
@@ -2355,10 +2367,9 @@ export default function TournamentDetailPage() {
                                 currentDraw={draw}
                               />
                             </div>
-                            
-                            {/* Match List View */}
+                            ) : (
+                            /* Match List View */
                             <div className="p-5 bg-white">
-                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Match List</h4>
                               <div className="divide-y divide-slate-50">
                                 {draw.rounds.map((round, ri) => (
                                   <div key={ri} className="py-3">
@@ -2409,6 +2420,7 @@ export default function TournamentDetailPage() {
                                 ))}
                               </div>
                             </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2642,9 +2654,9 @@ export default function TournamentDetailPage() {
                       ↺ Re-draw
                     </button>
                     <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                      {(filteredPlayers.length <= 5 ? ["list"] as ViewMode[] : ["bracket", "list"] as ViewMode[]).map((v) => (
+                      {(["bracket", "list"] as ViewMode[]).map((v) => (
                         <button key={v} onClick={() => setViewMode(v)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${(filteredPlayers.length <= 5 ? "list" : viewMode) === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === v ? "bg-white text-[#FF7400] shadow-sm" : "text-slate-400"}`}>
                           {v === "bracket" ? <><Grid size={12} className="inline mr-1" />Bracket</> : <><List size={12} className="inline mr-1" />List</>}
                         </button>
                       ))}
@@ -2652,7 +2664,7 @@ export default function TournamentDetailPage() {
                   </div>
                 </div>
 
-                {(filteredPlayers.length <= 5 ? "list" : viewMode) === "list" ? (
+                {viewMode === "list" ? (
                   <div className="divide-y divide-slate-50">
                     {currentDraw.rounds.map((round, ri) => (
                       <div key={ri} className="p-5">
@@ -2715,7 +2727,7 @@ export default function TournamentDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="p-5 bg-slate-50/50 overflow-auto">
+                  <div className="p-5 pb-8 bg-slate-50/50">
                     <BracketView
                       key={currentKey}
                       rounds={currentDraw.rounds}
@@ -2766,55 +2778,101 @@ export default function TournamentDetailPage() {
             </button>
           </div>
 
-          {currentDraw?.generated && (() => {
-            const stats = getRoundsStats(currentDraw.rounds);
-            const tiles: { key: typeof matchStatusFilter; label: string; count: number; color: string; dot: string }[] = [
-              { key: "ALL", label: "Total Matches", count: stats.total, color: "text-slate-700 bg-white border-slate-200", dot: "bg-slate-400" },
-              { key: "PENDING", label: "Not Started", count: stats.notStarted, color: "text-slate-600 bg-slate-50 border-slate-200", dot: "bg-slate-400" },
-              { key: "IN_PROGRESS", label: "Live", count: stats.live, color: "text-orange-700 bg-orange-50 border-orange-200", dot: "bg-orange-500" },
-              { key: "COMPLETED", label: "Completed", count: stats.completed, color: "text-emerald-700 bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
-            ];
-            return (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {tiles.map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setMatchStatusFilter(t.key)}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${t.color} ${
-                      matchStatusFilter === t.key ? "ring-2 ring-offset-1 ring-slate-800/60 shadow-md" : "hover:shadow-sm"
-                    }`}
-                  >
-                    <div className="text-left">
-                      <p className="text-[10px] font-black uppercase tracking-wider opacity-70 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${t.dot} ${t.key === "IN_PROGRESS" ? "animate-pulse" : ""}`} />
-                        {t.label}
-                      </p>
-                      <p className="text-2xl font-black mt-0.5">{t.count}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
+          {(() => {
+            // Draws are saved per exact weight/age sub-category, so when the filter is
+            // broadened (e.g. "All Weights"), a single currentKey lookup misses every
+            // sub-category draw. Gather every generated draw that matches the active
+            // gender/age/weight filters instead of relying on one exact key.
+            type MatchCategory = { key: string; ageGroup: string; gender: string; weightLabel: string; smallBracket: boolean; draw: DrawCategory };
+            let matchCategories: MatchCategory[];
 
-          {currentDraw?.generated ? (
-            <div className="space-y-6">
-              {currentDraw.rounds.map((fullRound, ri) => {
-                const round = fullRound.filter(m => matchStatusFilter === "ALL" || m.status === matchStatusFilter);
-                if (round.length === 0) return null;
-                return (
-                <div key={ri} className="bg-white rounded-[2rem] border border-slate-100 shadow-lg shadow-slate-200/40 overflow-hidden">
-                  <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                        <Swords size={18} className="text-white/80" />
+            if (isMultiCategory) {
+              const map: Record<string, MatchCategory> = {};
+              const counts: Record<string, number> = {};
+              eligiblePlayers.forEach(p => {
+                const key = categoryKey(p.ageGroup, "ALL", p.gender, String(p.weight));
+                counts[key] = (counts[key] || 0) + 1;
+                const d = draws[key];
+                if (!map[key] && d?.generated) {
+                  map[key] = { key, ageGroup: p.ageGroup, gender: p.gender, weightLabel: p.weightLabel || String(p.weight), smallBracket: false, draw: d };
+                }
+              });
+              matchCategories = Object.values(map)
+                .map(c => ({ ...c, smallBracket: (counts[c.key] || 0) <= 5 }))
+                .sort((a, b) => a.key.localeCompare(b.key));
+            } else {
+              matchCategories = currentDraw?.generated
+                ? [{ key: currentKey, ageGroup: ageFilter, gender: genderFilter, weightLabel: weightFilter, smallBracket: filteredPlayers.length <= 5, draw: currentDraw }]
+                : [];
+            }
+
+            if (matchCategories.length === 0) {
+              return (
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-20 text-center">
+                  <Swords size={48} className="mx-auto text-slate-200 mb-4" />
+                  <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
+                  <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first</p>
+                  <button onClick={() => setActiveTab("draws")}
+                    className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                    Go to Draw Generation →
+                  </button>
+                </div>
+              );
+            }
+
+            return matchCategories.map(({ key, ageGroup, gender, weightLabel, smallBracket, draw }) => {
+              const stats = getRoundsStats(draw.rounds);
+              const tiles: { key: typeof matchStatusFilter; label: string; count: number; color: string; dot: string }[] = [
+                { key: "ALL", label: "Total Matches", count: stats.total, color: "text-slate-700 bg-white border-slate-200", dot: "bg-slate-400" },
+                { key: "PENDING", label: "Not Started", count: stats.notStarted, color: "text-slate-600 bg-slate-50 border-slate-200", dot: "bg-slate-400" },
+                { key: "IN_PROGRESS", label: "Live", count: stats.live, color: "text-orange-700 bg-orange-50 border-orange-200", dot: "bg-orange-500" },
+                { key: "COMPLETED", label: "Completed", count: stats.completed, color: "text-emerald-700 bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
+              ];
+              return (
+              <div key={key} className="space-y-4">
+                {isMultiCategory && (
+                  <h3 className="font-black text-slate-800 flex items-center gap-2 px-1">
+                    <Trophy size={16} className="text-[#FF7400]" />
+                    {ageGroup} · {gender === "FEMALE" ? "Girls" : "Boys"} · {weightLabel}{weightLabel && !weightLabel.includes("kg") ? " kg" : ""}
+                  </h3>
+                )}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {tiles.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setMatchStatusFilter(t.key)}
+                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${t.color} ${
+                        matchStatusFilter === t.key ? "ring-2 ring-offset-1 ring-slate-800/60 shadow-md" : "hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <p className="text-[10px] font-black uppercase tracking-wider opacity-70 flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${t.dot} ${t.key === "IN_PROGRESS" ? "animate-pulse" : ""}`} />
+                          {t.label}
+                        </p>
+                        <p className="text-2xl font-black mt-0.5">{t.count}</p>
                       </div>
-                      <h3 className="font-black text-lg tracking-tight">{roundName(ri, currentDraw.rounds.length, filteredPlayers.length <= 5)}</h3>
-                    </div>
-                    <span className="text-xs font-bold text-slate-300 bg-white/10 px-3 py-1.5 rounded-lg backdrop-blur-sm">{round.length} match{round.length !== 1 ? "es" : ""}</span>
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    {round.map((match) => (
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-6">
+                  {draw.rounds.map((fullRound, ri) => {
+                    const round = fullRound.filter(m => matchStatusFilter === "ALL" || m.status === matchStatusFilter);
+                    if (round.length === 0) return null;
+                    return (
+                    <div key={ri} className="bg-white rounded-[2rem] border border-slate-100 shadow-lg shadow-slate-200/40 overflow-hidden">
+                      <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                            <Swords size={18} className="text-white/80" />
+                          </div>
+                          <h3 className="font-black text-lg tracking-tight">{roundName(ri, draw.rounds.length, smallBracket)}</h3>
+                        </div>
+                        <span className="text-xs font-bold text-slate-300 bg-white/10 px-3 py-1.5 rounded-lg backdrop-blur-sm">{round.length} match{round.length !== 1 ? "es" : ""}</span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {round.map((match) => (
                       <div key={match.matchId}
                         className="p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50 transition-colors group">
                         
@@ -2925,18 +2983,11 @@ export default function TournamentDetailPage() {
                 </div>
                 );
               })}
-            </div>
-          ) : (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm py-20 text-center">
-              <Swords size={48} className="mx-auto text-slate-200 mb-4" />
-              <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
-              <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first</p>
-              <button onClick={() => setActiveTab("draws")}
-                className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
-                Go to Draw Generation →
-              </button>
-            </div>
-          )}
+                </div>
+              </div>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -2973,66 +3024,35 @@ export default function TournamentDetailPage() {
 
           {/* ── Conclude Tournament Panel ── */}
           {tournament?.status !== "CLOSED" ? (
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
+            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
               <div className="flex items-start gap-4 mb-6">
-                <div className="w-12 h-12 bg-[#FF7400]/20 rounded-2xl flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center shrink-0">
                   <Award size={24} className="text-[#FF7400]" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-white">Conclude Tournament & Issue Certificates</h3>
-                  <p className="text-slate-400 text-sm mt-1">Assign final placements to players, then click Conclude. All participants can then download their certificates.</p>
+                  <h3 className="text-lg font-black text-slate-800">Conclude Category & Issue Certificates</h3>
+                  <p className="text-slate-500 text-sm mt-1">Confirm placements below, then conclude to unlock certificates.</p>
                 </div>
               </div>
 
-              {filteredPlayers.length === 0 ? (
+              {isMultiCategory ? (
+                <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-bold border border-amber-200">
+                  <AlertCircle size={16} className="shrink-0" /> Placements and certificates are finalized one weight class at a time. Pick a single age group, gender and weight above — not "All Weights" — to conclude that category.
+                </div>
+              ) : filteredPlayers.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 font-semibold">No players found for this category.</div>
+              ) : !currentDraw?.generated ? (
+                <div className="text-center py-8 text-slate-400 font-semibold">Generate a draw for this category before concluding it.</div>
               ) : (
                 <div className="space-y-3">
-                  {/* Auto-detect status banner */}
-                  {placementsAutoDetected && (
-                    <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-900/40 border border-emerald-500/30 rounded-xl mb-2">
-                      <div className="flex items-center gap-2">
-                        <Check size={14} className="text-emerald-400 shrink-0" />
-                        <p className="text-emerald-300 text-xs font-bold">
-                          Auto-detected: {filteredPlayers.filter(p => placements[p.id] === "FIRST").length} Gold · {filteredPlayers.filter(p => placements[p.id] === "SECOND").length} Silver · {filteredPlayers.filter(p => placements[p.id] === "THIRD").length} Bronze · {filteredPlayers.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
-                        </p>
-                      </div>
-                      <button
-                        onClick={autoDetectPlacements}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-all shrink-0"
-                      >
-                        <Zap size={11} className="text-[#FF7400]" /> Re-detect
-                      </button>
-                    </div>
-                  )}
-                  {/* Placement Legend */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {[
-                      { label: "1st Place", icon: <Trophy size={14} />, value: "FIRST", color: "bg-yellow-500" },
-                      { label: "2nd Place", icon: <Medal size={14} />, value: "SECOND", color: "bg-slate-400" },
-                      { label: "3rd Place", icon: <Medal size={14} />, value: "THIRD", color: "bg-orange-600" },
-                      { label: "Participation", icon: <Award size={14} />, value: "PARTICIPATION", color: "bg-blue-500" },
-                    ].map((p) => (
-                      <span key={p.value} className={`flex items-center gap-1.5 px-3 py-1 ${p.color} text-white text-xs font-black rounded-full`}>
-                        {p.icon} {p.label}
-                      </span>
-                    ))}
-                  </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
                     {filteredPlayers.map((player) => {
                       const placement = placements[player.id] || "PARTICIPATION";
                       const placementColors: Record<string, string> = {
-                        FIRST: "border-yellow-400 bg-yellow-500/10",
-                        SECOND: "border-slate-400 bg-slate-400/10",
-                        THIRD: "border-orange-500 bg-orange-500/10",
-                        PARTICIPATION: "border-slate-600 bg-slate-700/30",
-                      };
-                      const placementLabels: Record<string, string> = {
-                        FIRST: "🥇 1st Place",
-                        SECOND: "🥈 2nd Place",
-                        THIRD: "🥉 3rd Place",
-                        PARTICIPATION: "🎖️ Participant",
+                        FIRST: "border-yellow-400 bg-yellow-50",
+                        SECOND: "border-slate-300 bg-slate-50",
+                        THIRD: "border-orange-400 bg-orange-50",
+                        PARTICIPATION: "border-slate-200 bg-slate-50/50",
                       };
                       return (
                         <div key={player.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${placementColors[placement]}`}>
@@ -3040,13 +3060,13 @@ export default function TournamentDetailPage() {
                             {player.name.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-white truncate">{player.name}</p>
+                            <p className="text-sm font-black text-slate-800 truncate">{player.name}</p>
                             <p className="text-[11px] text-slate-400 truncate">{player.club || player.district}</p>
                           </div>
                           <div className="relative shrink-0">
                             <button
                               onClick={() => setOpenDropdownId(openDropdownId === player.id ? null : player.id)}
-                              className="flex items-center justify-between w-[120px] gap-2 text-xs font-bold bg-slate-700 border border-slate-600 text-white rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF7400]"
+                              className="flex items-center justify-between w-[120px] gap-2 text-xs font-bold bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF7400]"
                             >
                               <span className="flex items-center gap-1.5">
                                 {placement === "FIRST" && <><Trophy size={14} className="text-yellow-500"/> 1st Place</>}
@@ -3064,7 +3084,7 @@ export default function TournamentDetailPage() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
                                     transition={{ duration: 0.15 }}
-                                    className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden"
+                                    className="absolute right-0 mt-2 w-36 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden"
                                   >
                                     {[
                                       { val: "FIRST", label: "1st Place", icon: <Trophy size={14} className="text-yellow-500"/> },
@@ -3078,7 +3098,7 @@ export default function TournamentDetailPage() {
                                           setPlacements(prev => ({ ...prev, [player.id]: opt.val as any }));
                                           setOpenDropdownId(null);
                                         }}
-                                        className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-slate-700 flex items-center gap-2 transition-colors"
+                                        className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                                       >
                                         {opt.icon} {opt.label}
                                       </button>
@@ -3088,21 +3108,26 @@ export default function TournamentDetailPage() {
                               )}
                             </AnimatePresence>
                           </div>
+                          <button
+                            onClick={() => handleDownloadCertificate(player)}
+                            disabled={!(currentDraw?.isConcluded || tournament?.status === "CLOSED")}
+                            title={(currentDraw?.isConcluded || tournament?.status === "CLOSED") ? "Download certificate" : "Available after this category is concluded"}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold shrink-0 hover:border-[#FF7400] hover:text-[#FF7400] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:text-slate-500"
+                          >
+                            <Download size={14} />
+                          </button>
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="pt-4 flex items-center justify-between border-t border-slate-700 mt-4">
-                    <p className="text-slate-400 text-xs font-semibold">
-                      {Object.values(placements).filter(v => v === "FIRST").length} Gold · {Object.values(placements).filter(v => v === "SECOND").length} Silver · {Object.values(placements).filter(v => v === "THIRD").length} Bronze · {players.filter(p => !placements[p.id] || placements[p.id] === "PARTICIPATION").length} Participants
-                    </p>
+                  <div className="pt-4 flex items-center justify-end border-t border-slate-100 mt-4">
                     <button
                       onClick={() => setIsConcludeModalOpen(true)}
-                      disabled={submittingResults || players.length === 0}
+                      disabled={submittingResults || filteredPlayers.length === 0}
                       className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {submittingResults ? <><Loader2 size={16} className="animate-spin" /> Concluding...</> : <><Trophy size={16} /> Conclude & Issue Certificates</>}
+                      {submittingResults ? <><Loader2 size={16} className="animate-spin" /> Concluding...</> : <><Trophy size={16} /> Conclude Category & Issue Certificates</>}
                     </button>
                   </div>
                 </div>
@@ -3137,7 +3162,7 @@ export default function TournamentDetailPage() {
                   </div>
                 </div>
 
-                {filteredPlayers.filter(p => p.placement && p.placement !== "PARTICIPATION").length === 0 ? (
+                {filteredPlayers.filter(p => p.placement).length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm border border-slate-100">
                       <Trophy size={24} className="text-slate-300" />
@@ -3148,9 +3173,9 @@ export default function TournamentDetailPage() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 relative z-10">
                     {filteredPlayers
-                      .filter(p => p.placement && p.placement !== "PARTICIPATION")
+                      .filter(p => p.placement)
                       .sort((a, b) => {
-                        const order: Record<string, number> = { FIRST: 1, SECOND: 2, THIRD: 3 };
+                        const order: Record<string, number> = { FIRST: 1, SECOND: 2, THIRD: 3, PARTICIPATION: 4 };
                         return (order[a.placement || ""] || 99) - (order[b.placement || ""] || 99);
                       })
                       .map((player) => {
@@ -3159,35 +3184,45 @@ export default function TournamentDetailPage() {
                           FIRST: "border-yellow-200 bg-yellow-50 text-yellow-700",
                           SECOND: "border-slate-200 bg-slate-50 text-slate-700",
                           THIRD: "border-orange-200 bg-orange-50 text-orange-700",
+                          PARTICIPATION: "border-blue-200 bg-blue-50 text-blue-700",
                         };
                         const placementIconColors: Record<string, string> = {
                           FIRST: "text-yellow-500",
                           SECOND: "text-slate-400",
                           THIRD: "text-orange-500",
+                          PARTICIPATION: "text-blue-500",
                         };
                         const placementLabels: Record<string, string> = {
                           FIRST: "1st Place",
                           SECOND: "2nd Place",
                           THIRD: "3rd Place",
+                          PARTICIPATION: "Participant",
                         };
+                        const PlacementIcon = placement === "PARTICIPATION" ? Award : Trophy;
                         return (
-                          <motion.div 
+                          <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            key={player.id} 
+                            key={player.id}
                             className={`flex items-center gap-4 p-5 rounded-2xl border ${placementColors[placement].split(' ').slice(0,2).join(' ')} shadow-sm hover:shadow-md transition-shadow`}
                           >
                             <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shrink-0 border border-black/5 shadow-sm">
-                              <Trophy size={24} className={placementIconColors[placement]} />
+                              <PlacementIcon size={24} className={placementIconColors[placement]} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-lg font-black text-slate-800 truncate">{player.name}</p>
                               <p className="text-sm font-semibold text-slate-500 truncate mt-0.5">{player.club || player.district}</p>
                             </div>
-                            <div className="relative shrink-0 flex flex-col items-end pl-4 border-l border-black/5">
+                            <div className="relative shrink-0 flex flex-col items-end gap-2 pl-4 border-l border-black/5">
                               <span className={`text-sm font-black ${placementColors[placement].split(' ')[2]} uppercase tracking-widest`}>
                                 {placementLabels[placement]}
                               </span>
+                              <button
+                                onClick={() => handleDownloadCertificate(player)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 text-slate-500 rounded-lg text-[11px] font-bold hover:border-[#FF7400] hover:text-[#FF7400] transition-colors"
+                              >
+                                <Download size={12} /> Certificate
+                              </button>
                             </div>
                           </motion.div>
                         );
@@ -3199,32 +3234,84 @@ export default function TournamentDetailPage() {
           )}
 
 
-          {currentDraw?.generated ? (
+          {(() => {
+            // Same "All Weights" gap as the Matches tab: draws are saved per exact
+            // sub-category, so gather every generated draw matching the active
+            // filters instead of relying on one exact currentKey lookup.
+            type ResultsCategory = { key: string; ageGroup: string; gender: string; weightLabel: string; smallBracket: boolean; draw: DrawCategory };
+            let resultsCategories: ResultsCategory[];
+
+            if (isMultiCategory) {
+              const map: Record<string, ResultsCategory> = {};
+              const counts: Record<string, number> = {};
+              eligiblePlayers.forEach(p => {
+                const key = categoryKey(p.ageGroup, "ALL", p.gender, String(p.weight));
+                counts[key] = (counts[key] || 0) + 1;
+                const d = draws[key];
+                if (!map[key] && d?.generated) {
+                  map[key] = { key, ageGroup: p.ageGroup, gender: p.gender, weightLabel: p.weightLabel || String(p.weight), smallBracket: false, draw: d };
+                }
+              });
+              resultsCategories = Object.values(map)
+                .map(c => ({ ...c, smallBracket: (counts[c.key] || 0) <= 5 }))
+                .sort((a, b) => a.key.localeCompare(b.key));
+            } else {
+              resultsCategories = currentDraw?.generated
+                ? [{ key: currentKey, ageGroup: ageFilter, gender: genderFilter, weightLabel: weightFilter, smallBracket: filteredPlayers.length <= 5, draw: currentDraw }]
+                : [];
+            }
+
+            if (resultsCategories.length === 0) {
+              return (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-20 text-center">
+                  <BarChart3 size={48} className="mx-auto text-slate-200 mb-4" />
+                  <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
+                  <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first to start matches</p>
+                  <button onClick={() => setActiveTab("draws")}
+                    className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
+                    Go to Draw Generation →
+                  </button>
+                </div>
+              );
+            }
+
+            return (
             <div className="space-y-6">
-              {/* Completed Matches */}
-              {currentDraw.rounds.map((round, ri) => {
-                const completedMatches = round.filter(m => m.status === "COMPLETED");
-                if (completedMatches.length === 0) return null;
-
+              {resultsCategories.map(({ key, ageGroup, gender, weightLabel, smallBracket, draw }) => {
+                const hasCompleted = draw.rounds.some(r => r.some(m => m.status === "COMPLETED"));
+                if (!hasCompleted) return null;
                 return (
-                  <motion.div
-                    key={ri}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
-                  >
-                    <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white flex items-center justify-between">
-                      <h3 className="font-black">{roundName(ri, currentDraw.rounds.length, filteredPlayers.length <= 5)} Results</h3>
-                      <span className="text-xs font-bold text-emerald-100">{completedMatches.length} completed</span>
-                    </div>
+                <div key={key} className="space-y-6">
+                  {isMultiCategory && (
+                    <h3 className="font-black text-slate-800 flex items-center gap-2 px-1">
+                      <Trophy size={16} className="text-[#FF7400]" />
+                      {ageGroup} · {gender === "FEMALE" ? "Girls" : "Boys"} · {weightLabel}{weightLabel && !weightLabel.includes("kg") ? " kg" : ""}
+                    </h3>
+                  )}
+                  {/* Completed Matches */}
+                  {draw.rounds.map((round, ri) => {
+                    const completedMatches = round.filter(m => m.status === "COMPLETED");
+                    if (completedMatches.length === 0) return null;
 
-                    <div className="divide-y divide-slate-100">
-                      {completedMatches.map((match) => {
-                        const winner = match.winnerId === match.slotA.playerId ? match.slotA : match.slotB;
-                        const loser = match.winnerId === match.slotA.playerId ? match.slotB : match.slotA;
-                        const nextMatchInfo = findNextMatch(currentDraw.rounds, ri, round.indexOf(match), winner);
+                    return (
+                      <motion.div
+                        key={ri}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
+                      >
+                        <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white flex items-center justify-between">
+                          <h3 className="font-black">{roundName(ri, draw.rounds.length, smallBracket)} Results</h3>
+                          <span className="text-xs font-bold text-emerald-100">{completedMatches.length} completed</span>
+                        </div>
 
-                        return (
+                        <div className="divide-y divide-slate-100">
+                          {completedMatches.map((match) => {
+                            const winner = match.winnerId === match.slotA.playerId ? match.slotA : match.slotB;
+                            const loser = match.winnerId === match.slotA.playerId ? match.slotB : match.slotA;
+                            const nextMatchInfo = findNextMatch(draw.rounds, ri, round.indexOf(match), winner);
+
+                            return (
                           <div key={match.matchId} className="p-6 hover:bg-emerald-50/30 transition-colors">
                             <div className="flex items-start justify-between gap-6">
                               <div className="flex-1 space-y-4">
@@ -3293,7 +3380,7 @@ export default function TournamentDetailPage() {
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div>
                                         <p className="text-[10px] text-blue-600 font-bold uppercase">Round</p>
-                                        <p className="font-black text-blue-700">{roundName(nextMatchInfo.roundIndex, currentDraw.rounds.length)}</p>
+                                        <p className="font-black text-blue-700">{roundName(nextMatchInfo.roundIndex, draw.rounds.length)}</p>
                                       </div>
                                       <div>
                                         <p className="text-[10px] text-blue-600 font-bold uppercase">Match #{nextMatchInfo.matchNumber}</p>
@@ -3328,31 +3415,12 @@ export default function TournamentDetailPage() {
                   </motion.div>
                 );
               })}
-
-              {/* No Completed Matches */}
-              {currentDraw.rounds.every(r => !r.some(m => m.status === "COMPLETED")) && (
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-20 text-center">
-                  <Clock size={48} className="mx-auto text-slate-200 mb-4" />
-                  <p className="text-slate-500 font-bold text-lg">No Completed Matches Yet</p>
-                  <p className="text-slate-400 font-semibold text-sm mt-1">Complete some matches to see results here</p>
-                  <button onClick={() => setActiveTab("matches")}
-                    className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
-                    Go to Matches →
-                  </button>
                 </div>
-              )}
+                );
+              })}
             </div>
-          ) : (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm py-20 text-center">
-              <BarChart3 size={48} className="mx-auto text-slate-200 mb-4" />
-              <p className="text-slate-500 font-bold text-lg">No Draw for This Category</p>
-              <p className="text-slate-400 font-semibold text-sm mt-1">Generate a draw first to start matches</p>
-              <button onClick={() => setActiveTab("draws")}
-                className="mt-5 px-6 py-2.5 bg-[#FF7400] text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-500/20 hover:scale-105 transition-all">
-                Go to Draw Generation →
-              </button>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -3584,17 +3652,26 @@ export default function TournamentDetailPage() {
                   <AlertCircle size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black">Conclude Tournament</h3>
+                  <h3 className="text-xl font-black">Conclude Category</h3>
                   <p className="text-sm font-semibold opacity-80">This action cannot be undone.</p>
                 </div>
               </div>
-              
+
               <div className="p-6">
-                <p className="text-slate-600 font-medium leading-relaxed">
-                  Are you sure you want to conclude this tournament and submit the final results? 
-                  This will <strong className="text-slate-900">CLOSE</strong> the tournament and allow participants to download their certificates.
-                </p>
-                
+                {(() => {
+                  const categoryLabel = `${ageFilter !== "ALL" ? ageFilter : ""} · ${genderFilter === "FEMALE" ? "Girls" : "Boys"} · ${weightFilter !== "ALL" ? `${weightFilter}kg` : ""}`;
+                  const otherDraws = Object.entries(draws).filter(([k, d]) => k !== currentKey && d.generated);
+                  const isLastCategory = otherDraws.length === 0 || otherDraws.every(([, d]) => d.isConcluded);
+                  return (
+                    <p className="text-slate-600 font-medium leading-relaxed">
+                      Are you sure you want to conclude <strong className="text-slate-900">{categoryLabel}</strong> and submit its final results?
+                      {isLastCategory
+                        ? <> This is the last remaining category, so it will also <strong className="text-slate-900">CLOSE</strong> the whole tournament and allow participants to download their certificates.</>
+                        : <> Other categories in this tournament are unaffected and can still be concluded separately.</>}
+                    </p>
+                  );
+                })()}
+
                 <div className="pt-8 flex items-center justify-end gap-3">
                   <button
                     onClick={() => setIsConcludeModalOpen(false)}
@@ -3603,10 +3680,10 @@ export default function TournamentDetailPage() {
                     Cancel
                   </button>
                   <button
-                    onClick={handleConcludeTournament}
+                    onClick={() => handleConcludeCategory(currentKey, filteredPlayers)}
                     className="flex items-center gap-2 px-6 py-2.5 bg-red-500 text-white rounded-xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 hover:shadow-red-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
                   >
-                    Yes, Conclude Tournament
+                    Yes, Conclude Category
                   </button>
                 </div>
               </div>

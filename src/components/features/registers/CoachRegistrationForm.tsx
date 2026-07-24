@@ -463,6 +463,10 @@ const CoachRegistrationForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.profilePhoto) {
+      setError("Please upload your photo.");
+      return;
+    }
     if (!formData.agreedToTerms) {
       setError("Please agree to the Terms and Privacy policy.");
       return;
@@ -636,8 +640,9 @@ const CoachRegistrationForm = () => {
 
                 {/* Right Column Profile Photo Uploader */}
                 <div className="lg:col-span-4 h-full animate-in fade-in zoom-in-95 duration-200">
-                  <FileUpload 
+                  <FileUpload
                     label="Photo"
+                    required
                     value={formData.profilePhoto}
                     onChange={(url) => setFormData(prev => ({ ...prev, profilePhoto: url }))}
                     accept="image/*"
