@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight,
-  Edit2, Grid, Loader2, Search, X,
+  Edit2, Loader2, Search, X,
 } from "lucide-react";
 import type { Tab, Tournament } from "../types";
 
@@ -42,6 +42,7 @@ export function MatsOfficialsPanel({
   setRefSearchQuery,
   refSearchResults,
   refSearching,
+  refreshRefSearch,
   assignRefereeToMat,
   savingMats,
   setSavingMats,
@@ -67,6 +68,7 @@ export function MatsOfficialsPanel({
   setRefSearchQuery: (v: string) => void;
   refSearchResults: RefereeSearchResult[];
   refSearching: boolean;
+  refreshRefSearch: () => void;
   assignRefereeToMat: (matNum: number, ref: { id: string; name: string; refId?: string }) => void;
   savingMats: boolean;
   setSavingMats: (v: boolean) => void;
@@ -85,6 +87,13 @@ export function MatsOfficialsPanel({
   const matsConfigured = totalMats > 0 && matsConfirmed;
   const officialsAssigned = matsConfigured && tournamentMats.length === totalMats && tournamentMats.every((m) => m.refereeName);
   const readyCount = (matsConfigured ? 1 : 0) + (officialsAssigned ? 1 : 0);
+
+  // Referees already assigned to a different mat shouldn't be offered again —
+  // one referee can't officiate two mats at once.
+  const refereeIdsAssignedElsewhere = new Set(
+    tournamentMats.filter((m) => m.matNumber !== selectedMatForAssignment && m.refereeId).map((m) => m.refereeId)
+  );
+  const availableRefSearchResults = refSearchResults.filter((r) => !refereeIdsAssignedElsewhere.has(r.id));
   // Only a genuinely closed/concluded tournament should skip the setup wizard —
   // "APPROVED" just means registration is open and mats haven't been configured yet.
   const isStarted = tournament.registrationClosed || tournament.status === "CLOSED";
@@ -131,6 +140,7 @@ export function MatsOfficialsPanel({
     setTournamentMats((prev) => prev.filter((m) => m.matNumber !== selectedMatForAssignment));
     setReassigningMat(null);
     setRefSearchQuery("");
+    refreshRefSearch();
   };
 
   const pickReferee = (r: { id: string; name: string; refId?: string }) => {
@@ -246,14 +256,16 @@ export function MatsOfficialsPanel({
                   </div>
 
                   {/* Always-visible roster list — shows registered coach name + ID pairs
-                      for easy mat mapping, narrowed down as the admin types above. */}
+                      for easy mat mapping, narrowed down as the admin types above.
+                      Referees already assigned to a *different* mat are excluded — one
+                      referee can't officiate two mats at once. */}
                   <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
-                    {refSearchResults.length === 0 ? (
+                    {availableRefSearchResults.length === 0 ? (
                       <div className="px-5 py-4 text-sm font-bold text-slate-400">
                         {refSearching ? "Loading…" : refSearchQuery.trim() ? `No referee matches "${refSearchQuery}"` : "No approved referees found."}
                       </div>
                     ) : (
-                      refSearchResults.map((r) => (
+                      availableRefSearchResults.map((r) => (
                         <button
                           key={r.id}
                           onClick={() => pickReferee(r)}
@@ -342,9 +354,7 @@ export function MatsOfficialsPanel({
             <div>
               <h3 className="font-black text-slate-800 text-xl mb-1">Let&apos;s get {tournament?.title || "this tournament"} ready</h3>
               <p className="text-slate-500 font-bold text-sm">
-                {tournament.registrationClosed
-                  ? "Registration is closed. A couple of quick steps before matches can begin."
-                  : "Registration is still open. Set up mats and officials, then close registration to start."}
+                Set up mats and assign match officials to get this tournament match-ready.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -356,16 +366,6 @@ export function MatsOfficialsPanel({
           </div>
 
           <div className="space-y-4 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-3">
-              {tournament.registrationClosed ? (
-                <CheckCircle2 size={22} className="text-emerald-500 shrink-0" />
-              ) : (
-                <div className="w-[22px] h-[22px] rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-[11px] font-black shrink-0">•</div>
-              )}
-              <span className={`font-black text-base ${tournament.registrationClosed ? "text-slate-700" : "text-slate-400"}`}>
-                {tournament.registrationClosed ? "Registration closed" : "Registration open — closes when you start below"}
-              </span>
-            </div>
             <div className="flex items-center gap-3">
               {matsConfigured ? (
                 <CheckCircle2 size={22} className="text-emerald-500 shrink-0" />
@@ -401,77 +401,60 @@ export function MatsOfficialsPanel({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden"
+          className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-8"
         >
-          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-100/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <div>
+            <h3 className="font-black text-slate-800 text-xl mb-1">How many mats will run today?</h3>
+            <p className="text-slate-500 font-bold text-sm max-w-xl">
+              Each mat runs matches in parallel. This decides how many matches can happen at once and how many officials you&apos;ll need.
+            </p>
+          </div>
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-start gap-6 mb-12">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF7400] to-orange-500 flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/30">
-              <Grid size={32} className="text-white" />
+          <div>
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Total Mats</label>
+            <div className="flex items-center gap-3 max-w-xs">
+              <button
+                onClick={() => setMatsCountInput(Math.max(1, parseInt(matsCountInput || "1") - 1).toString())}
+                className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#FF7400] hover:text-[#FF7400] transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <input
+                type="number"
+                min="1"
+                value={matsCountInput}
+                onChange={(e) => setMatsCountInput(e.target.value)}
+                className="w-full h-11 border border-slate-200 rounded-xl font-black text-lg text-center text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/40 focus:border-[#FF7400]"
+              />
+              <button
+                onClick={() => setMatsCountInput((parseInt(matsCountInput || "0") + 1).toString())}
+                className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#FF7400] hover:text-[#FF7400] transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
-            <div>
-              <h3 className="font-black text-slate-900 text-2xl md:text-3xl mb-3 tracking-tight">How many mats will run today?</h3>
-              <p className="text-slate-500 font-semibold text-base leading-relaxed max-w-xl">
-                Each mat runs matches in parallel. This decides how many matches can happen at once and how many officials you&apos;ll need.
-              </p>
+
+            <div className="flex flex-wrap gap-2 pt-4">
+              {[1, 2, 3, 4, 6, 8].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setMatsCountInput(n.toString())}
+                  className={`px-4 py-2 rounded-lg font-bold text-xs transition-colors ${
+                    matsCountInput === n.toString()
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-50 text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-100"
+                  }`}
+                >
+                  {n} Mats
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="relative z-10 bg-slate-50/80 rounded-3xl p-8 md:p-12 border border-slate-200/60 mb-10">
-            <div className="flex flex-col items-center max-w-md mx-auto space-y-10">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-[0.25em]">Select Total Mats</label>
-
-              <div className="flex items-center justify-center gap-6">
-                <button
-                  onClick={() => setMatsCountInput(Math.max(1, parseInt(matsCountInput || "1") - 1).toString())}
-                  className="w-14 h-14 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#FF7400] hover:text-[#FF7400] hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95"
-                >
-                  <ChevronLeft size={28} className="stroke-[3]" />
-                </button>
-
-                <div className="relative group">
-                  <input
-                    type="number"
-                    min="1"
-                    value={matsCountInput}
-                    onChange={(e) => setMatsCountInput(e.target.value)}
-                    className="w-36 h-36 bg-white border-[5px] border-[#FF7400] rounded-[2rem] font-black text-[4rem] text-center text-slate-800 shadow-2xl shadow-orange-500/20 focus:outline-none focus:ring-4 focus:ring-orange-500/30 transition-all group-hover:scale-105 cursor-pointer"
-                  />
-                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.2em] px-5 py-2 rounded-full shadow-md z-10">
-                    Mats
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setMatsCountInput((parseInt(matsCountInput || "0") + 1).toString())}
-                  className="w-14 h-14 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-slate-600 hover:border-[#FF7400] hover:text-[#FF7400] hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-95"
-                >
-                  <ChevronRight size={28} className="stroke-[3]" />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-3 pt-4">
-                {[1, 2, 3, 4, 6, 8].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setMatsCountInput(n.toString())}
-                    className={`px-6 py-3 rounded-xl font-black text-sm transition-all duration-300 ${
-                      matsCountInput === n.toString()
-                        ? "bg-slate-900 text-white shadow-xl shadow-slate-900/20 scale-105"
-                        : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-800"
-                    }`}
-                  >
-                    {n} Mats
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 flex flex-col-reverse sm:flex-row gap-4 items-center justify-between">
+          <div className="flex flex-col-reverse sm:flex-row gap-4 items-center justify-between pt-4 border-t border-slate-100">
             <button
               onClick={() => setWizardStep(0)}
-              className="w-full sm:w-auto px-8 py-4 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors"
+              className="w-full sm:w-auto px-8 py-3 bg-slate-100 text-slate-600 font-black rounded-xl hover:bg-slate-200 transition-colors"
             >
               Back to Overview
             </button>
@@ -486,9 +469,9 @@ export function MatsOfficialsPanel({
                 }
               }}
               disabled={!matsCountInput || parseInt(matsCountInput) < 1}
-              className="w-full sm:w-auto px-12 py-4 bg-gradient-to-r from-[#FF7400] to-orange-500 text-white font-black rounded-xl shadow-xl shadow-orange-500/30 disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-10 py-3 bg-[#FF7400] hover:bg-orange-600 text-white font-black rounded-xl shadow-md shadow-orange-500/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
-              Continue to Officials <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              Continue to Officials <ChevronRight size={18} />
             </button>
           </div>
         </motion.div>

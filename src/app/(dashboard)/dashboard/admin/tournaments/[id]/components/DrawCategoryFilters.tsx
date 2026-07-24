@@ -141,7 +141,7 @@ export function DrawCategoryFilters({
           <div className="flex items-center justify-between mb-4">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Weight / Age Sub-categories</p>
             <span className="text-xs font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-              {eligiblePlayersCount} eligible / {groupPlayers.length} total in this category
+              {eligiblePlayersCount} eligible / {weightFilter === "ALL" ? groupPlayers.length : groupPlayers.filter((p) => String(p.weight) === weightFilter).length} total in this category
             </span>
           </div>
 

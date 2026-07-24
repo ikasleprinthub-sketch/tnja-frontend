@@ -7,10 +7,10 @@ import {
   Trophy, Users, Shuffle, Swords, Monitor, ArrowLeft,
   Grid, List, X, Check, Loader2, Calendar, MapPin,
   Target, Zap, Award, Medal, Edit2,
-  AlertCircle, Clock, Download, BarChart3, Send,
+  AlertCircle, Clock, Download, BarChart3,
   PlayCircle, Lock, Search, XCircle, Printer,
   ChevronLeft, ChevronRight, ChevronDown, Eye, FilterX,
-  LayoutList, Flag, Scale, Lightbulb, Info, Upload,
+  LayoutList, Upload,
 } from "lucide-react";
 import type { BracketMatch, BracketSlot, DrawCategory, RegisteredPlayer, Seeds, Tab, Tournament, ViewMode } from "./types";
 import {
@@ -89,10 +89,6 @@ export default function TournamentDetailPage() {
   const [concludingCategoryKey, setConcludingCategoryKey] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; action?: () => void }>({ isOpen: false, title: "", message: "" });
 
-  // ── Messaging / Reply State ─────────────────────────────────────────────────
-  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
-  const [replyLoading, setReplyLoading] = useState<Record<string, boolean>>({});
-  const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
   // ── Weigh-in State ────────────────────────────────────────────────────────
@@ -112,6 +108,7 @@ export default function TournamentDetailPage() {
   const [refSearchQuery, setRefSearchQuery] = useState("");
   const [refSearchResults, setRefSearchResults] = useState<{ id: string; refId?: string; name: string; district: string; club: string }[]>([]);
   const [refSearching, setRefSearching] = useState(false);
+  const [refSearchRefreshKey, setRefSearchRefreshKey] = useState(0);
   const refSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Registrations Tab State ────────────────────────────────────────────────
@@ -178,7 +175,7 @@ export default function TournamentDetailPage() {
     return () => {
       if (refSearchDebounceRef.current) clearTimeout(refSearchDebounceRef.current);
     };
-  }, [refSearchQuery, selectedMatForAssignment]);
+  }, [refSearchQuery, selectedMatForAssignment, refSearchRefreshKey]);
 
   const assignRefereeToMat = (matNum: number, ref: { id: string; name: string; refId?: string }) => {
     setTournamentMats(prev => {
@@ -631,42 +628,6 @@ export default function TournamentDetailPage() {
     }
   };
 
-  // ── Messages / Replies ───────────────────────────────────────────────────────
-  const fetchMessages = async (regId: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMessages((prev) => ({ ...prev, [regId]: data }));
-      }
-    } catch (err) {
-      console.error("Failed to fetch messages", err);
-    }
-  };
-
-  const handleSendReply = async (regId: string) => {
-    const message = replyTexts[regId]?.trim();
-    if (!message) return;
-    setReplyLoading((prev) => ({ ...prev, [regId]: true }));
-    try {
-      const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/registrations/${regId}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message }),
-      });
-      if (!res.ok) throw new Error("Failed to send reply");
-      setReplyTexts((prev) => { const n = { ...prev }; delete n[regId]; return n; });
-      await fetchMessages(regId);
-      showToast("Reply sent to player.");
-    } catch (err: any) {
-      showToast(err.message || "Something went wrong", false);
-    } finally {
-      setReplyLoading((prev) => ({ ...prev, [regId]: false }));
-    }
-  };
-
   // ── Fetch existing draws ────────────────────────────────────────────────────
   const fetchDraws = useCallback(async () => {
     if (!tournamentId) return;
@@ -711,12 +672,6 @@ export default function TournamentDetailPage() {
       autoDetectPlacements();
     }
   }, [activeTab, autoDetectPlacements]);
-
-  useEffect(() => {
-    if (activeTab === "mats") {
-      fetchMats();
-    }
-  }, [activeTab, fetchMats]);
 
   // Polling for live bracket updates from the scoreboards
   useEffect(() => {
@@ -776,8 +731,8 @@ export default function TournamentDetailPage() {
     const activeGender = explicitCat ? explicitCat.gender : genderFilter;
     const activeWeight = explicitCat ? explicitCat.weightCategory : weightFilter;
 
-    if (activePlayers.length < 2) {
-      showToast("Need at least 2 approved players to generate a draw", false);
+    if (activePlayers.length < 1) {
+      showToast("Need at least 1 approved player to generate a draw", false);
       return;
     }
 
@@ -811,7 +766,12 @@ export default function TournamentDetailPage() {
     if (isShuffle) setShuffleKey(k => k + 1);
     
     let rounds;
-    if (selectedMethod === "round-robin") {
+    if (activePlayers.length === 1) {
+      // Single-player category — no opponent to pair against, so just declare
+      // a direct win. generateIJFBracket pairs the lone player against a BYE
+      // slot, and processByeMatches auto-completes that as a walkover.
+      rounds = processByeMatches(generateIJFBracket(activePlayers, seeds, "club-separated"));
+    } else if (selectedMethod === "round-robin") {
       const shuffledPlayers = isShuffle ? shuffleArray(activePlayers) : activePlayers;
       rounds = generateRoundRobin(shuffledPlayers);
     } else {
@@ -1504,28 +1464,14 @@ export default function TournamentDetailPage() {
 
       {/* ══ OVERVIEW ══════════════════════════════════════════════════════════ */}
       {activeTab === "overview" && tournament && (() => {
-        const isRegClosed = tournament.registrationClosed;
-        const isMatsConfigured = tournamentMats.length > 0;
-        const isOfficialsAssigned = tournamentMats.length > 0 && tournamentMats.every(m => m.refereeName);
-        const isDrawGenerated = tournament.status === "STARTED" || tournament.status === "CLOSED";
-        const isTournamentStarted = tournament.status === "STARTED" || tournament.status === "CLOSED";
-
-        const progressSteps = [
-          { title: "Registration", status: isRegClosed ? "Closed" : "Open", completed: isRegClosed },
-          { title: "Mats", status: isMatsConfigured ? "Configured" : "Not Configured", completed: isMatsConfigured },
-          { title: "Officials", status: isOfficialsAssigned ? "Assigned" : "Not Assigned", completed: isOfficialsAssigned },
-          { title: "Draw", status: isDrawGenerated ? "Generated" : "Not Generated", completed: isDrawGenerated },
-          { title: "Tournament", status: tournament.status === "CLOSED" ? "Completed" : tournament.status === "STARTED" ? "Started" : "Not Started", completed: isTournamentStarted }
-        ];
-
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
-            {/* Left Column: Tournament Info */}
-            <div className="bg-white rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-sm space-y-6">
-              <h3 className="font-black text-slate-800 text-lg flex items-center gap-3">
-                <LayoutList size={20} className="text-slate-400" /> Tournament Info
+          <div className="grid grid-cols-1 gap-6">
+            {/* Tournament Info */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <LayoutList size={16} className="text-slate-400" /> Tournament Info
               </h3>
-              <div className="space-y-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
                 {[
                   { l: "TITLE", v: tournament.title },
                   { l: "LEVEL", v: tournament.level },
@@ -1536,10 +1482,10 @@ export default function TournamentDetailPage() {
                   { l: "BELT", v: tournament.beltEligibility || "NA" },
                   { l: "BPL ALLOWED", v: tournament.allowBPL ? "Yes" : "No" },
                 ].map(({ l, v }) => (
-                  <div key={l} className="flex justify-between py-4 border-b border-slate-50 last:border-0 items-center">
-                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{l}</span>
+                  <div key={l} className="min-w-0">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{l}</p>
                     {l === "STATUS" ? (
-                      <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                      <span className={`inline-block text-[10px] font-black px-2.5 py-1 rounded-full ${
                         v === "APPROVED" ? "bg-emerald-100 text-emerald-700" :
                         v === "REJECTED" ? "bg-red-100 text-red-700" :
                         v === "CLOSED" ? "bg-blue-100 text-blue-700" :
@@ -1548,116 +1494,11 @@ export default function TournamentDetailPage() {
                         {v}
                       </span>
                     ) : (
-                      <span className="text-sm font-black text-slate-800 text-right max-w-[60%]">{v}</span>
+                      <p className="text-sm font-black text-slate-800 truncate" title={String(v)}>{v}</p>
                     )}
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Right Column: Tournament Progress & Actions */}
-            <div className="bg-white rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-sm space-y-8 flex flex-col">
-              <h3 className="font-black text-slate-800 text-lg flex items-center gap-3">
-                <Flag size={20} className="text-slate-400" /> Tournament Progress
-              </h3>
-
-              {/* Stepper */}
-              <div className="relative pt-4 pb-6">
-                <div className="absolute top-8 left-[8%] right-[8%] h-0.5 bg-slate-100 -z-10"></div>
-                <div className="flex justify-between relative z-0">
-                  {progressSteps.map((step, idx) => (
-                    <div key={step.title} className="flex flex-col items-center w-24 gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-white ${
-                        step.completed ? "border-emerald-400 text-emerald-500" : "border-slate-200 border-dashed text-slate-300"
-                      }`}>
-                        {step.completed ? <Check size={18} className="stroke-[3]" /> : <div className="w-2 h-2 rounded-full bg-slate-200"></div>}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs font-black text-slate-800">{step.title}</p>
-                        <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{step.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Info Box */}
-              {!isTournamentStarted && (
-                <div className="bg-blue-50/50 text-blue-600 px-5 py-4 rounded-xl flex gap-3 text-xs font-bold items-center border border-blue-100/50">
-                  <Info size={18} className="shrink-0" />
-                  Complete the pending steps to generate the draw and start the tournament.
-                </div>
-              )}
-
-              {/* Quick Actions */}
-              <div className="bg-[#FFF9F2] rounded-3xl p-6 lg:p-8 border border-[#FFE8CC]/50 flex-grow mt-2">
-                <h4 className="font-black text-slate-800 text-base flex items-center gap-2 mb-6">
-                  <Zap size={18} className="text-[#FF7400]" /> Quick Actions
-                </h4>
-                
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Configure Mats */}
-                  <button 
-                    onClick={() => setActiveTab("mats")}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center mb-1">
-                      <LayoutList size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-800">Configure Mats</p>
-                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Add & manage mats</p>
-                    </div>
-                  </button>
-
-                  {/* Assign Officials */}
-                  <button 
-                    onClick={() => setActiveTab("mats")}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-1">
-                      <Users size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-800">Assign Officials</p>
-                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Assign referees</p>
-                    </div>
-                  </button>
-
-                  {/* Start Weigh-In */}
-                  <button 
-                    onClick={() => setActiveTab("weigh-in")}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center mb-1">
-                      <Scale size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-800">Start Weigh-In</p>
-                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Record weigh-in</p>
-                    </div>
-                  </button>
-
-                  {/* Print Forms */}
-                  <button 
-                    onClick={() => {}}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-center text-center gap-2"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center mb-1">
-                      <Printer size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-800">Print Forms</p>
-                      <p className="text-[9px] font-bold text-slate-500 mt-0.5">Download forms</p>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 mt-6 text-[11px] font-bold text-slate-500">
-                  <Lightbulb size={14} className="text-slate-400" /> These actions will help you move to the next stage.
-                </div>
-              </div>
-
             </div>
           </div>
         );
@@ -1682,6 +1523,7 @@ export default function TournamentDetailPage() {
           setRefSearchQuery={setRefSearchQuery}
           refSearchResults={refSearchResults}
           refSearching={refSearching}
+          refreshRefSearch={() => setRefSearchRefreshKey((k) => k + 1)}
           assignRefereeToMat={assignRefereeToMat}
           savingMats={savingMats}
           setSavingMats={setSavingMats}
@@ -2018,7 +1860,7 @@ export default function TournamentDetailPage() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {["TNJA ID", "Name", "District", "Club", "Category", "Belt", "Payment Status", "Registration Date", "Actions"].map((h) => (
+                    {["TNJA ID", "Name", "District", "Category", "Belt", "Payment Status", "Registration Date", "Actions"].map((h) => (
                       <th key={h} className="px-5 py-4 text-left text-[11px] font-black text-slate-600">{h}</th>
                     ))}
                   </tr>
@@ -2041,7 +1883,7 @@ export default function TournamentDetailPage() {
                     if (paginated.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={9} className="px-5 py-10 text-center text-slate-400 font-bold">No players found matching your filters.</td>
+                          <td colSpan={8} className="px-5 py-10 text-center text-slate-400 font-bold">No players found matching your filters.</td>
                         </tr>
                       );
                     }
@@ -2062,7 +1904,6 @@ export default function TournamentDetailPage() {
                           <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.tnjaId || "—"}</td>
                           <td className="px-5 py-4 text-sm font-semibold text-slate-800">{p.name}</td>
                           <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.district || "—"}</td>
-                          <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.club || "—"}</td>
                           <td className="px-5 py-4 text-sm font-semibold text-slate-500">{p.ageGroup}</td>
                           <td className="px-5 py-4 text-sm font-semibold text-slate-500">
                             {p.belt ? (
@@ -2084,12 +1925,8 @@ export default function TournamentDetailPage() {
                           </td>
                           <td className="px-5 py-4 flex gap-2">
                             <button
-                              onClick={() => {
-                                const newExpanded = expandedPlayerId === p.id ? null : p.id;
-                                setExpandedPlayerId(newExpanded);
-                                if (newExpanded === p.id && p.regId) fetchMessages(p.regId);
-                              }}
-                              className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors" title="View / Message"
+                              onClick={() => setExpandedPlayerId(expandedPlayerId === p.id ? null : p.id)}
+                              className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors" title="View Details"
                             >
                               <Eye size={16} />
                             </button>
@@ -2099,46 +1936,44 @@ export default function TournamentDetailPage() {
                         </tr>
                         {expandedPlayerId === p.id && p.regId && (
                           <tr>
-                            <td colSpan={9} className="p-0 border-b border-slate-200 bg-slate-50/80">
+                            <td colSpan={8} className="p-0 border-b border-slate-200 bg-slate-50/80">
                               <div className="p-4 flex flex-col items-center">
                                 <div className="w-full max-w-3xl space-y-4">
-                                  {/* Chat thread */}
-                                  {messages[p.regId]?.length > 0 && (
-                                    <div className="px-4 py-3 bg-white rounded-xl border border-slate-200 space-y-3 max-h-48 overflow-y-auto">
-                                      {messages[p.regId].map((msg) => (
-                                        <div key={msg.id} className="flex items-start gap-2">
-                                          <div className="w-6 h-6 rounded-full bg-[#FF7400]/10 flex items-center justify-center shrink-0 mt-0.5">
-                                            <span className="text-[10px] font-black text-[#FF7400]">A</span>
-                                          </div>
-                                          <div className="flex-grow">
-                                            <p className="text-xs font-bold text-slate-700 leading-snug">{msg.message}</p>
-                                            <p className="text-[10px] text-slate-400 mt-0.5">
-                                              {new Date(msg.createdAt).toLocaleDateString("en-GB")} {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                            </p>
-                                          </div>
+                                  {/* Player Details Card */}
+                                  <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h4 className="font-black text-slate-800 text-sm">{p.name}</h4>
+                                      {p.status && (
+                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider ${
+                                          p.status === "APPROVED" ? "bg-emerald-50 text-emerald-600" :
+                                          p.status === "REJECTED" ? "bg-red-50 text-red-600" :
+                                          "bg-amber-50 text-amber-600"
+                                        }`}>
+                                          {p.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
+                                      {[
+                                        { l: "TNJA ID", v: p.tnjaId || p.permanentId || p.tempId || "—" },
+                                        { l: "Gender", v: p.gender || "—" },
+                                        { l: "District", v: p.district || "—" },
+                                        { l: "Club", v: p.club || "—" },
+                                        { l: "Coach", v: p.coachName || "—" },
+                                        { l: "Category", v: p.ageGroup || "—" },
+                                        { l: "Age", v: p.exactAge ? `${p.exactAge} yrs` : "—" },
+                                        { l: "Belt", v: p.belt || "—" },
+                                        { l: "Weight", v: p.rawWeight || (p.weight ? `${p.weight} kg` : "—") },
+                                        { l: "Height", v: p.rawHeight || "—" },
+                                        { l: "Weight Category", v: p.weightLabel || "—" },
+                                        { l: "Payment", v: p.isPaid ? "Paid" : "Unpaid" },
+                                        { l: "Registered On", v: p.registeredAt ? new Date(p.registeredAt).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—" },
+                                      ].map(({ l, v }) => (
+                                        <div key={l}>
+                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{l}</p>
+                                          <p className="text-sm font-bold text-slate-700">{v}</p>
                                         </div>
                                       ))}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Reply Input */}
-                                  <div className="w-full rounded-2xl p-[1.5px]" style={{ background: "linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)" }}>
-                                    <div className="flex items-center gap-2 bg-white rounded-[14px] px-3 py-2">
-                                      <input
-                                        type="text"
-                                        placeholder={`Send message to ${p.name}...`}
-                                        value={replyTexts[p.regId!] || ""}
-                                        onChange={(e) => setReplyTexts((prev) => ({ ...prev, [p.regId!]: e.target.value }))}
-                                        onKeyDown={(e) => e.key === "Enter" && handleSendReply(p.regId!)}
-                                        className="flex-grow bg-transparent text-sm text-slate-600 placeholder-slate-400 outline-none px-2"
-                                      />
-                                      <button
-                                        onClick={() => handleSendReply(p.regId!)}
-                                        disabled={!replyTexts[p.regId!]?.trim() || replyLoading[p.regId!]}
-                                        className="text-slate-400 hover:text-[#FF7400] disabled:opacity-30 transition-colors shrink-0 p-2"
-                                      >
-                                        {replyLoading[p.regId!] ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                      </button>
                                     </div>
                                   </div>
                                 </div>
@@ -2358,12 +2193,15 @@ export default function TournamentDetailPage() {
                 {(() => {
                   const map: Record<string, { ageGroup: string; exactAge: string; gender: string; weight: string; weightLabel: string; catDrawPlayers: RegisteredPlayer[] }> = {};
                   eligiblePlayers.forEach(p => {
-                    const exactAgeStr = p.exactAge ? String(p.exactAge) : "ALL";
-                    const key = categoryKey(p.ageGroup, exactAgeStr, p.gender, String(p.weight));
+                    // Categories are grouped by age group (not each player's exact age) —
+                    // this matches the single-category view and how saved draws are keyed,
+                    // so players in the same age group don't get silently split into
+                    // separate, identically-labeled cards.
+                    const key = categoryKey(p.ageGroup, "ALL", p.gender, String(p.weight));
                     if (!map[key]) {
                       map[key] = {
                         ageGroup: p.ageGroup,
-                        exactAge: exactAgeStr,
+                        exactAge: "ALL",
                         gender: p.gender,
                         weight: String(p.weight),
                         weightLabel: p.weightLabel || String(p.weight),
@@ -2399,16 +2237,18 @@ export default function TournamentDetailPage() {
                           </h3>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2">
-                              <select
-                                value={categoryDrawMethod[key] || (catDrawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
-                                onChange={(e) => setCategoryDrawMethod(prev => ({ ...prev, [key]: e.target.value as any }))}
-                                className="px-2.5 py-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
-                              >
-                                <option value="round-robin">1.Round Robin</option>
-                                <option value="straight-elimination">2.Straight elimination</option>
-                                <option value="single-repechage">3.Single Repechage</option>
-                                <option value="double-repechage">4.Double Repechage</option>
-                              </select>
+                              {catDrawPlayers.length > 1 && (
+                                <select
+                                  value={categoryDrawMethod[key] || (catDrawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
+                                  onChange={(e) => setCategoryDrawMethod(prev => ({ ...prev, [key]: e.target.value as any }))}
+                                  className="px-2.5 py-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#FF7400]/20 transition-all cursor-pointer"
+                                >
+                                  <option value="round-robin">1.Round Robin</option>
+                                  <option value="straight-elimination">2.Straight elimination</option>
+                                  <option value="single-repechage">3.Single Repechage</option>
+                                  <option value="double-repechage">4.Double Repechage</option>
+                                </select>
+                              )}
                               <button
                                 onClick={() => {
                                   const defaultMethod = catDrawPlayers.length <= 5 ? "round-robin" : "straight-elimination";
@@ -2428,11 +2268,13 @@ export default function TournamentDetailPage() {
                                     selectedMethod
                                   );
                                 }}
-                                disabled={catDrawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                                disabled={catDrawPlayers.length < 1 || (catDrawPlayers.length === 1 && !!draw?.generated) || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg font-bold text-xs shadow-md shadow-slate-700/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {drawPhase === "shuffling" || drawPhase === "dealing"
                                   ? <><Loader2 size={13} className="animate-spin" /> Processing...</>
+                                  : catDrawPlayers.length === 1
+                                  ? <><Trophy size={13} /> {draw?.generated ? "Winner Declared" : "Direct Win"}</>
                                   : <><Shuffle size={13} /> {draw?.generated ? "Shuffle Bracket" : "Generate Draw"}</>}
                               </button>
                             </div>
@@ -2605,41 +2447,47 @@ export default function TournamentDetailPage() {
                             {drawPlayers.length} Players Ready
                           </p>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                            {currentDraw?.generated ? "Assign seeds & Re-Shuffle" : "Assign seeds & Generate Draw"}
+                            {drawPlayers.length === 1
+                              ? (currentDraw?.generated ? "Winner declared" : "No opponent — declare a direct win")
+                              : (currentDraw?.generated ? "Assign seeds & Re-Shuffle" : "Assign seeds & Generate Draw")}
                           </p>
                         </div>
                       </div>
 
                       {/* Right Side: Actions */}
                       <div className="flex flex-wrap md:flex-nowrap items-center gap-3 w-full xl:w-auto">
-                        
+
                         {/* Format Select */}
-                        <div className="relative w-full md:w-auto">
-                          <select
-                            value={detailDrawMethod || (drawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
-                            onChange={(e) => setDetailDrawMethod(e.target.value as DrawMethodType)}
-                            className="w-full md:w-auto pl-4 pr-10 py-2.5 text-sm font-bold bg-orange-50/50 border-2 border-orange-200 text-orange-900 rounded-xl focus:outline-none focus:border-[#FF7400] hover:border-orange-300 transition-all cursor-pointer shadow-sm appearance-none"
-                          >
-                            <option value="round-robin">1. Round Robin</option>
-                            <option value="straight-elimination">2. Straight Elimination</option>
-                            <option value="single-repechage">3. Single Repechage</option>
-                            <option value="double-repechage">4. Double Repechage</option>
-                          </select>
-                          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400 pointer-events-none" />
-                        </div>
-                        
+                        {drawPlayers.length > 1 && (
+                          <div className="relative w-full md:w-auto">
+                            <select
+                              value={detailDrawMethod || (drawPlayers.length <= 5 ? "round-robin" : "straight-elimination")}
+                              onChange={(e) => setDetailDrawMethod(e.target.value as DrawMethodType)}
+                              className="w-full md:w-auto pl-4 pr-10 py-2.5 text-sm font-bold bg-orange-50/50 border-2 border-orange-200 text-orange-900 rounded-xl focus:outline-none focus:border-[#FF7400] hover:border-orange-300 transition-all cursor-pointer shadow-sm appearance-none"
+                            >
+                              <option value="round-robin">1. Round Robin</option>
+                              <option value="straight-elimination">2. Straight Elimination</option>
+                              <option value="single-repechage">3. Single Repechage</option>
+                              <option value="double-repechage">4. Double Repechage</option>
+                            </select>
+                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400 pointer-events-none" />
+                          </div>
+                        )}
+
                         {/* Action Button */}
                         <button
                           onClick={() => currentDraw?.generated ? handleShuffle() : handleGenerateDraw()}
-                          disabled={drawPlayers.length < 2 || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
+                          disabled={drawPlayers.length < 1 || (drawPlayers.length === 1 && !!currentDraw?.generated) || drawPhase === "shuffling" || drawPhase === "dealing" || autoGenerating}
                           className={`w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm shadow-md transition-all ${
-                            currentDraw?.generated 
-                            ? "bg-slate-700 text-white hover:bg-slate-600 hover:shadow-lg active:scale-95 disabled:opacity-50" 
+                            currentDraw?.generated
+                            ? "bg-slate-700 text-white hover:bg-slate-600 hover:shadow-lg active:scale-95 disabled:opacity-50"
                             : "bg-slate-800 text-white hover:bg-slate-700 hover:shadow-lg active:scale-95 disabled:opacity-50"
                           }`}
                         >
                           {drawPhase === "shuffling" || drawPhase === "dealing"
                             ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                            : drawPlayers.length === 1
+                            ? <><Trophy size={16} /> {currentDraw?.generated ? "Winner Declared" : "Direct Win"}</>
                             : <><Shuffle size={16} /> {currentDraw?.generated ? "Re-Shuffle Bracket" : "Generate Draw"}</>}
                         </button>
 
