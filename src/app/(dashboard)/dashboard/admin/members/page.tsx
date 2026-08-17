@@ -369,6 +369,8 @@ export default function MembersListPage() {
                               </div>
                             ) : typeof val === "object" && val !== null ? (
                               (val as any).name || JSON.stringify(val)
+                            ) : (typeof val === "string" && /^\d{4}-\d{2}-\d{2}T/.test(val)) ? (
+                              new Date(val).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
                             ) : (
                               String(val ?? "-")
                             )}

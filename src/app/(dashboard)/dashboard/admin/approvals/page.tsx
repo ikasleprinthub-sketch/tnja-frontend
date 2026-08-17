@@ -262,11 +262,11 @@ function ApprovalsContent() {
   };
 
   const statusConfig: Record<string, { label: string; dot: string; text: string }> = {
-    PENDING:  { label: "PENDING",  dot: "bg-red-600",   text: "text-red-600" },
-    ACTIVE:   { label: "ACTIVE",   dot: "bg-red-600",   text: "text-red-600" },
-    APPROVED: { label: "APPROVED", dot: "bg-emerald-500",  text: "text-emerald-600" },
-    REJECTED: { label: "REJECTED", dot: "bg-red-500",      text: "text-red-600" },
-    REPLAY:   { label: "REPLAY",   dot: "bg-amber-500",  text: "text-amber-600" },
+    PENDING: { label: "PENDING", dot: "bg-red-600", text: "text-red-600" },
+    ACTIVE: { label: "ACTIVE", dot: "bg-red-600", text: "text-red-600" },
+    APPROVED: { label: "APPROVED", dot: "bg-emerald-500", text: "text-emerald-600" },
+    REJECTED: { label: "REJECTED", dot: "bg-red-500", text: "text-red-600" },
+    REPLAY: { label: "REPLAY", dot: "bg-amber-500", text: "text-amber-600" },
   };
 
   return (
@@ -278,9 +278,8 @@ function ApprovalsContent() {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-6 right-6 z-200 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${
-              toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-            }`}
+            className={`fixed top-6 right-6 z-200 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+              }`}
           >
             {toast.type === "success" ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
             {toast.msg}
@@ -319,11 +318,10 @@ function ApprovalsContent() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all text-left ${
-                  isActive
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all text-left ${isActive
                     ? "bg-[#FF7400]/10 text-[#FF7400] shadow-[0_2px_8px_-2px_rgba(255,116,0,0.15)]"
                     : "text-slate-600 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Icon size={18} className={isActive ? "text-[#FF7400]" : "text-slate-400"} />
                 {tab.label}
@@ -342,11 +340,10 @@ function ApprovalsContent() {
                 <button
                   key={st.id}
                   onClick={() => setActiveStatus(st.id)}
-                  className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
-                    isActive
+                  className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${isActive
                       ? "bg-[#FF7400] text-white shadow-md shadow-[#FF7400]/20"
                       : "text-slate-500 hover:text-slate-800 hover:bg-slate-100/50"
-                  }`}
+                    }`}
                 >
                   {st.label}
                 </button>
@@ -355,12 +352,12 @@ function ApprovalsContent() {
           </div>
 
           {/* List Headers */}
-          <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 px-8 text-[#FF7400] font-black text-[15px] mb-4">
+          <div className="grid grid-cols-[1.5fr_1.5fr_1fr_1fr_auto] gap-4 px-8 text-[#FF7400] font-black text-[15px] mb-4">
             <div>Applicant</div>
             <div>Contact</div>
             <div>Location</div>
             <div>Status</div>
-            <div className="w-[220px] text-center">Actions</div>
+            <div>Actions</div>
           </div>
 
           {loading ? (
@@ -389,7 +386,7 @@ function ApprovalsContent() {
                       exit={{ opacity: 0 }}
                       className="bg-white rounded-[20px] shadow-sm border border-slate-100 py-5 px-8 flex items-center hover:shadow-md transition-all"
                     >
-                      <div className="grid grid-cols-[1.5fr_2fr_1fr_1fr_2fr] gap-4 w-full items-center">
+                      <div className="grid grid-cols-[1.5fr_1.5fr_1fr_1fr_auto] gap-4 w-full items-center">
                         {/* Applicant */}
                         <div className="flex items-center gap-3">
                           {item.avatar ? (
@@ -415,7 +412,7 @@ function ApprovalsContent() {
                             )}
                           </div>
                         </div>
-                        
+
                         {/* Contact */}
                         <div className="flex flex-col gap-1.5">
                           {item.phone && item.phone !== "—" && (
@@ -429,7 +426,7 @@ function ApprovalsContent() {
                             </div>
                           )}
                           {(!item.phone || item.phone === "—") && (!item.email || item.email === "—") && (
-                             <span className="text-[13px] text-slate-400 italic">No contact provided</span>
+                            <span className="text-[13px] text-slate-400 italic">No contact provided</span>
                           )}
                         </div>
 
@@ -445,61 +442,63 @@ function ApprovalsContent() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center justify-start gap-4">
+                        <div className="flex items-center justify-start gap-2">
                           {item.status === "PENDING" ? (
                             <>
-                              <button 
+                              <button
                                 onClick={() => {
                                   setSelectedItem(item);
                                   setIsDetailModalOpen(true);
                                 }}
                                 disabled={actionLoading === item.id}
-                                className="bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors px-4 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+                                className="bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors w-[90px] h-[36px] rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
                               >
                                 <Eye size={13} />
                                 Review
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleApprove(item)}
                                 disabled={actionLoading === item.id}
-                                className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+                                className="bg-[#FF7400] hover:bg-orange-600 transition-colors text-white w-[90px] h-[36px] rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
                               >
                                 {actionLoading === item.id ? <Loader2 size={13} className="animate-spin" /> : null}
                                 Approve
                               </button>
-                               <button 
+                              <button
                                 onClick={() => openRequestChangesModal(item)}
                                 disabled={actionLoading === item.id}
-                                className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors px-5 py-2 rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 shrink-0"
+                                className="bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors w-[90px] h-[36px] rounded-lg font-bold text-sm shadow-sm disabled:opacity-50 shrink-0 flex items-center justify-center gap-1.5"
                               >
                                 Replay
                               </button>
-                              <div 
-                                className={`p-[1px] rounded-lg shrink-0 inline-flex ${actionLoading === item.id ? 'opacity-50' : ''}`}
+                              <div
+                                className={`p-[1px] rounded-lg shrink-0 inline-flex w-[90px] h-[36px] ${actionLoading === item.id ? 'opacity-50' : ''}`}
                                 style={{ background: 'linear-gradient(to right, #552700 0%, #FF0E00 25%, #FFDA00 75%, #FF7400 100%)' }}
                               >
-                                <button 
+                                <button
                                   onClick={() => openRejectModal(item)}
                                   disabled={actionLoading === item.id}
-                                  className="text-slate-800 hover:bg-orange-50 transition-colors px-6 py-2 rounded-[7px] font-bold text-sm bg-white flex items-center justify-center"
+                                  className="text-slate-800 hover:bg-orange-50 transition-colors w-full h-full rounded-[7px] font-bold text-sm bg-white flex items-center justify-center"
                                 >
                                   Deny
                                 </button>
                               </div>
                             </>
                           ) : (
-                            <div className="px-5 py-2 flex items-center gap-1.5">
-                               <span className={`text-sm font-bold ${sc.text}`}>{sc.label}</span>
+                            <div className="py-2 flex items-center justify-start">
+                              <button
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setIsDetailModalOpen(true);
+                                }}
+                                className="bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors px-4 h-[36px] rounded-lg font-bold text-sm shadow-sm flex items-center justify-center gap-1.5 shrink-0"
+                              >
+                                <Eye size={14} />
+                                View
+                              </button>
                             </div>
                           )}
-                          
-                          <button 
-                             onClick={() => { setSelectedItem(item); setIsDetailModalOpen(true); }}
-                             className="w-9 h-9 flex items-center justify-center border-[2px] border-slate-800 rounded-full text-slate-800 hover:bg-slate-100 transition-colors ml-auto shrink-0 cursor-pointer"
-                             title="View Details"
-                          >
-                            <MoreHorizontal size={18} className="stroke-3" />
-                          </button>
+
                         </div>
                       </div>
                     </motion.div>
@@ -565,6 +564,8 @@ function ApprovalsContent() {
                               </div>
                             ) : typeof val === "object" && val !== null ? (
                               (val as any).name || JSON.stringify(val)
+                            ) : (typeof val === "string" && /^\d{4}-\d{2}-\d{2}T/.test(val)) ? (
+                              new Date(val).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
                             ) : (
                               String(val ?? "—")
                             )}

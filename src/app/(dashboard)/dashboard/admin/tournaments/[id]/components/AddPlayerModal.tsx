@@ -147,17 +147,25 @@ export function AddPlayerModal({
   };
 
   const handleAddExisting = () => {
-    if (!selected) return;
+    if (!selected) {
+      setErrorMsg("Please search and select a player to add.");
+      return;
+    }
     submitRegistration({ studentId: selected.id, weight, height, belt });
   };
 
-  const canCreate = fullName.trim() && gender && dob && aadhaarNumber.trim() && mobileNumber.trim() && districtId && talukId;
-
   const handleCreateAndAdd = () => {
-    if (!canCreate) {
-      setErrorMsg("Please fill in all required fields (marked *).");
-      return;
-    }
+    if (!fullName.trim()) return setErrorMsg("Full Name is required.");
+    if (!gender) return setErrorMsg("Gender is required.");
+    if (!dob) return setErrorMsg("Date of Birth is required.");
+    if (!aadhaarNumber.trim()) return setErrorMsg("Aadhaar Number is required.");
+    if (aadhaarNumber.trim().length !== 12) return setErrorMsg("Aadhaar Number must be exactly 12 digits.");
+    if (!mobileNumber.trim()) return setErrorMsg("Mobile Number is required.");
+    if (mobileNumber.trim().length !== 10) return setErrorMsg("Mobile Number must be exactly 10 digits.");
+    if (!districtId) return setErrorMsg("District is required.");
+    if (!talukId) return setErrorMsg("Taluk is required.");
+
+    setErrorMsg("");
     submitRegistration({
       newPlayer: {
         fullName: fullName.trim(),
@@ -242,9 +250,24 @@ export function AddPlayerModal({
                     onFocus={() => { if (results.length) setDropdownOpen(true); }}
                     placeholder="Start typing... e.g. Arjun or TMP4F2A"
                     autoComplete="off"
-                    className={`${inputCls} pl-10`}
+                    className={`${inputCls} pl-10 pr-16`}
                   />
-                  {searching && <Loader2 size={17} className="animate-spin absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {searching && <Loader2 size={16} className="animate-spin text-slate-400" />}
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery("");
+                          setResults([]);
+                          setDropdownOpen(false);
+                        }}
+                        className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-200 transition-colors focus:outline-none"
+                      >
+                        <X size={15} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {dropdownOpen && (
                   <div className="absolute z-10 top-[calc(100%+6px)] left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
@@ -309,11 +332,11 @@ export function AddPlayerModal({
                 </div>
                 <div>
                   <label className={labelCls}>Aadhaar Number *</label>
-                  <input value={aadhaarNumber} onChange={(e) => setAadhaarNumber(e.target.value)} placeholder="12-digit number" className={inputCls} />
+                  <input type="text" maxLength={12} value={aadhaarNumber} onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, '').slice(0, 12))} placeholder="12-digit number" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Mobile Number *</label>
-                  <input value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} placeholder="10-digit number" className={inputCls} />
+                  <input type="text" maxLength={10} value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit number" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Email</label>
@@ -371,7 +394,7 @@ export function AddPlayerModal({
             <button
               type="button"
               onClick={handleAddExisting}
-              disabled={!selected || submitting}
+              disabled={submitting}
               className="px-6 py-2.5 rounded-xl font-black text-[13px] bg-[#FF7400] text-white flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}
@@ -381,7 +404,7 @@ export function AddPlayerModal({
             <button
               type="button"
               onClick={handleCreateAndAdd}
-              disabled={!canCreate || submitting}
+              disabled={submitting}
               className="px-6 py-2.5 rounded-xl font-black text-[13px] bg-[#FF7400] text-white flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting && <Loader2 size={16} className="animate-spin" />}

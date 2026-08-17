@@ -207,6 +207,10 @@ export default function AdminTournamentsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  const [levelFilter, setLevelFilter] = useState("ALL");
+  const [isLevelFilterOpen, setIsLevelFilterOpen] = useState(false);
+  const levelFilterRef = useRef<HTMLDivElement>(null);
+
   // Create modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({ ...emptyForm });
@@ -314,12 +318,14 @@ export default function AdminTournamentsPage() {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
         setIsFilterOpen(false);
       }
+      if (levelFilterRef.current && !levelFilterRef.current.contains(e.target as Node)) {
+        setIsLevelFilterOpen(false);
+      }
     };
 
     const handleScroll = () => {
-      if (isFilterOpen) {
-        setIsFilterOpen(false);
-      }
+      if (isFilterOpen) setIsFilterOpen(false);
+      if (isLevelFilterOpen) setIsLevelFilterOpen(false);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -338,17 +344,18 @@ export default function AdminTournamentsPage() {
 
   const approvalQueue = allTournaments.filter(t => inApprovalQueue(t, userRole));
 
-  const displayedApproval = approvalQueue.filter(
-    t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const displayedApproval = approvalQueue
+    .filter(t => levelFilter === "ALL" || t.level === levelFilter)
+    .filter(t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const displayedMine = myTournaments
+    .filter(t => levelFilter === "ALL" || t.level === levelFilter)
     .filter(t => filter === "ALL" || t.status === filter)
     .filter(t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const displayedApproved = approvedByMeList.filter(
-    t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const displayedApproved = approvedByMeList
+    .filter(t => levelFilter === "ALL" || t.level === levelFilter)
+    .filter(t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
 
@@ -718,7 +725,7 @@ export default function AdminTournamentsPage() {
                 className="flex items-center gap-2 px-5 py-2.5 bg-white text-slate-800 font-bold rounded-[8.5px] hover:bg-slate-50 transition-all text-sm"
               >
                 <Filter size={16} />
-                {filter === "ALL" ? "Filter" : filter}
+                {filter === "ALL" ? "Status" : filter}
               </button>
             </div>
             {isFilterOpen && (
@@ -730,13 +737,48 @@ export default function AdminTournamentsPage() {
                     className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${filter === f ? "bg-orange-50 text-[#FF7400]" : "text-slate-600 hover:bg-slate-50"
                       }`}
                   >
-                    {f === "ALL" ? "All Tournaments" : f}
+                    {f === "ALL" ? "All Statuses" : f}
                   </button>
                 ))}
               </div>
             )}
           </div>
         )}
+
+        {/* Level filter for all tabs */}
+        <div className="relative shrink-0" ref={levelFilterRef}>
+          <button
+            onClick={() => setIsLevelFilterOpen(!isLevelFilterOpen)}
+            className="flex items-center gap-2 px-4 h-[46px] bg-white border-2 border-slate-900 text-slate-900 font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm shrink-0"
+          >
+            <Filter size={16} strokeWidth={2.5} />
+            <span className="text-[11px] font-black leading-[1.1] text-left uppercase tracking-wider">
+              {levelFilter === "ALL" ? (
+                <>Select<br/>Level</>
+              ) : (
+                <>{levelFilter === "ZONE" ? "Zonal" : levelFilter}<br/>Level</>
+              )}
+            </span>
+          </button>
+          
+          {isLevelFilterOpen && (
+            <div className="absolute top-full mt-2 right-0 bg-white border-2 border-slate-900 shadow-xl rounded-xl overflow-hidden z-50 w-44">
+              {["ALL", "ZONE", "DISTRICT", "STATE", "NATIONAL"].map(f => {
+                const label = f === "ALL" ? "All Levels" : f === "ZONE" ? "Zonal" : f.charAt(0) + f.slice(1).toLowerCase();
+                return (
+                  <button
+                    key={f}
+                    onClick={() => { setLevelFilter(f); setIsLevelFilterOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${levelFilter === f ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Main content area ── */}

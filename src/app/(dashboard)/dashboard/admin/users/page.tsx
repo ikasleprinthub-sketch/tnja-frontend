@@ -1788,7 +1788,7 @@ function ViewDetailsModal({
                         </span>
                       );
                     } else if (isDate) {
-                      displayValue = new Date(val as string).toLocaleString();
+                      displayValue = new Date(val as string).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
                     } else if (typeof val === "object" && val !== null) {
                       displayValue = (val as any).name || (val as any).title || JSON.stringify(val);
                     }

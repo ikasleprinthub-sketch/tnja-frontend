@@ -267,6 +267,7 @@ const ClubRegistrationForm = ({ initialData = null, isResubmit = false }: { init
 
       if (response.ok) {
         setSuccess(result);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         if (result.errors && Array.isArray(result.errors)) {
           const errorMsgs = result.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');

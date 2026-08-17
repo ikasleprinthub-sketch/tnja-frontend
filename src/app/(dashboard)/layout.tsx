@@ -534,17 +534,26 @@ export default function DashboardLayout({
                   >
                     <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 backdrop-blur">
                       <span className="font-bold text-slate-800 text-sm">Notifications</span>
-                      {notifications.some(n => !n.read) && (
+                      <div className="flex items-center gap-3">
+                        {notifications.some(n => !n.read) && (
+                          <button 
+                            onClick={() => {
+                              const updated = notifications.map(n => ({ ...n, read: true }));
+                              saveNotifications(updated);
+                            }}
+                            className="text-xs text-[#FF7400] font-bold hover:underline cursor-pointer"
+                          >
+                            Mark all as read
+                          </button>
+                        )}
                         <button 
-                          onClick={() => {
-                            const updated = notifications.map(n => ({ ...n, read: true }));
-                            saveNotifications(updated);
-                          }}
-                          className="text-xs text-[#FF7400] font-bold hover:underline cursor-pointer"
+                          onClick={() => saveNotifications([])} 
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                          title="Clear all notifications"
                         >
-                          Mark all as read
+                          <X size={16} />
                         </button>
-                      )}
+                      </div>
                     </div>
                     <div className="max-h-64 overflow-y-auto">
                       {notifications.length === 0 ? (

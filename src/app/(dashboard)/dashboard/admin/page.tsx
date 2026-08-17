@@ -245,31 +245,6 @@ export default function AdminDashboard() {
         {/* ── RIGHT: Events ────────────────────────────────────────────── */}
         <div className="w-full xl:w-[400px] shrink-0 bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 xl:mr-12">
           
-          {/* Jurisdiction card */}
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white space-y-3">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Jurisdiction</p>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-                <MapPin size={18} className="text-orange-400" />
-              </div>
-              <div>
-                <p className="font-black text-base">{districtName}</p>
-                <p className="text-slate-400 text-xs font-semibold">{roleLabel(role)}</p>
-              </div>
-            </div>
-            {!isSuper && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <Link href="/dashboard/admin/members"
-                  className="text-center py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black transition-colors">
-                  Members
-                </Link>
-                <Link href="/dashboard/admin/approvals"
-                  className="text-center py-2 bg-[#FF7400]/80 hover:bg-[#FF7400] rounded-xl text-[10px] font-black transition-colors">
-                  Approvals
-                </Link>
-              </div>
-            )}
-          </div>
 
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-[#FF7400] uppercase tracking-widest">Events</h2>

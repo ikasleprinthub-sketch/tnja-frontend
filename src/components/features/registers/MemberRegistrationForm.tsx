@@ -277,7 +277,7 @@ const MemberRegistrationForm = () => {
   const [otpError, setOtpError] = useState<string | null>(null);
   
   const [districts, setDistricts] = useState<{id: string, name: string}[]>([]);
-  const [taluks, setTaluks] = useState<{id: string, name: string}[]>([]);
+  const [taluks, setTaluks] = useState<{id: string, name: string, pincode?: string}[]>([]);
 
   const [formData, setFormData] = useState<MemberRegistrationData>({
     districtId: '',
@@ -349,7 +349,8 @@ const MemberRegistrationForm = () => {
       setFormData(prev => ({ 
         ...prev, 
         talukId,
-        taluk: selectedTaluk.name
+        taluk: selectedTaluk.name,
+        addressPincode: selectedTaluk.pincode || prev.addressPincode
       }));
     } else {
       setFormData(prev => ({ ...prev, talukId: '', taluk: '' }));
@@ -490,6 +491,7 @@ const MemberRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         setError(result.error || "Something went wrong");
       }
@@ -574,16 +576,7 @@ const MemberRegistrationForm = () => {
                 value={formData.talukId}
                 onChange={handleTalukChange}
               />
-              <InputField 
-                label="Pincode" 
-                name="pincode" 
-                placeholder="6 Digit Pincode" 
-                required 
-                maxLength={6}
-                value={formData.pincode}
-                onChange={handleInputChange}
-                autoComplete="off"
-              />
+
             </div>
           </section>
 
@@ -617,7 +610,7 @@ const MemberRegistrationForm = () => {
                       required 
                       value={formData.dob} 
                       onChange={handleInputChange} 
-                      maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 18))}
+                      maxDate={new Date()}
                     />
                   </div>
                 </div>

@@ -531,6 +531,7 @@ const PlayerRegistrationForm = () => {
 
       if (response.ok) {
         setSuccess(result);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         if (result.errors && Array.isArray(result.errors)) {
           const errorMsgs = result.errors.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
@@ -616,19 +617,7 @@ const PlayerRegistrationForm = () => {
                   onChange={handleTalukChange}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <InputField
-                  label="Residing / Studing Pincode
-"
-                  name="pincode"
-                  placeholder="6 Digit Pincode"
-                  required
-                  value={formData.pincode}
-                  onChange={handleInputChange}
-                  maxLength={6}
-                  autoComplete="off"
-                />
-              </div>
+
             </div>
           </section>
 
@@ -667,7 +656,7 @@ const PlayerRegistrationForm = () => {
                       required
                       value={formData.dob}
                       onChange={handleInputChange}
-                      maxDate={new Date(new Date().setFullYear(new Date().getFullYear() - 3))}
+                      maxDate={new Date()}
                     />
                     <InputField
                       label="Age"

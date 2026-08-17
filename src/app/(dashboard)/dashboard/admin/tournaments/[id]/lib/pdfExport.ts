@@ -622,9 +622,35 @@ export function exportOverallTournamentReport(
         .td-center { text-align: center; }
         
         .footer { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 50px; }
+        
+        @media print {
+          .no-print { display: none !important; }
+        }
+        .back-btn {
+          position: absolute;
+          top: 20px;
+          left: 20px;
+          background: none;
+          border: none;
+          color: #f97316;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: background 0.2s;
+        }
+        .back-btn:hover { background: #fff7ed; }
       </style>
     </head>
     <body>
+      <button class="no-print back-btn" onclick="window.close()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Back
+      </button>
       <div class="header">
         <span class="header-icon">🏆</span>
         <h1 class="header-title">OFFICIAL TOURNAMENT COMPLETION REPORT</h1>
